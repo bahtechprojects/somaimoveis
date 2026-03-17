@@ -46,6 +46,13 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 # Copy Prisma schema (needed for migrations in production)
 COPY --from=builder /app/prisma ./prisma
 
+# Install Prisma CLI and bcryptjs for entrypoint seed
+RUN npm install -g prisma@6 && npm install bcryptjs
+
+# Copy entrypoint script
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
 # Create uploads directory
 RUN mkdir -p apps/web/public/uploads && chown -R nextjs:nodejs apps/web/public/uploads
 
@@ -53,4 +60,4 @@ USER nextjs
 
 EXPOSE 3000
 
-CMD ["node", "apps/web/server.js"]
+CMD ["./entrypoint.sh"]
