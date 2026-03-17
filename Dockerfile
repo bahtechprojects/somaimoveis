@@ -56,8 +56,9 @@ RUN npm install prisma@6 @prisma/client@6 bcryptjs && \
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
-# Create uploads directory
-RUN mkdir -p apps/web/public/uploads && chown -R nextjs:nodejs apps/web/public/uploads
+# Create uploads and cache directories with correct permissions
+RUN mkdir -p apps/web/public/uploads apps/web/.next/cache && \
+    chown -R nextjs:nodejs apps/web/public/uploads apps/web/.next/cache
 
 USER nextjs
 
