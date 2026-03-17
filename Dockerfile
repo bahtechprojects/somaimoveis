@@ -19,9 +19,6 @@ COPY . .
 # Switch Prisma to PostgreSQL for production
 RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/' prisma/schema.prisma
 
-# Add outputFileTracingRoot for monorepo standalone build
-RUN sed -i 's/output: "standalone"/output: "standalone",\n  outputFileTracingRoot: "..\/..\/",/' apps/web/next.config.ts
-
 # Generate Prisma client (Linux binary)
 RUN pnpm db:generate
 
