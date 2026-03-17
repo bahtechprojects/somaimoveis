@@ -5,6 +5,15 @@ import { requireAuth, isAuthError } from "@/lib/api-auth";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require("pdf-parse");
 
+// Regex patterns for Brazilian document fields
+const CPF_RE = /\d{3}[.\s]?\d{3}[.\s]?\d{3}[-\s]?\d{2}/g;
+const CNPJ_RE = /\d{2}[.\s]?\d{3}[.\s]?\d{3}[/\s]?\d{4}[-\s]?\d{2}/g;
+const PHONE_RE = /\(?\d{2}\)?\s*\d{4,5}[-\s]?\d{4}/g;
+const EMAIL_RE = /[\w.+-]+@[\w.-]+\.\w{2,}/g;
+
+// Address prefixes to detect where name ends and address begins
+const ADDRESS_PREFIXES = /\b(Rua|R\.|Av\.?|Avenida|Alameda|Travessa|Tv\.|Estrada|Rodovia|Rod\.|Praça|Largo|Beco|Viela|Corredor|Linha|Rincão|Galvão|Gonçalves|Gaspar|Presidente|Pres\.|Marechal|Tenente|General|Gerenal|Milton|Felix|Albano|Casemiro|Fernando|Liberato|Juca|Osvaldo|Vinte|Onze|Encantado|Emílio|LIberato)\b/;
+
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
@@ -29,8 +38,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "PDF vazio ou sem texto extraivel" }, { status: 400 });
     }
 
-    // Parse text into rows - try to detect tabular structure
-    const rows = parseTextToRows(text);
+    // Try smart report parsing first, then fallback to generic
+    let rows = parseReportPdf(text);
+
+    if (rows.length === 0) {
+      rows = parseGenericPdf(text);
+    }
 
     if (rows.length === 0) {
       return NextResponse.json({
@@ -48,8 +61,156 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Smart parser for Brazilian property management report PDFs.
+ * Detects CPF, CNPJ, phone, and email patterns to split lines into structured data.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseTextToRows(text: string): Record<string, any>[] {
+function parseReportPdf(text: string): Record<string, any>[] {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  // Detect report type by looking for known header keywords
+  const headerKeywords = {
+    locatarios: /Locat[áa]rio|Inquilino/i,
+    proprietarios: /Propriet[áa]rio|Locador/i,
+    imoveis: /Im[óo]vel|Im[óo]veis|Propriedade/i,
+    contratos: /Contrato/i,
+  };
+
+  let reportType: string | null = null;
+  for (const [type, regex] of Object.entries(headerKeywords)) {
+    if (lines.some((l) => regex.test(l))) {
+      reportType = type;
+      break;
+    }
+  }
+
+  if (!reportType) return [];
+
+  // Find where data starts (skip headers, title, page numbers)
+  const headerLine = lines.findIndex((l) =>
+    /Locat[áa]rio|Propriet[áa]rio|Im[óo]vel/i.test(l) &&
+    /Endere[çc]o|CPF|CNPJ|E-?mail/i.test(l)
+  );
+
+  if (headerLine === -1) {
+    // No formal header, try to parse each line with patterns
+    return parseLinesByPatterns(lines, reportType);
+  }
+
+  // Parse lines after header
+  const dataLines = lines.slice(headerLine + 1);
+  return parseLinesByPatterns(dataLines, reportType);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseLinesByPatterns(lines: string[], reportType: string): Record<string, any>[] {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows: Record<string, any>[] = [];
+
+  for (const line of lines) {
+    // Skip page headers, footers, totals
+    if (/^P[áa]gina\s+\d/i.test(line)) continue;
+    if (/^Rela[çc][ãa]o\s+de/i.test(line)) continue;
+    if (/^Total\s*\[/i.test(line)) continue;
+    if (/^PV\d+/i.test(line)) continue;
+    if (/^Locat[áa]rio\s+Endere[çc]o/i.test(line)) continue;
+    if (/^Propriet[áa]rio\s+Endere[çc]o/i.test(line)) continue;
+    if (line.length < 10) continue;
+
+    // Extract all patterns from the line
+    const cpfs = [...line.matchAll(CPF_RE)].map((m) => m[0]);
+    const cnpjs = [...line.matchAll(CNPJ_RE)].map((m) => m[0]);
+    const phones = [...line.matchAll(PHONE_RE)].map((m) => m[0]);
+    const emails = [...line.matchAll(EMAIL_RE)].map((m) => m[0]);
+
+    // Must have at least a CPF or CNPJ to be a valid data line
+    // (some lines might have only email for continuation - skip those)
+    if (cpfs.length === 0 && cnpjs.length === 0) continue;
+
+    // Determine CPF vs CNPJ
+    // CNPJ has /0001- pattern; CPF values that look like CNPJ need filtering
+    const realCnpjs = cnpjs.filter((c) => c.includes("/"));
+    const realCpfs = cpfs.filter((c) => {
+      // Exclude CPFs that are part of a CNPJ
+      return !realCnpjs.some((cnpj) => cnpj.includes(c.replace(/[-.\s]/g, "")));
+    });
+
+    // Extract the document (CPF or CNPJ)
+    let cpfCnpj = "";
+    if (realCnpjs.length > 0) {
+      cpfCnpj = realCnpjs[0];
+    } else if (realCpfs.length > 0) {
+      cpfCnpj = realCpfs[0];
+    }
+
+    // Find where the document number starts in the line to split name+address from the rest
+    const docIndex = cpfCnpj ? line.indexOf(cpfCnpj) : -1;
+    const beforeDoc = docIndex > 0 ? line.substring(0, docIndex).trim() : line;
+
+    // Split name and address using address prefix detection
+    let name = beforeDoc;
+    let endereco = "";
+
+    const addressMatch = beforeDoc.match(ADDRESS_PREFIXES);
+    if (addressMatch && addressMatch.index !== undefined && addressMatch.index > 3) {
+      name = beforeDoc.substring(0, addressMatch.index).trim();
+      endereco = beforeDoc.substring(addressMatch.index).trim();
+    }
+
+    // Clean name: remove leading numeric codes like "26.581.862"
+    name = name.replace(/^\d[\d.]+\s+/, "").trim();
+
+    // Skip if no name
+    if (!name || name.length < 2) continue;
+
+    // Build row based on report type
+    if (reportType === "locatarios" || reportType === "proprietarios") {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const row: Record<string, any> = {
+        nome: name,
+        endereco: endereco || "",
+        cpf_cnpj: cpfCnpj,
+        telefone: phones[0] || "",
+        email: emails[0] || "",
+      };
+
+      // If there are multiple phones, second one is "comercial"
+      if (phones.length > 1) {
+        row.telefone_comercial = phones[1];
+      }
+
+      // Multiple emails
+      if (emails.length > 1) {
+        row.email = emails.join(", ");
+      }
+
+      rows.push(row);
+    } else {
+      // Generic row
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const row: Record<string, any> = {
+        nome: name,
+        endereco: endereco || "",
+        cpf_cnpj: cpfCnpj,
+        telefone: phones[0] || "",
+        email: emails[0] || "",
+      };
+      rows.push(row);
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * Generic parser for structured PDFs (CSV-like, tab-separated, etc.)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseGenericPdf(text: string): Record<string, any>[] {
   const lines = text
     .split("\n")
     .map((l) => l.trim())
@@ -57,42 +218,23 @@ function parseTextToRows(text: string): Record<string, any>[] {
 
   if (lines.length < 2) return [];
 
-  // Strategy 1: Try tab-separated
-  const tabSep = tryDelimiter(lines, "\t");
-  if (tabSep.length > 0) return tabSep;
-
-  // Strategy 2: Try semicolon-separated (common in BR exports)
-  const semiSep = tryDelimiter(lines, ";");
-  if (semiSep.length > 0) return semiSep;
-
-  // Strategy 3: Try pipe-separated
-  const pipeSep = tryDelimiter(lines, "|");
-  if (pipeSep.length > 0) return pipeSep;
-
-  // Strategy 4: Try comma-separated
-  const commaSep = tryDelimiter(lines, ",");
-  if (commaSep.length > 0) return commaSep;
-
-  // Strategy 5: Try to detect columns by multiple spaces (fixed-width tables)
-  const fixedWidth = tryFixedWidth(lines);
-  if (fixedWidth.length > 0) return fixedWidth;
+  // Try common delimiters
+  for (const delimiter of ["\t", ";", "|", ","]) {
+    const result = tryDelimiter(lines, delimiter);
+    if (result.length > 0) return result;
+  }
 
   return [];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function tryDelimiter(lines: string[], delimiter: string): Record<string, any>[] {
-  // Check if header line has the delimiter
   const headerParts = lines[0].split(delimiter).map((p) => p.trim()).filter((p) => p.length > 0);
-
-  // Need at least 2 columns to be a valid table
   if (headerParts.length < 2) return [];
 
-  // Check that at least 30% of data lines have similar column count
   let matchCount = 0;
   for (let i = 1; i < Math.min(lines.length, 20); i++) {
     const parts = lines[i].split(delimiter).map((p) => p.trim());
-    // Allow some flexibility in column count (+/- 1)
     if (Math.abs(parts.length - headerParts.length) <= 1) {
       matchCount++;
     }
@@ -101,7 +243,6 @@ function tryDelimiter(lines: string[], delimiter: string): Record<string, any>[]
   const dataLines = Math.min(lines.length - 1, 19);
   if (dataLines > 0 && matchCount / dataLines < 0.3) return [];
 
-  // Parse all rows
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows: Record<string, any>[] = [];
   for (let i = 1; i < lines.length; i++) {
@@ -110,63 +251,6 @@ function tryDelimiter(lines: string[], delimiter: string): Record<string, any>[]
     const row: Record<string, any> = {};
     for (let j = 0; j < headerParts.length; j++) {
       row[headerParts[j]] = parts[j] ?? "";
-    }
-    // Skip completely empty rows
-    if (Object.values(row).some((v) => v !== "")) {
-      rows.push(row);
-    }
-  }
-
-  return rows;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function tryFixedWidth(lines: string[]): Record<string, any>[] {
-  // Detect column boundaries by finding positions where multiple spaces appear consistently
-  const headerLine = lines[0];
-
-  // Find positions with 2+ spaces in header
-  const gaps: number[] = [];
-  for (let i = 0; i < headerLine.length - 1; i++) {
-    if (headerLine[i] === " " && headerLine[i + 1] === " ") {
-      // Find the end of the gap
-      let end = i + 1;
-      while (end < headerLine.length && headerLine[end] === " ") end++;
-      if (!gaps.includes(i)) gaps.push(i);
-      i = end - 1;
-    }
-  }
-
-  if (gaps.length < 1) return [];
-
-  // Build column boundaries: [start, end]
-  const boundaries: [number, number][] = [];
-  let start = 0;
-  for (const gap of gaps) {
-    boundaries.push([start, gap]);
-    // Find where next column starts
-    let nextStart = gap;
-    while (nextStart < headerLine.length && headerLine[nextStart] === " ") nextStart++;
-    start = nextStart;
-  }
-  // Last column
-  boundaries.push([start, Math.max(...lines.map((l) => l.length))]);
-
-  // Extract headers
-  const headers = boundaries.map(([s, e]) => headerLine.substring(s, e).trim()).filter((h) => h.length > 0);
-
-  if (headers.length < 2) return [];
-
-  // Extract data rows
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows: Record<string, any>[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const row: Record<string, any> = {};
-    for (let j = 0; j < boundaries.length && j < headers.length; j++) {
-      const [s, e] = boundaries[j];
-      row[headers[j]] = (line.substring(s, Math.min(e, line.length)) || "").trim();
     }
     if (Object.values(row).some((v) => v !== "")) {
       rows.push(row);
