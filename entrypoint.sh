@@ -7,10 +7,6 @@ echo "=== Somma Imoveis - Starting ==="
 echo "Running Prisma db push..."
 npx prisma db push --schema=./prisma/schema.prisma --skip-generate 2>&1 || echo "Warning: db push failed, tables may already exist"
 
-# Generate Prisma client for this environment
-echo "Generating Prisma client..."
-npx prisma generate --schema=./prisma/schema.prisma 2>&1
-
 # Seed admin user if no users exist
 echo "Checking if seed is needed..."
 node -e "

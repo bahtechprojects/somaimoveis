@@ -47,7 +47,10 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/prisma ./prisma
 
 # Install Prisma CLI, @prisma/client and bcryptjs for entrypoint seed
-RUN npm install prisma@6 @prisma/client@6 bcryptjs
+# Also generate Prisma client (must be done as root before USER nextjs)
+COPY --from=builder /app/prisma/schema.prisma ./prisma/schema.prisma
+RUN npm install prisma@6 @prisma/client@6 bcryptjs && \
+    npx prisma generate --schema=./prisma/schema.prisma
 
 # Copy entrypoint script
 COPY entrypoint.sh ./entrypoint.sh
