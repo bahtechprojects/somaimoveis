@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#4a5a2b" />
+  <title>Somma Portal - Offline</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background-color: #faf9f5;
+      color: #1a1a1a;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .container {
+      text-align: center;
+      max-width: 400px;
+    }
+
+    .logo {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 32px;
+      background-color: #4a5a2b;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo span {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 44px;
+      font-weight: bold;
+      color: #faf9f5;
+      line-height: 1;
+    }
+
+    .brand {
+      font-size: 14px;
+      font-weight: 600;
+      color: #4a5a2b;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 40px;
+    }
+
+    .icon-offline {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 24px;
+      color: #9ca3af;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #1a1a1a;
+      margin-bottom: 12px;
+    }
+
+    p {
+      font-size: 15px;
+      color: #6b7280;
+      line-height: 1.5;
+      margin-bottom: 32px;
+    }
+
+    .btn-retry {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      background-color: #4a5a2b;
+      color: #ffffff;
+      font-size: 15px;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-retry:hover {
+      background-color: #3d4b24;
+    }
+
+    .btn-retry:active {
+      background-color: #333f1e;
+    }
+
+    .btn-retry svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .footer {
+      position: fixed;
+      bottom: 24px;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <span>S</span>
+    </div>
+    <div class="brand">Somma</div>
+
+    <!-- Offline cloud icon -->
+    <svg class="icon-offline" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 13V11C22 7.68629 19.3137 5 16 5C13.9157 5 12.0736 6.04469 10.9519 7.63607" />
+      <path d="M16 21H7C4.23858 21 2 18.7614 2 16C2 13.4898 3.86099 11.4204 6.27148 11.0536C6.09452 10.4004 6 9.71079 6 9C6 8.29921 6.09193 7.61895 6.26484 6.97418" />
+      <path d="M16 21C18.2091 21 20 19.2091 20 17C20 16.2066 19.7527 15.4701 19.3312 14.8624" />
+      <line x1="2" y1="2" x2="22" y2="22" />
+    </svg>
+
+    <h1>Voce esta offline</h1>
+    <p>Verifique sua conexao com a internet e tente novamente.</p>
+
+    <button class="btn-retry" onclick="window.location.reload()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10" />
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+      </svg>
+      Tentar novamente
+    </button>
+  </div>
+
+  <div class="footer">Somma Imoveis</div>
+</body>
+</html>

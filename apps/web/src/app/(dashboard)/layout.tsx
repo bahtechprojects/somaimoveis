@@ -1,0 +1,62 @@
+"use client";
+
+import { useSession } from "next-auth/react";
+import { SidebarProvider } from "@/components/layout/sidebar";
+import { BottomNav, type BottomNavItem } from "@/components/layout/bottom-nav";
+import { canAccessRoute } from "@/lib/rbac";
+import {
+  LayoutDashboard,
+  Building2,
+  DollarSign,
+  FileText,
+  Users,
+  UserCheck,
+  BarChart3,
+  Receipt,
+  Bell,
+  UsersRound,
+  Settings,
+} from "lucide-react";
+
+const primaryItems: BottomNavItem[] = [
+  { label: "Dashboard", href: "/", icon: LayoutDashboard, exact: true },
+  { label: "Imoveis", href: "/imoveis", icon: Building2 },
+  { label: "Financeiro", href: "/financeiro", icon: DollarSign },
+  { label: "Contratos", href: "/contratos", icon: FileText },
+];
+
+const moreItems: BottomNavItem[] = [
+  { label: "Proprietarios", href: "/proprietarios", icon: Users },
+  { label: "Locatarios", href: "/locatarios", icon: UserCheck },
+  { label: "Relatorios", href: "/relatorios", icon: BarChart3 },
+  { label: "Fiscal", href: "/fiscal", icon: Receipt },
+  { label: "Notificacoes", href: "/notificacoes", icon: Bell },
+  { label: "Usuarios", href: "/usuarios", icon: UsersRound },
+  { label: "Configuracoes", href: "/configuracoes", icon: Settings },
+];
+
+function DashboardBottomNav() {
+  const { data: session } = useSession();
+  const userRole = (session?.user as any)?.role || "CORRETOR";
+
+  const filteredMore = moreItems.filter((item) => canAccessRoute(userRole, item.href));
+
+  return <BottomNav primaryItems={primaryItems} moreItems={filteredMore} />;
+}
+
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <SidebarProvider>
+      <div className="flex min-h-screen">
+        <main className="flex-1 md:ml-[260px] transition-all duration-300 w-full pb-16 md:pb-0">
+          {children}
+        </main>
+      </div>
+      <DashboardBottomNav />
+    </SidebarProvider>
+  );
+}

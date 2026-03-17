@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Maskable icon: safe zone is inner 80% (51.2px padding each side) -->
+  <rect width="512" height="512" fill="#4a5a2b"/>
+  <text
+    x="256"
+    y="246"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="260"
+    font-weight="bold"
+    fill="#faf9f5"
+    text-anchor="middle"
+    dominant-baseline="central"
+    letter-spacing="-8"
+  >S</text>
+  <rect x="130" y="380" width="252" height="5" rx="2.5" fill="#faf9f5" opacity="0.4"/>
+</svg>

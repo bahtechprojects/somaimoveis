@@ -1,0 +1,751 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { Header } from "@/components/layout/header";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Plus,
+  Search,
+  MoreVertical,
+  Pencil,
+  KeyRound,
+  UserX,
+  UserCheck,
+  UsersRound,
+  UserCheck2,
+  UserMinus,
+} from "lucide-react";
+import { ROLE_LABELS } from "@/lib/rbac";
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  phone: string | null;
+  avatarUrl: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+function formatDate(date: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(date));
+}
+
+export default function UsuariosPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  // Create/Edit dialog
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "CORRETOR",
+    phone: "",
+  });
+  const [formError, setFormError] = useState("");
+  const [formLoading, setFormLoading] = useState(false);
+
+  // Reset password dialog
+  const [resetPasswordOpen, setResetPasswordOpen] = useState(false);
+  const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+
+  // Activate/Deactivate dialog
+  const [toggleActiveOpen, setToggleActiveOpen] = useState(false);
+  const [toggleActiveUser, setToggleActiveUser] = useState<User | null>(null);
+  const [toggleLoading, setToggleLoading] = useState(false);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (roleFilter !== "all") params.set("role", roleFilter);
+      if (statusFilter !== "all")
+        params.set("active", statusFilter === "active" ? "true" : "false");
+
+      const response = await fetch(`/api/users?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar usuarios:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [search, roleFilter, statusFilter]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  // Stats
+  const totalUsers = users.length;
+  const activeUsers = users.filter((u) => u.active).length;
+  const inactiveUsers = users.filter((u) => !u.active).length;
+
+  // Handlers
+  function handleNewUser() {
+    setEditingUser(null);
+    setFormData({ name: "", email: "", password: "", role: "CORRETOR", phone: "" });
+    setFormError("");
+    setFormOpen(true);
+  }
+
+  function handleEditUser(user: User) {
+    setEditingUser(user);
+    setFormData({
+      name: user.name,
+      email: user.email,
+      password: "",
+      role: user.role,
+      phone: user.phone || "",
+    });
+    setFormError("");
+    setFormOpen(true);
+  }
+
+  async function handleFormSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError("");
+    setFormLoading(true);
+
+    try {
+      if (editingUser) {
+        // Update
+        const updateBody: Record<string, unknown> = {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          phone: formData.phone || null,
+        };
+
+        const response = await fetch(`/api/users/${editingUser.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updateBody),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          setFormError(data.error || "Erro ao atualizar usuario");
+          return;
+        }
+      } else {
+        // Create
+        if (!formData.password) {
+          setFormError("Senha e obrigatoria para novos usuarios");
+          return;
+        }
+        if (formData.password.length < 6) {
+          setFormError("A senha deve ter pelo menos 6 caracteres");
+          return;
+        }
+
+        const response = await fetch("/api/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          setFormError(data.error || "Erro ao criar usuario");
+          return;
+        }
+      }
+
+      setFormOpen(false);
+      fetchUsers();
+    } catch {
+      setFormError("Erro de conexao. Tente novamente.");
+    } finally {
+      setFormLoading(false);
+    }
+  }
+
+  function handleResetPassword(user: User) {
+    setResetPasswordUser(user);
+    setNewPassword("");
+    setConfirmPassword("");
+    setResetError("");
+    setResetPasswordOpen(true);
+  }
+
+  async function handleResetPasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setResetError("");
+
+    if (!newPassword) {
+      setResetError("Digite a nova senha");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setResetError("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setResetError("As senhas nao conferem");
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const response = await fetch(`/api/users/${resetPasswordUser!.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        setResetError(data.error || "Erro ao redefinir senha");
+        return;
+      }
+
+      setResetPasswordOpen(false);
+    } catch {
+      setResetError("Erro de conexao. Tente novamente.");
+    } finally {
+      setResetLoading(false);
+    }
+  }
+
+  function handleToggleActive(user: User) {
+    setToggleActiveUser(user);
+    setToggleActiveOpen(true);
+  }
+
+  async function handleToggleActiveConfirm() {
+    if (!toggleActiveUser) return;
+    setToggleLoading(true);
+
+    try {
+      if (toggleActiveUser.active) {
+        // Deactivate
+        const response = await fetch(`/api/users/${toggleActiveUser.id}`, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          alert(data.error || "Erro ao desativar usuario");
+          return;
+        }
+      } else {
+        // Activate
+        const response = await fetch(`/api/users/${toggleActiveUser.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: true }),
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          alert(data.error || "Erro ao ativar usuario");
+          return;
+        }
+      }
+
+      setToggleActiveOpen(false);
+      fetchUsers();
+    } catch {
+      alert("Erro de conexao. Tente novamente.");
+    } finally {
+      setToggleLoading(false);
+    }
+  }
+
+  function getRoleBadgeVariant(role: string) {
+    switch (role) {
+      case "ADMIN":
+        return "destructive" as const;
+      case "FINANCEIRO":
+        return "outline" as const;
+      default:
+        return "default" as const;
+    }
+  }
+
+  return (
+    <div className="flex flex-col">
+      <Header
+        title="Usuarios"
+        subtitle="Gerenciamento de usuarios do sistema"
+      />
+
+      <div className="p-4 sm:p-6 space-y-4">
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            {
+              label: "Total Usuarios",
+              value: loading ? "..." : String(totalUsers),
+              icon: UsersRound,
+            },
+            {
+              label: "Ativos",
+              value: loading ? "..." : String(activeUsers),
+              icon: UserCheck2,
+            },
+            {
+              label: "Inativos",
+              value: loading ? "..." : String(inactiveUsers),
+              icon: UserMinus,
+            },
+          ].map((stat) => (
+            <Card key={stat.label} className="border-0 shadow-sm">
+              <CardContent className="p-4">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {stat.label}
+                </p>
+                <p className="text-xl font-bold mt-1">{stat.value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Table */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-0">
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 border-b">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nome ou email..."
+                    className="pl-9 h-8 w-[240px] text-xs"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="h-8 w-[140px] text-xs">
+                    <SelectValue placeholder="Cargo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os cargos</SelectItem>
+                    <SelectItem value="ADMIN">Administrador</SelectItem>
+                    <SelectItem value="CORRETOR">Corretor</SelectItem>
+                    <SelectItem value="FINANCEIRO">Financeiro</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="h-8 w-[120px] text-xs">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="active">Ativos</SelectItem>
+                    <SelectItem value="inactive">Inativos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                size="sm"
+                className="gap-1.5 h-8 text-xs"
+                onClick={handleNewUser}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Novo Usuario
+              </Button>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <p className="text-sm text-muted-foreground">Carregando...</p>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <p className="text-sm text-muted-foreground">
+                  {search || roleFilter !== "all" || statusFilter !== "all"
+                    ? "Nenhum usuario encontrado para os filtros aplicados."
+                    : "Nenhum usuario cadastrado."}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-xs">Nome</TableHead>
+                    <TableHead className="text-xs">Email</TableHead>
+                    <TableHead className="text-xs">Cargo</TableHead>
+                    <TableHead className="text-xs">Telefone</TableHead>
+                    <TableHead className="text-xs text-center">
+                      Status
+                    </TableHead>
+                    <TableHead className="text-xs">Criado em</TableHead>
+                    <TableHead className="text-xs w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+                              {getInitials(user.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium">
+                            {user.name}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {user.email}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getRoleBadgeVariant(user.role)}>
+                          {ROLE_LABELS[user.role] || user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {user.phone || "-"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {user.active ? (
+                          <Badge
+                            variant="outline"
+                            className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                          >
+                            Ativo
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="bg-red-50 text-red-700 border-red-200"
+                          >
+                            Inativo
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {formatDate(user.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleEditUser(user)}
+                            >
+                              <Pencil className="h-3.5 w-3.5 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleResetPassword(user)}
+                            >
+                              <KeyRound className="h-3.5 w-3.5 mr-2" />
+                              Redefinir Senha
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleToggleActive(user)}
+                            >
+                              {user.active ? (
+                                <>
+                                  <UserX className="h-3.5 w-3.5 mr-2" />
+                                  Desativar
+                                </>
+                              ) : (
+                                <>
+                                  <UserCheck className="h-3.5 w-3.5 mr-2" />
+                                  Ativar
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Create/Edit User Dialog */}
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingUser ? "Editar Usuario" : "Novo Usuario"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingUser
+                ? "Atualize as informacoes do usuario."
+                : "Preencha os dados para criar um novo usuario."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleFormSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Nome</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  placeholder="Nome completo"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) =>
+                    setFormData({ ...formData, email: e.target.value })
+                  }
+                  placeholder="email@exemplo.com"
+                  required
+                />
+              </div>
+              {!editingUser && (
+                <div className="grid gap-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
+                    placeholder="Minimo 6 caracteres"
+                    required
+                    minLength={6}
+                  />
+                </div>
+              )}
+              <div className="grid gap-2">
+                <Label htmlFor="role">Cargo</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, role: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o cargo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ADMIN">Administrador</SelectItem>
+                    <SelectItem value="CORRETOR">Corretor</SelectItem>
+                    <SelectItem value="FINANCEIRO">Financeiro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Telefone</Label>
+                <Input
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+              {formError && (
+                <p className="text-sm text-destructive">{formError}</p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setFormOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={formLoading}>
+                {formLoading
+                  ? "Salvando..."
+                  : editingUser
+                  ? "Salvar"
+                  : "Criar Usuario"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetPasswordOpen} onOpenChange={setResetPasswordOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Redefinir Senha</DialogTitle>
+            <DialogDescription>
+              Defina uma nova senha para{" "}
+              <strong>{resetPasswordUser?.name}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleResetPasswordSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="newPassword">Nova Senha</Label>
+                <Input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimo 6 caracteres"
+                  required
+                  minLength={6}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="confirmPassword">Confirmar Senha</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repita a senha"
+                  required
+                  minLength={6}
+                />
+              </div>
+              {resetError && (
+                <p className="text-sm text-destructive">{resetError}</p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setResetPasswordOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={resetLoading}>
+                {resetLoading ? "Salvando..." : "Redefinir Senha"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Activate/Deactivate Confirmation */}
+      <AlertDialog open={toggleActiveOpen} onOpenChange={setToggleActiveOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {toggleActiveUser?.active
+                ? "Desativar Usuario"
+                : "Ativar Usuario"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {toggleActiveUser?.active
+                ? `Tem certeza que deseja desativar o usuario "${toggleActiveUser?.name}"? Ele nao podera mais acessar o sistema.`
+                : `Deseja reativar o usuario "${toggleActiveUser?.name}"? Ele voltara a ter acesso ao sistema.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleToggleActiveConfirm}
+              disabled={toggleLoading}
+              className={
+                toggleActiveUser?.active
+                  ? "bg-destructive text-white hover:bg-destructive/90"
+                  : ""
+              }
+            >
+              {toggleLoading
+                ? "Processando..."
+                : toggleActiveUser?.active
+                ? "Desativar"
+                : "Ativar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

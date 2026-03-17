@@ -1,0 +1,33 @@
+{
+  "name": "Somma Imoveis - Portal do Proprietario",
+  "short_name": "Somma Portal",
+  "description": "Acompanhe seus imoveis, contratos e financeiro",
+  "start_url": "/portal",
+  "scope": "/portal",
+  "display": "standalone",
+  "background_color": "#faf9f5",
+  "theme_color": "#4a5a2b",
+  "orientation": "portrait-primary",
+  "categories": ["business", "finance"],
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

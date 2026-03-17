@@ -1,0 +1,359 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// USUARIOS E AUTENTICACAO
+// ==========================================
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      String   @default("CORRETOR") // ADMIN, CORRETOR, FINANCEIRO
+  phone     String?
+  avatarUrl String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ==========================================
+// PROPRIETARIOS
+// ==========================================
+
+model Owner {
+  id           String   @id @default(cuid())
+  name         String
+  email        String?
+  phone        String?
+  cpfCnpj      String   @unique
+  personType   String   @default("PF") // PF ou PJ
+  // Endereco
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+  zipCode      String?
+  // Dados bancarios
+  bankName     String?
+  bankAgency   String?
+  bankAccount  String?
+  bankPix      String?
+  // Portal de acesso
+  portalToken  String?  @unique
+  portalActive Boolean  @default(false)
+  // Meta
+  notes        String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  properties Property[]
+  contracts  Contract[]
+  payments   Payment[]
+
+  @@map("owners")
+}
+
+// ==========================================
+// LOCATARIOS (INQUILINOS)
+// ==========================================
+
+model Tenant {
+  id           String   @id @default(cuid())
+  name         String
+  email        String?
+  phone        String?
+  cpfCnpj      String   @unique
+  personType   String   @default("PF") // PF ou PJ
+  // Endereco (anterior)
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+  zipCode      String?
+  // Documentos
+  rgNumber     String?
+  // Profissional
+  occupation   String?
+  monthlyIncome Float?
+  // Meta
+  notes        String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  contracts Contract[]
+  payments  Payment[]
+
+  @@map("tenants")
+}
+
+// ==========================================
+// IMOVEIS
+// ==========================================
+
+model Property {
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  type          String // CASA, APARTAMENTO, COMERCIAL, TERRENO, SALA, PAVILHAO
+  status        String   @default("DISPONIVEL") // DISPONIVEL, ALUGADO, MANUTENCAO, INATIVO
+  // Endereco
+  street        String
+  number        String
+  complement    String?
+  neighborhood  String
+  city          String
+  state         String
+  zipCode       String
+  // Detalhes
+  area          Float?
+  bedrooms      Int      @default(0)
+  bathrooms     Int      @default(0)
+  parkingSpaces Int      @default(0)
+  furnished     Boolean  @default(false)
+  // Valores
+  rentalValue   Float?
+  saleValue     Float?
+  condoFee      Float?
+  iptuValue     Float?
+  // Proprietario
+  ownerId       String
+  owner         Owner    @relation(fields: [ownerId], references: [id])
+  // Meta
+  notes         String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  photos             PropertyPhoto[]
+  contracts          Contract[]
+  maintenanceRecords MaintenanceRecord[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@map("properties")
+}
+
+model PropertyPhoto {
+  id         String   @id @default(cuid())
+  url        String
+  caption    String?
+  order      Int      @default(0)
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@map("property_photos")
+}
+
+// ==========================================
+// CONTRATOS
+// ==========================================
+
+model Contract {
+  id             String   @id @default(cuid())
+  code           String   @unique // CTR-001, CTR-002...
+  type           String   @default("LOCACAO") // LOCACAO, VENDA, TEMPORADA
+  status         String   @default("ATIVO") // ATIVO, ENCERRADO, PENDENTE_RENOVACAO, CANCELADO
+  // Partes
+  propertyId     String
+  property       Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  ownerId        String
+  owner          Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  // Valores
+  rentalValue    Float
+  adminFeePercent Float   @default(10) // Taxa de administracao %
+  // Datas
+  startDate      DateTime
+  endDate        DateTime
+  paymentDay     Int      @default(10) // Dia do vencimento
+  // Garantia
+  guaranteeType  String?  // FIADOR, CAUCAO, SEGURO_FIANCA, TITULO_CAPITALIZACAO, SEM_GARANTIA
+  guaranteeValue Float?
+  guaranteeNotes String?
+  // Reajuste
+  adjustmentIndex String? @default("IGPM") // IGPM, IPCA, INPC
+  adjustmentMonth Int?    // Mes do reajuste
+  // Documento
+  documentUrl    String?  // PDF do contrato
+  // Meta
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  payments Payment[]
+
+  @@index([status])
+  @@index([ownerId])
+  @@index([tenantId])
+  @@index([propertyId])
+  @@map("contracts")
+}
+
+// ==========================================
+// PAGAMENTOS / COBRANCAS
+// ==========================================
+
+model Payment {
+  id            String    @id @default(cuid())
+  code          String    @unique // PAG-001...
+  // Vinculacao
+  contractId    String
+  contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ownerId       String
+  owner         Owner     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  // Valores
+  value         Float
+  paidValue     Float?
+  fineValue     Float?    // Multa
+  interestValue Float?    // Juros
+  discountValue Float?    // Desconto
+  intermediationFee Float? // Valor de intermediacao
+  // Datas
+  dueDate       DateTime
+  paidAt        DateTime?
+  // Detalhes
+  status        String    @default("PENDENTE") // PENDENTE, PAGO, ATRASADO, CANCELADO, PARCIAL
+  paymentMethod String?   // BOLETO, PIX, CARTAO, TRANSFERENCIA, DINHEIRO
+  description   String?
+  // Split (futuro - Asaas)
+  splitOwnerValue     Float?
+  splitAdminValue     Float?
+  externalPaymentId   String?  // ID do Asaas
+  // Meta
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([contractId])
+  @@index([tenantId])
+  @@index([ownerId])
+  @@map("payments")
+}
+
+// ==========================================
+// MANUTENCOES E VISTORIAS
+// ==========================================
+
+model MaintenanceRecord {
+  id          String    @id @default(cuid())
+  propertyId  String
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  type        String    // MANUTENCAO, VISTORIA_ENTRADA, VISTORIA_SAIDA, REPARO
+  title       String
+  description String?
+  cost        Float?
+  status      String    @default("PENDENTE") // PENDENTE, EM_ANDAMENTO, CONCLUIDO
+  scheduledAt DateTime?
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("maintenance_records")
+}
+
+// ==========================================
+// NOTIFICACOES
+// ==========================================
+
+model Notification {
+  id             String    @id @default(cuid())
+  type           String    // WHATSAPP, EMAIL, SMS
+  channel        String    // whatsapp, email, sms
+  recipientName  String
+  recipientPhone String?
+  recipientEmail String?
+  templateKey    String    // payment_reminder, payment_overdue, payment_received, contract_expiring, etc.
+  subject        String?
+  message        String
+  status         String    @default("PENDENTE") // PENDENTE, ENVIADO, FALHA, CANCELADO
+  sentAt         DateTime?
+  errorMessage   String?
+  // Relations
+  paymentId      String?
+  contractId     String?
+  tenantId       String?
+  ownerId        String?
+  // Meta
+  metadata       String? // JSON string with extra data
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([paymentId])
+  @@index([contractId])
+  @@index([status])
+  @@index([templateKey])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ==========================================
+// DOCUMENTOS (GENERICO)
+// ==========================================
+
+model Document {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  mimeType    String?
+  size        Int?     // bytes
+  category    String?  // CONTRATO, COMPROVANTE, VISTORIA, DOCUMENTO_PESSOAL
+  entityType  String?  // PROPERTY, CONTRACT, OWNER, TENANT
+  entityId    String?
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@map("documents")
+}
+
+// ==========================================
+// TOKENS DE RECUPERACAO DE SENHA
+// ==========================================
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+// ==========================================
+// CONFIGURACOES DO SISTEMA
+// ==========================================
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   // JSON string
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}

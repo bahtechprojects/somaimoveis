@@ -1,0 +1,534 @@
+"use client";
+
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Header } from "@/components/layout/header";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Plus,
+  Search,
+  FileText,
+  MoreVertical,
+  Upload,
+  Pencil,
+  Trash2,
+  DollarSign,
+  CalendarClock,
+  ClipboardList,
+  CheckCircle2,
+  Files,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ContractForm } from "@/components/forms/contract-form";
+import { UploadPdf } from "@/components/forms/upload-pdf";
+import { BatchUploadPdf } from "@/components/forms/batch-upload-pdf";
+import { ImportSpreadsheet } from "@/components/forms/import-spreadsheet";
+import { FileSpreadsheet } from "lucide-react";
+
+interface Contract {
+  id: string;
+  code: string;
+  type: string;
+  status: string;
+  propertyId: string;
+  ownerId: string;
+  tenantId: string;
+  rentalValue: number;
+  adminFeePercent: number;
+  paymentDay: number;
+  startDate: string;
+  endDate: string;
+  guaranteeType: string | null;
+  guaranteeValue: number | null;
+  guaranteeNotes: string | null;
+  adjustmentIndex: string | null;
+  adjustmentMonth: number | null;
+  notes: string | null;
+  property: { id: string; title: string };
+  owner: { id: string; name: string };
+  tenant: { id: string; name: string };
+}
+
+const statusConfig: Record<string, { label: string; className: string }> = {
+  ATIVO: { label: "Ativo", className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  PENDENTE_RENOVACAO: { label: "Renovacao", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  ENCERRADO: { label: "Encerrado", className: "bg-muted text-muted-foreground" },
+  CANCELADO: { label: "Cancelado", className: "bg-red-100 text-red-700 border-red-200" },
+};
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(value);
+}
+
+export default function ContratosPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-12"><p className="text-sm text-muted-foreground">Carregando...</p></div>}>
+      <ContratosContent />
+    </Suspense>
+  );
+}
+
+function ContratosContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("todos");
+  const [formOpen, setFormOpen] = useState(false);
+  const [selectedContract, setSelectedContract] = useState<Contract | undefined>(undefined);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [contractToDelete, setContractToDelete] = useState<Contract | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [batchUploadOpen, setBatchUploadOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+
+  async function fetchContracts() {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/contracts");
+      if (response.ok) {
+        const data = await response.json();
+        setContracts(data);
+      }
+    } catch (error) {
+      console.error("Erro ao buscar contratos:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchContracts();
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get("novo") === "true") {
+      setSelectedContract(undefined);
+      setFormOpen(true);
+      router.replace("/contratos");
+    }
+  }, [searchParams, router]);
+
+  // Client-side filtering by status tab
+  const filteredByStatus = contracts.filter((contract) => {
+    if (activeTab === "todos") return true;
+    if (activeTab === "ativos") return contract.status === "ATIVO";
+    if (activeTab === "encerrados") return contract.status === "ENCERRADO";
+    if (activeTab === "renovacao") return contract.status === "PENDENTE_RENOVACAO";
+    return true;
+  });
+
+  // Client-side search
+  const filteredContracts = filteredByStatus.filter((contract) => {
+    if (!search) return true;
+    const term = search.toLowerCase();
+    return (
+      contract.code.toLowerCase().includes(term) ||
+      contract.property.title.toLowerCase().includes(term) ||
+      contract.tenant.name.toLowerCase().includes(term)
+    );
+  });
+
+  // Stats
+  const totalContracts = contracts.length;
+  const activeContracts = contracts.filter((c) => c.status === "ATIVO").length;
+  const totalMonthlyValue = contracts
+    .filter((c) => c.status === "ATIVO")
+    .reduce((sum, c) => sum + c.rentalValue, 0);
+  const now = new Date();
+  const in30Days = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const expiringIn30Days = contracts.filter((c) => {
+    if (c.status !== "ATIVO") return false;
+    const endDate = new Date(c.endDate);
+    return endDate >= now && endDate <= in30Days;
+  }).length;
+
+  function handleNewContract() {
+    setSelectedContract(undefined);
+    setFormOpen(true);
+  }
+
+  function handleEditContract(contract: Contract) {
+    setSelectedContract(contract);
+    setFormOpen(true);
+  }
+
+  function handleDeleteClick(contract: Contract) {
+    setContractToDelete(contract);
+    setDeleteDialogOpen(true);
+  }
+
+  async function handleDeleteConfirm() {
+    if (!contractToDelete) return;
+    try {
+      const response = await fetch(`/api/contracts/${contractToDelete.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || "Erro ao excluir contrato");
+        return;
+      }
+      fetchContracts();
+    } catch (error) {
+      alert("Erro ao excluir contrato");
+    } finally {
+      setDeleteDialogOpen(false);
+      setContractToDelete(null);
+    }
+  }
+
+  function handleFormSuccess() {
+    fetchContracts();
+  }
+
+  return (
+    <div className="flex flex-col">
+      <Header title="Contratos" subtitle="Gerencie contratos de locacao e venda" />
+
+      <div className="p-4 sm:p-6 space-y-4">
+        {/* Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            {
+              label: "Total Contratos",
+              value: loading ? "..." : String(totalContracts),
+              icon: ClipboardList,
+              color: "text-primary",
+            },
+            {
+              label: "Ativos",
+              value: loading ? "..." : String(activeContracts),
+              icon: CheckCircle2,
+              color: "text-emerald-600",
+            },
+            {
+              label: "Valor Total Mensal",
+              value: loading ? "..." : formatCurrency(totalMonthlyValue),
+              icon: DollarSign,
+              color: "text-primary",
+            },
+            {
+              label: "Vencendo em 30 dias",
+              value: loading ? "..." : String(expiringIn30Days),
+              icon: CalendarClock,
+              color: "text-amber-600",
+            },
+          ].map((stat) => (
+            <Card key={stat.label} className="border-0 shadow-sm">
+              <CardContent className="p-4">
+                <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
+                <p className={cn("text-xl font-bold mt-1", stat.color)}>{stat.value}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Table */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-0">
+            <div className="flex flex-col gap-3 p-4 border-b">
+              <div className="flex items-center justify-between">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
+                  <TabsList className="h-9 sm:h-8">
+                    <TabsTrigger value="todos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Todos</TabsTrigger>
+                    <TabsTrigger value="ativos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Ativos</TabsTrigger>
+                    <TabsTrigger value="renovacao" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3 hidden sm:inline-flex">Renovacao</TabsTrigger>
+                    <TabsTrigger value="encerrados" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3 hidden sm:inline-flex">Encerrados</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <Button size="sm" className="gap-1.5 h-10 sm:h-8 text-xs" onClick={handleNewContract}>
+                  <Plus className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Novo Contrato</span>
+                  <span className="sm:hidden">Novo</span>
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[140px] sm:flex-none">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar contrato..."
+                    className="pl-9 h-10 sm:h-8 w-full sm:w-[200px] text-sm sm:text-xs"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+                <div className="hidden sm:flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setImportOpen(true)}>
+                    <FileSpreadsheet className="h-3.5 w-3.5" />
+                    Importar Planilha
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setUploadOpen(true)}>
+                    <Upload className="h-3.5 w-3.5" />
+                    Importar PDF
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setBatchUploadOpen(true)}>
+                    <Files className="h-3.5 w-3.5" />
+                    Importar Lote
+                  </Button>
+                </div>
+                {/* Mobile: import dropdown */}
+                <div className="sm:hidden">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-1.5 h-10 text-xs">
+                        <Upload className="h-3.5 w-3.5" />
+                        Importar
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                        <FileSpreadsheet className="h-3.5 w-3.5 mr-2" /> Planilha
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setUploadOpen(true)}>
+                        <Upload className="h-3.5 w-3.5 mr-2" /> PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setBatchUploadOpen(true)}>
+                        <Files className="h-3.5 w-3.5 mr-2" /> Lote
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <p className="text-sm text-muted-foreground">Carregando...</p>
+              </div>
+            ) : filteredContracts.length === 0 ? (
+              <div className="flex items-center justify-center py-12">
+                <p className="text-sm text-muted-foreground">
+                  {search
+                    ? "Nenhum contrato encontrado para a busca."
+                    : "Nenhum contrato cadastrado."}
+                </p>
+              </div>
+            ) : (
+              <>
+              {/* Mobile card view */}
+              <div className="divide-y md:hidden">
+                {filteredContracts.map((contract) => {
+                  const status = statusConfig[contract.status] || {
+                    label: contract.status,
+                    className: "bg-muted text-muted-foreground",
+                  };
+                  return (
+                    <div key={contract.id} className="p-4 active:bg-muted/50 cursor-pointer" onClick={() => router.push(`/contratos/${contract.id}`)}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+                            <FileText className="h-5 w-5 text-primary" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold">{contract.code}</p>
+                              <Badge variant="outline" className={cn("text-[10px] h-5 border", status.className)}>
+                                {status.label}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">{contract.property.title}</p>
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEditContract(contract)}>
+                              <Pencil className="h-3.5 w-3.5 mr-2" /> Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(contract)}>
+                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{contract.tenant.name}</span>
+                        <span className="font-semibold text-sm">{formatCurrency(contract.rentalValue)}</span>
+                      </div>
+                      <div className="mt-1 text-[11px] text-muted-foreground">
+                        {formatDate(contract.startDate)} - {formatDate(contract.endDate)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop table view */}
+              <div className="overflow-x-auto hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-xs">Codigo</TableHead>
+                    <TableHead className="text-xs">Imovel</TableHead>
+                    <TableHead className="text-xs">Locatario</TableHead>
+                    <TableHead className="text-xs">Valor Aluguel</TableHead>
+                    <TableHead className="text-xs">Vigencia</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredContracts.map((contract) => {
+                    const status = statusConfig[contract.status] || {
+                      label: contract.status,
+                      className: "bg-muted text-muted-foreground",
+                    };
+                    return (
+                      <TableRow key={contract.id} className="cursor-pointer" onClick={() => router.push(`/contratos/${contract.id}`)}>
+                        <TableCell className="font-medium text-xs">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            {contract.code}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {contract.property.title}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {contract.tenant.name}
+                        </TableCell>
+                        <TableCell className="text-xs font-medium">
+                          {formatCurrency(contract.rentalValue)}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {formatDate(contract.startDate)} - {formatDate(contract.endDate)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={cn("text-xs border", status.className)}>
+                            {status.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleEditContract(contract)}>
+                                <Pencil className="h-3.5 w-3.5 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                variant="destructive"
+                                onClick={() => handleDeleteClick(contract)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Contract Form Dialog */}
+      <ContractForm
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        contract={selectedContract}
+        onSuccess={handleFormSuccess}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Contrato</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o contrato{" "}
+              <strong>{contractToDelete?.code}</strong>? Esta acao nao pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Upload PDF Dialog */}
+      <UploadPdf
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        onSuccess={() => fetchContracts()}
+      />
+
+      {/* Batch Upload PDF Dialog */}
+      <BatchUploadPdf
+        open={batchUploadOpen}
+        onOpenChange={setBatchUploadOpen}
+        onSuccess={() => fetchContracts()}
+      />
+
+      {/* Import Spreadsheet Dialog */}
+      <ImportSpreadsheet
+        entityType="contracts"
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSuccess={() => fetchContracts()}
+      />
+    </div>
+  );
+}
