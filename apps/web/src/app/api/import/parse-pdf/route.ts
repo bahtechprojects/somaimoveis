@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
-import pdfParse from "pdf-parse";
+
+// pdf-parse is CommonJS, use dynamic require
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdfParse = require("pdf-parse");
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
