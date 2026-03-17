@@ -43,14 +43,11 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 # Copy public files
 COPY --from=builder /app/apps/web/public ./apps/web/public
-# Copy Prisma schema (needed for migrations in production)
+# Copy Prisma schema (needed for db push and generate in production)
 COPY --from=builder /app/prisma ./prisma
-# Copy Prisma client (generated in builder)
-COPY --from=builder /app/apps/web/node_modules/.prisma ./apps/web/node_modules/.prisma
-COPY --from=builder /app/apps/web/node_modules/@prisma ./apps/web/node_modules/@prisma
 
-# Install Prisma CLI and bcryptjs for entrypoint seed
-RUN npm install -g prisma@6 && npm install bcryptjs
+# Install Prisma CLI, @prisma/client and bcryptjs for entrypoint seed
+RUN npm install prisma@6 @prisma/client@6 bcryptjs
 
 # Copy entrypoint script
 COPY entrypoint.sh ./entrypoint.sh
