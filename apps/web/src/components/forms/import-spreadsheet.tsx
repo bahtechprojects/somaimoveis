@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Upload,
   FileSpreadsheet,
+  FileText,
   CheckCircle2,
   XCircle,
   Loader2,
@@ -98,6 +99,16 @@ export function ImportSpreadsheet({
 
   async function parseFile(f: File) {
     setError(null);
+    const ext = "." + f.name.split(".").pop()?.toLowerCase();
+
+    if (ext === ".pdf") {
+      await parsePdf(f);
+    } else {
+      await parseSpreadsheet(f);
+    }
+  }
+
+  async function parseSpreadsheet(f: File) {
     try {
       const XLSX = await import("xlsx");
       const buffer = await f.arrayBuffer();
@@ -122,17 +133,56 @@ export function ImportSpreadsheet({
     }
   }
 
+  async function parsePdf(f: File) {
+    try {
+      setStep("importing");
+      const formData = new FormData();
+      formData.append("file", f);
+
+      const res = await fetch("/api/import/parse-pdf", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        setError(errData.error || "Erro ao processar PDF");
+        setStep("select");
+        return;
+      }
+
+      const data = await res.json();
+      const rows = data.rows;
+
+      if (!rows || rows.length === 0) {
+        setError("Nenhum dado tabular encontrado no PDF.");
+        setStep("select");
+        return;
+      }
+
+      const cols = Object.keys(rows[0]);
+      setHeaders(cols);
+      setParsedRows(rows);
+      setFile(f);
+      setStep("preview");
+    } catch {
+      setError("Erro ao processar o PDF. Verifique se o arquivo e valido.");
+      setStep("select");
+    }
+  }
+
   function handleFileSelect(f: File) {
     const validTypes = [
       "text/csv",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "application/vnd.ms-excel",
+      "application/pdf",
     ];
-    const validExts = [".csv", ".xlsx", ".xls"];
+    const validExts = [".csv", ".xlsx", ".xls", ".pdf"];
     const ext = "." + f.name.split(".").pop()?.toLowerCase();
 
     if (!validTypes.includes(f.type) && !validExts.includes(ext)) {
-      setError("Formato invalido. Use CSV (.csv) ou Excel (.xlsx).");
+      setError("Formato invalido. Use CSV (.csv), Excel (.xlsx) ou PDF (.pdf).");
       return;
     }
 
@@ -218,7 +268,7 @@ export function ImportSpreadsheet({
             Importar {entityLabel}
           </DialogTitle>
           <DialogDescription>
-            Importe dados de uma planilha CSV ou Excel (.xlsx).
+            Importe dados de uma planilha CSV, Excel (.xlsx) ou PDF.
           </DialogDescription>
         </DialogHeader>
 
@@ -242,7 +292,7 @@ export function ImportSpreadsheet({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv,.xlsx,.xls"
+                  accept=".csv,.xlsx,.xls,.pdf"
                   className="hidden"
                   onChange={handleFileInputChange}
                 />
@@ -259,7 +309,7 @@ export function ImportSpreadsheet({
                       : "Arraste o arquivo aqui ou clique para selecionar"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Formatos aceitos: CSV (.csv) ou Excel (.xlsx) - Maximo 20MB
+                    Formatos aceitos: CSV (.csv), Excel (.xlsx) ou PDF (.pdf) - Maximo 20MB
                   </p>
                 </div>
               </div>
@@ -296,7 +346,11 @@ export function ImportSpreadsheet({
               {/* File info */}
               <div className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
                 <div className="flex items-center gap-2">
-                  <FileSpreadsheet className="h-4 w-4 text-primary" />
+                  {file.name.toLowerCase().endsWith(".pdf") ? (
+                    <FileText className="h-4 w-4 text-red-500" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4 text-primary" />
+                  )}
                   <span className="text-sm font-medium">{file.name}</span>
                   <span className="text-xs text-muted-foreground">
                     ({formatFileSize(file.size)})
