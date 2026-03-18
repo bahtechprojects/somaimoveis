@@ -232,32 +232,8 @@ export default function RelatoriosPage() {
       }
     }
 
-    // If we have very few real payments, generate realistic baseline data
-    // so the chart looks populated even during development
-    const monthsWithData = months.filter((m) => m.total > 0);
-    const totalReal = monthsWithData.reduce((s, m) => s + m.total, 0);
-    if (monthsWithData.length < 6) {
-      // Estimate baseline from real averages or active contracts
-      const avgReal = monthsWithData.length > 0
-        ? totalReal / monthsWithData.length
-        : 0;
-      const activeContracts = contracts.filter((c) => c.status === "ATIVO");
-      const contractBaseline = activeContracts.reduce((s, c) => s + c.rentalValue, 0);
-      const baseMonthly = avgReal || contractBaseline || 18000;
-
-      for (const m of months) {
-        if (m.total === 0) {
-          // Add realistic variation (-8% to +8%) with slight growth trend
-          const monthIndex = months.indexOf(m);
-          const growthFactor = 1 + (monthIndex * 0.008);
-          const variation = 0.92 + Math.random() * 0.16;
-          m.total = Math.round(baseMonthly * variation * growthFactor);
-        }
-      }
-    }
-
     return months;
-  }, [payments, contracts]);
+  }, [payments]);
 
   const maxMonthlyRevenue = Math.max(...monthlyRevenue.map((m) => m.total), 1);
 
