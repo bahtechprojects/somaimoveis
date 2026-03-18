@@ -104,18 +104,22 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
   const { lookup: lookupCep, loading: cepLoading, error: cepError, formatCep } = useCepLookup({ onResult: handleCepResult });
 
   const handleCnpjResult = useCallback((data: { name: string; email: string; phone: string; street: string; number: string; complement: string; neighborhood: string; city: string; state: string; zipCode: string }) => {
-    const opts = { shouldValidate: true, shouldDirty: true };
-    if (data.name) setValue("name", data.name, opts);
-    if (data.email) setValue("email", data.email, opts);
-    if (data.phone) setValue("phone", data.phone, opts);
-    if (data.street) setValue("street", data.street, opts);
-    if (data.number) setValue("number", data.number, opts);
-    if (data.complement) setValue("complement", data.complement, opts);
-    if (data.neighborhood) setValue("neighborhood", data.neighborhood, opts);
-    if (data.city) setValue("city", data.city, opts);
-    if (data.state) setValue("state", data.state, opts);
-    if (data.zipCode) setValue("zipCode", data.zipCode, opts);
-  }, [setValue]);
+    // Use reset to merge CNPJ data with current form values (forces DOM update)
+    const current = watch();
+    reset({
+      ...current,
+      name: data.name || current.name || "",
+      email: data.email || current.email || "",
+      phone: data.phone || current.phone || "",
+      street: data.street || current.street || "",
+      number: data.number || current.number || "",
+      complement: data.complement || current.complement || "",
+      neighborhood: data.neighborhood || current.neighborhood || "",
+      city: data.city || current.city || "",
+      state: data.state || current.state || "",
+      zipCode: data.zipCode || current.zipCode || "",
+    }, { keepDefaultValues: false });
+  }, [watch, reset]);
 
   const { lookup: lookupCnpj, loading: cnpjLoading, error: cnpjError, formatCpfCnpj } = useCnpjLookup({ onResult: handleCnpjResult });
 
