@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
+import fs from "fs/promises";
+import path from "path";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require("pdf-parse");
@@ -274,8 +276,6 @@ export async function POST(request: NextRequest) {
         });
 
         // Save PDF as document
-        const fs = await import("fs/promises");
-        const path = await import("path");
         const uploadsDir = path.join(process.cwd(), "apps/web/public/uploads/contracts");
         try { await fs.mkdir(uploadsDir, { recursive: true }); } catch {}
         const pdfFileName = `${contract.id}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
