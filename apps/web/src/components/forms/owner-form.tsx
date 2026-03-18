@@ -104,22 +104,25 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
   const { lookup: lookupCep, loading: cepLoading, error: cepError, formatCep } = useCepLookup({ onResult: handleCepResult });
 
   const handleCnpjResult = useCallback((data: { name: string; email: string; phone: string; street: string; number: string; complement: string; neighborhood: string; city: string; state: string; zipCode: string }) => {
-    // Use reset to merge CNPJ data with current form values (forces DOM update)
-    const current = watch();
-    reset({
-      ...current,
-      name: data.name || current.name || "",
-      email: data.email || current.email || "",
-      phone: data.phone || current.phone || "",
-      street: data.street || current.street || "",
-      number: data.number || current.number || "",
-      complement: data.complement || current.complement || "",
-      neighborhood: data.neighborhood || current.neighborhood || "",
-      city: data.city || current.city || "",
-      state: data.state || current.state || "",
-      zipCode: data.zipCode || current.zipCode || "",
-    }, { keepDefaultValues: false });
-  }, [watch, reset]);
+    // Set both react-hook-form value AND DOM input value
+    const setField = (field: keyof OwnerFormData, value: string) => {
+      if (!value) return;
+      setValue(field, value, { shouldValidate: true, shouldDirty: true });
+      // Also update DOM directly for uncontrolled inputs
+      const el = document.getElementById(field) as HTMLInputElement;
+      if (el) el.value = value;
+    };
+    setField("name", data.name);
+    setField("email", data.email);
+    setField("phone", data.phone);
+    setField("street", data.street);
+    setField("number", data.number);
+    setField("complement", data.complement);
+    setField("neighborhood", data.neighborhood);
+    setField("city", data.city);
+    setField("state", data.state);
+    setField("zipCode", data.zipCode);
+  }, [setValue]);
 
   const { lookup: lookupCnpj, loading: cnpjLoading, error: cnpjError, formatCpfCnpj } = useCnpjLookup({ onResult: handleCnpjResult });
 
