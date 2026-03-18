@@ -48,10 +48,8 @@ export function useCnpjLookup({ onResult }: UseCnpjLookupOptions) {
     setError(null);
 
     try {
-      // Using receitaws.com.br (free, no auth needed, 3 req/min)
-      const res = await fetch(`https://receitaws.com.br/v1/cnpj/${clean}`, {
-        headers: { Accept: "application/json" },
-      });
+      // Proxy through our API to avoid CORS
+      const res = await fetch(`/api/lookup/cnpj?cnpj=${clean}`);
 
       if (res.status === 429) {
         setError("Limite de consultas atingido. Aguarde 1 minuto.");
