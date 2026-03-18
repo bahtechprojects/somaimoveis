@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
-import fs from "fs/promises";
-import path from "path";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfParse = require("pdf-parse");
@@ -11,6 +9,8 @@ const MONTHS: Record<string, number> = {
   janeiro: 1, fevereiro: 2, março: 3, marco: 3, abril: 4, maio: 5, junho: 6,
   julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
 };
+
+type DocType = "LOCACAO" | "ADMINISTRACAO" | "VISTORIA" | "PROCURACAO" | "ADITIVO" | "INTERMEDIACAO" | "OUTRO";
 
 function parseMonthDate(day: string, month: string, year: string): Date | null {
   const m = MONTHS[month.toLowerCase()];
@@ -29,11 +29,38 @@ function cleanCpfCnpj(value: string): string {
   return value.replace(/[.\-\/\s]/g, "").trim();
 }
 
-interface ParsedContract {
-  locatarioNome: string | null;
-  locatarioCpf: string | null;
+// Classify document type by filename and content
+function classifyDocument(fileName: string, text: string): DocType {
+  const nameLower = fileName.toLowerCase();
+  const textLower = text.toLowerCase().substring(0, 2000);
+
+  if (nameLower.includes("vistori")) return "VISTORIA";
+  if (nameLower.includes("procura")) return "PROCURACAO";
+  if (nameLower.includes("aditivo")) return "ADITIVO";
+  if (nameLower.includes("intermedia")) return "INTERMEDIACAO";
+  if (nameLower.includes("administra") || nameLower.includes("adm")) return "ADMINISTRACAO";
+  if (nameLower.includes("locaç") || nameLower.includes("locac") || nameLower.includes("aluguel")) return "LOCACAO";
+  if (nameLower.includes("contrat") || nameLower.includes("comtrat")) {
+    // Check content to decide type
+    if (textLower.includes("intermediação") || textLower.includes("intermediacao") || textLower.includes("administração de locação")) return "ADMINISTRACAO";
+    if (textLower.includes("locação") || textLower.includes("locacao") || textLower.includes("locatário")) return "LOCACAO";
+    return "LOCACAO"; // default for generic "contrato"
+  }
+  // Check content as last resort
+  if (textLower.includes("vistoria")) return "VISTORIA";
+  if (textLower.includes("procuração") || textLower.includes("procuracao")) return "PROCURACAO";
+  if (textLower.includes("aditivo") || textLower.includes("cessão de direitos")) return "ADITIVO";
+  return "OUTRO";
+}
+
+const SOMMA_CNPJ = "40528068000162";
+
+interface ParsedDocument {
+  tipo: DocType;
   proprietarioNome: string | null;
   proprietarioCpfCnpj: string | null;
+  locatarioNome: string | null;
+  locatarioCpf: string | null;
   imovelDescricao: string | null;
   valorAluguel: number | null;
   dataInicio: string | null;
@@ -42,62 +69,90 @@ interface ParsedContract {
   garantia: string | null;
   reajuste: string | null;
   fileName: string;
+  notes: string | null;
 }
 
-function extractContractData(text: string, fileName: string): ParsedContract {
-  const t = text.replace(/\s+/g, " ");
+function extractOwnerInfo(t: string): { nome: string | null; doc: string | null } {
+  let nome: string | null = null;
+  let doc: string | null = null;
 
-  // Locatario name - try multiple patterns
-  let locName: string | null = null;
-  const locMatch = t.match(
-    /LOCAT[ÁA]RIO[S]?(?:\(A\))?:\s*(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|portador|solteiro|casad|viúv|divorc|menor|maior|natural))/i
+  // Find proprietario section
+  const propMatch = t.match(
+    /PROPRIET[ÁA]RIO[S]?(?:\(A\))?(?:\(S\))?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|com sede|portador|solteiro|casad|viúv|divorc|natural|CPF|CNPJ))/i
   );
-  if (locMatch) locName = locMatch[1].trim();
+  if (propMatch) nome = propMatch[1].trim();
 
-  // Locatario CPF - search in the LOCATARIO section (before FIADOR or IMOVEL)
-  let locCpf: string | null = null;
-  const locSection = t.match(/LOCAT[ÁA]RIO[\s\S]*?(?:FIADOR|IM[ÓO]VEL|OBJETO)/i);
-  if (locSection) {
-    const cpfMatch = locSection[0].match(/(?:CPF|CPF\/MF)\s*(?:n[°ºo]|sob\s*n[°ºo])?\s*(\d{3}\.?\d{3}\.?\d{3}[\-]\d{2})/i);
-    if (cpfMatch) locCpf = cpfMatch[1];
+  // Also try OUTORGANTE for procuracoes
+  if (!nome) {
+    const outMatch = t.match(
+      /OUTORGANTE[S]?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|com sede|portador|solteiro|casad))/i
+    );
+    if (outMatch) nome = outMatch[1].trim();
   }
 
-  // Proprietario - search between PROPRIETARIO and LOCATARIO
-  let propName: string | null = null;
-  let propDoc: string | null = null;
-  const propStart = t.search(/PROPRIET[ÁA]RIO/i);
-  const locStart = t.search(/LOCAT[ÁA]RIO/i);
-  if (propStart >= 0 && locStart > propStart) {
-    const propSection = t.substring(propStart, locStart);
-
-    // Name
-    const pn = propSection.match(
-      /PROPRIET[ÁA]RIO.*?:\s*(.+?)(?:,\s*(?:brasileir|pessoa|empresa\s*jur|inscrit|com sede|portador|solteiro|casad))/i
+  // Also try LOCADOR for some contract formats
+  if (!nome) {
+    const locadorMatch = t.match(
+      /LOCADOR[A]?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|com sede|portador|solteiro|casad|representad))/i
     );
-    if (pn) propName = pn[1].trim();
+    if (locadorMatch) nome = locadorMatch[1].trim();
+  }
 
-    // CNPJ (first one, skip Somma's 40.528.068/0001-62)
-    const cnpjs = [...propSection.matchAll(/(\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2})/g)];
-    const sommaClean = "40528068000162";
+  // Find CNPJ (skip Somma's)
+  const propStart = t.search(/(?:PROPRIET[ÁA]RIO|OUTORGANTE|LOCADOR)/i);
+  const nextSection = t.search(/(?:LOCAT[ÁA]RIO|OUTORGAD[AO]|ADMINISTRAD)/i);
+  if (propStart >= 0) {
+    const end = nextSection > propStart ? nextSection : propStart + 1500;
+    const section = t.substring(propStart, end);
+    const cnpjs = [...section.matchAll(/(\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/g)];
     for (const c of cnpjs) {
-      if (cleanCpfCnpj(c[1]) !== sommaClean) {
-        propDoc = c[1];
+      if (cleanCpfCnpj(c[1]) !== SOMMA_CNPJ) {
+        doc = c[1];
         break;
       }
     }
-    // If no CNPJ found, try CPF
-    if (!propDoc) {
-      const cpfMatch = propSection.match(/(?:CPF)\s*(?:n[°ºo]|sob\s*n[°ºo])?\s*(\d{3}\.?\d{3}\.?\d{3}[\-]\d{2})/i);
-      if (cpfMatch && cleanCpfCnpj(cpfMatch[1]) !== sommaClean) {
-        propDoc = cpfMatch[1];
+    if (!doc) {
+      const cpfMatch = section.match(/(?:CPF)[/MF]*\s*(?:n[°ºo]\s*)?(\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i);
+      if (cpfMatch && cleanCpfCnpj(cpfMatch[1]) !== SOMMA_CNPJ) {
+        doc = cpfMatch[1];
       }
     }
   }
+
+  return { nome, doc };
+}
+
+function extractTenantInfo(t: string): { nome: string | null; cpf: string | null } {
+  let nome: string | null = null;
+  let cpf: string | null = null;
+
+  const locMatch = t.match(
+    /LOCAT[ÁA]RIO[S]?(?:\(A\))?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|portador|solteiro|casad|viúv|divorc|natural|menor|maior|CPF|CNPJ))/i
+  );
+  if (locMatch) nome = locMatch[1].trim();
+
+  // CPF in locatario section
+  const locStart = t.search(/LOCAT[ÁA]RIO/i);
+  const nextSection = t.search(/(?:FIADOR|IM[ÓO]VEL\s+OBJETO|CL[ÁA]USULA)/i);
+  if (locStart >= 0) {
+    const end = nextSection > locStart ? nextSection : locStart + 1500;
+    const section = t.substring(locStart, end);
+    const cpfMatch = section.match(/(?:CPF)[/MF]*\s*(?:n[°ºo]\s*|sob\s*n[°ºo]\s*)?(\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i);
+    if (cpfMatch) cpf = cpfMatch[1];
+  }
+
+  return { nome, cpf };
+}
+
+function extractLocacaoData(text: string, fileName: string): ParsedDocument {
+  const t = text.replace(/\s+/g, " ");
+  const owner = extractOwnerInfo(t);
+  const tenant = extractTenantInfo(t);
 
   // Imovel
   let imovelDesc: string | null = null;
   const imMatch = t.match(
-    /IM[ÓO]VEL\s+OBJETO\s+DA\s+LOCA[ÇC][ÃA]O:\s*(.+?)(?:FINALIDADE|\.(?:\s|$))/i
+    /IM[ÓO]VEL\s+OBJETO\s+DA\s+LOCA[ÇC][ÃA]O[:\s]+(.+?)(?:FINALIDADE|CL[ÁA]USULA|\.(?:\s|$))/i
   );
   if (imMatch) imovelDesc = imMatch[1].trim().substring(0, 200);
 
@@ -105,7 +160,7 @@ function extractContractData(text: string, fileName: string): ParsedContract {
   let dataInicio: string | null = null;
   let dataFim: string | null = null;
   const prazoMatch = t.match(
-    /in[íi]cio\s+em\s+(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4}).*?t[eé]rmin?o\s+em\s+(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/i
+    /in[íi]cio\s+em\s+(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})[\s\S]*?t[eé]rmin?o\s+em\s+(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/i
   );
   if (prazoMatch) {
     const di = parseMonthDate(prazoMatch[1], prazoMatch[2], prazoMatch[3]);
@@ -117,21 +172,22 @@ function extractContractData(text: string, fileName: string): ParsedContract {
   // Valor
   let valorAluguel: number | null = null;
   const valorMatch = t.match(
-    /(?:VALOR\s+(?:DO\s+)?ALUGUEL|valor\s+mensal\s+do\s+aluguel).*?R\$\s*([\d.,]+)/i
+    /(?:VALOR\s+(?:DO\s+)?ALUGUEL|valor\s+mensal\s+do\s+aluguel|VALOR\s+ESTIPULADO)[\s\S]*?R\$\s*([\d.,]+)/i
   );
   if (valorMatch) valorAluguel = parseValor(valorMatch[1]);
 
   // Dia pagamento
   let diaPgto: number | null = null;
-  const diaMatch = t.match(/NO\s+DIA\s+(\d+)\s*\(/i);
+  const diaMatch = t.match(/(?:NO\s+)?DIA\s+(\d{1,2})\s*\(/i);
   if (diaMatch) diaPgto = parseInt(diaMatch[1]);
 
   // Garantia
   let garantia: string | null = null;
-  if (/FIADOR:/i.test(t)) garantia = "FIADOR";
-  else if (/seguro.{0,10}fian[çc]a/i.test(t)) garantia = "SEGURO_FIANCA";
+  if (/FIADOR[A]?:/i.test(t)) garantia = "FIADOR";
+  else if (/seguro[\s-]*fian[çc]a/i.test(t)) garantia = "SEGURO_FIANCA";
   else if (/cau[çc][ãa]o/i.test(t)) garantia = "CAUCAO";
-  else if (/t[ií]tulo.{0,10}capitaliza/i.test(t)) garantia = "TITULO_CAPITALIZACAO";
+  else if (/carta[\s-]*fian[çc]a/i.test(t)) garantia = "SEGURO_FIANCA";
+  else if (/t[ií]tulo[\s\S]{0,10}capitaliza/i.test(t)) garantia = "TITULO_CAPITALIZACAO";
 
   // Reajuste
   let reajuste: string | null = null;
@@ -140,10 +196,11 @@ function extractContractData(text: string, fileName: string): ParsedContract {
   else if (/INPC/i.test(t)) reajuste = "INPC";
 
   return {
-    locatarioNome: locName,
-    locatarioCpf: locCpf,
-    proprietarioNome: propName,
-    proprietarioCpfCnpj: propDoc,
+    tipo: "LOCACAO",
+    proprietarioNome: owner.nome,
+    proprietarioCpfCnpj: owner.doc,
+    locatarioNome: tenant.nome,
+    locatarioCpf: tenant.cpf,
     imovelDescricao: imovelDesc,
     valorAluguel,
     dataInicio,
@@ -152,7 +209,161 @@ function extractContractData(text: string, fileName: string): ParsedContract {
     garantia,
     reajuste,
     fileName,
+    notes: null,
   };
+}
+
+function extractAdministracaoData(text: string, fileName: string): ParsedDocument {
+  const t = text.replace(/\s+/g, " ");
+  const owner = extractOwnerInfo(t);
+
+  // Property description
+  let imovelDesc: string | null = null;
+  const imMatch = t.match(/(?:Endere[çc]o|ENDERE[ÇC]O|IM[ÓO]VEL)[:\s]+(.+?)(?:CEP|Finalidade|CL[ÁA]USULA)/i);
+  if (imMatch) imovelDesc = imMatch[1].trim().substring(0, 200);
+
+  // Valor estipulado
+  let valor: number | null = null;
+  const valorMatch = t.match(/VALOR\s+ESTIPULADO[\s\S]*?R\$\s*([\d.,]+)/i);
+  if (valorMatch) valor = parseValor(valorMatch[1]);
+
+  return {
+    tipo: "ADMINISTRACAO",
+    proprietarioNome: owner.nome,
+    proprietarioCpfCnpj: owner.doc,
+    locatarioNome: null,
+    locatarioCpf: null,
+    imovelDescricao: imovelDesc,
+    valorAluguel: valor,
+    dataInicio: null,
+    dataFim: null,
+    diaPagamento: null,
+    garantia: null,
+    reajuste: null,
+    fileName,
+    notes: "Contrato de administração",
+  };
+}
+
+function extractVistoriaData(text: string, fileName: string): ParsedDocument {
+  const t = text.replace(/\s+/g, " ");
+
+  // Locador
+  let propNome: string | null = null;
+  const locadorMatch = t.match(/Locador[\(a\)]*[:\s]+(.+?)(?:\n|Locat|Tipo|$)/i);
+  if (locadorMatch) propNome = locadorMatch[1].trim().substring(0, 100);
+
+  // Locatario
+  let locNome: string | null = null;
+  const locMatch = t.match(/Locat[áa]rio[\(a\)]*[:\s]+(.+?)(?:\n|Tipo|Im[óo]vel|$)/i);
+  if (locMatch) locNome = locMatch[1].trim().substring(0, 100);
+
+  // Imovel
+  let imovelDesc: string | null = null;
+  const imMatch = t.match(/(?:Im[óo]vel|ENDERE[ÇC]O)[:\s]+(.+?)(?:\n|Metragem|CEP|$)/i);
+  if (imMatch) imovelDesc = imMatch[1].trim().substring(0, 200);
+
+  // Tipo vistoria (Entrada/Saida)
+  let tipoVistoria: string | null = null;
+  const tipoMatch = t.match(/Tipo\s+de\s+vistoria[:\s]+(Entrada|Sa[ií]da)/i);
+  if (tipoMatch) tipoVistoria = tipoMatch[1];
+
+  return {
+    tipo: "VISTORIA",
+    proprietarioNome: propNome,
+    proprietarioCpfCnpj: null,
+    locatarioNome: locNome,
+    locatarioCpf: null,
+    imovelDescricao: imovelDesc,
+    valorAluguel: null,
+    dataInicio: null,
+    dataFim: null,
+    diaPagamento: null,
+    garantia: null,
+    reajuste: null,
+    fileName,
+    notes: tipoVistoria ? `Vistoria de ${tipoVistoria}` : "Vistoria",
+  };
+}
+
+function extractProcuracaoData(text: string, fileName: string): ParsedDocument {
+  const t = text.replace(/\s+/g, " ");
+  const owner = extractOwnerInfo(t);
+
+  // Property from procuracao
+  let imovelDesc: string | null = null;
+  const imMatch = t.match(/(?:im[óo]vel|propriedade)[\s\S]*?(?:sito|situad|localiz)[ao]?\s+(?:na|no|em)\s+(.+?)(?:\.|,\s*(?:para|com|conferindo))/i);
+  if (imMatch) imovelDesc = imMatch[1].trim().substring(0, 200);
+
+  return {
+    tipo: "PROCURACAO",
+    proprietarioNome: owner.nome,
+    proprietarioCpfCnpj: owner.doc,
+    locatarioNome: null,
+    locatarioCpf: null,
+    imovelDescricao: imovelDesc,
+    valorAluguel: null,
+    dataInicio: null,
+    dataFim: null,
+    diaPagamento: null,
+    garantia: null,
+    reajuste: null,
+    fileName,
+    notes: "Procuração",
+  };
+}
+
+function extractAditivoData(text: string, fileName: string): ParsedDocument {
+  const t = text.replace(/\s+/g, " ");
+  const owner = extractOwnerInfo(t);
+  const tenant = extractTenantInfo(t);
+
+  // Try to find new tenant (cessionario)
+  let newTenantNome: string | null = null;
+  const cessMatch = t.match(
+    /CESSION[ÁA]RI[AO][:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|portador|solteiro|casad))/i
+  );
+  if (cessMatch) newTenantNome = cessMatch[1].trim();
+
+  // Imovel
+  let imovelDesc: string | null = null;
+  const imMatch = t.match(/(?:im[óo]vel|propriedade)[\s\S]*?(?:sito|situad|localiz)[ao]?\s+(?:na|no|em)\s+(.+?)(?:\.|,\s*(?:para|com|nesta))/i);
+  if (imMatch) imovelDesc = imMatch[1].trim().substring(0, 200);
+
+  return {
+    tipo: "ADITIVO",
+    proprietarioNome: owner.nome,
+    proprietarioCpfCnpj: owner.doc,
+    locatarioNome: newTenantNome || tenant.nome,
+    locatarioCpf: tenant.cpf,
+    imovelDescricao: imovelDesc,
+    valorAluguel: null,
+    dataInicio: null,
+    dataFim: null,
+    diaPagamento: null,
+    garantia: null,
+    reajuste: null,
+    fileName,
+    notes: "Aditivo contratual",
+  };
+}
+
+function extractDocumentData(text: string, fileName: string, tipo: DocType): ParsedDocument {
+  switch (tipo) {
+    case "LOCACAO": return extractLocacaoData(text, fileName);
+    case "ADMINISTRACAO":
+    case "INTERMEDIACAO": return extractAdministracaoData(text, fileName);
+    case "VISTORIA": return extractVistoriaData(text, fileName);
+    case "PROCURACAO": return extractProcuracaoData(text, fileName);
+    case "ADITIVO": return extractAditivoData(text, fileName);
+    default: return {
+      tipo, proprietarioNome: null, proprietarioCpfCnpj: null,
+      locatarioNome: null, locatarioCpf: null, imovelDescricao: null,
+      valorAluguel: null, dataInicio: null, dataFim: null,
+      diaPagamento: null, garantia: null, reajuste: null,
+      fileName, notes: "Documento não classificado",
+    };
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -163,6 +374,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const files = formData.getAll("files") as File[];
     const autoCreate = formData.get("autoCreate") === "true";
+    const filterType = formData.get("filterType") as string | null; // optional type filter
 
     if (!files || files.length === 0) {
       return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
@@ -170,55 +382,47 @@ export async function POST(request: NextRequest) {
 
     const results: {
       fileName: string;
-      status: "success" | "error" | "parsed";
-      data?: ParsedContract;
+      status: "success" | "error" | "parsed" | "skipped";
+      tipo?: DocType;
+      data?: ParsedDocument;
       contractId?: string;
       error?: string;
     }[] = [];
 
     for (const file of files) {
-      // Skip non-contract files (vistorias, procuracoes, etc)
-      const nameLower = file.name.toLowerCase();
-      if (!nameLower.includes("contrat") && !nameLower.includes("locaç")) {
-        results.push({ fileName: file.name, status: "error", error: "Arquivo ignorado (não é contrato)" });
+      // Skip non-PDF files
+      if (!file.name.toLowerCase().endsWith(".pdf")) {
+        results.push({ fileName: file.name, status: "skipped", error: "Não é PDF" });
         continue;
       }
 
       try {
         const buffer = Buffer.from(await file.arrayBuffer());
-        const pdf = await pdfParse(buffer);
-        const parsed = extractContractData(pdf.text, file.name);
+        let pdfText = "";
+        try {
+          const pdf = await pdfParse(buffer);
+          pdfText = pdf.text || "";
+        } catch (pdfErr) {
+          results.push({ fileName: file.name, status: "error", error: `Erro ao ler PDF: ${pdfErr instanceof Error ? pdfErr.message : "desconhecido"}` });
+          continue;
+        }
+
+        const tipo = classifyDocument(file.name, pdfText);
+
+        // If filter is set, skip non-matching types
+        if (filterType && tipo !== filterType) {
+          results.push({ fileName: file.name, status: "skipped", tipo, error: `Tipo ${tipo} filtrado` });
+          continue;
+        }
+
+        const parsed = extractDocumentData(pdfText, file.name, tipo);
 
         if (!autoCreate) {
-          // Just return parsed data for preview
-          results.push({ fileName: file.name, status: "parsed", data: parsed });
+          results.push({ fileName: file.name, status: "parsed", tipo, data: parsed });
           continue;
         }
 
-        // Auto-create: validate and create contract
-        if (!parsed.locatarioCpf) {
-          results.push({ fileName: file.name, status: "error", data: parsed, error: "CPF do locatário não encontrado no PDF" });
-          continue;
-        }
-        if (!parsed.valorAluguel) {
-          results.push({ fileName: file.name, status: "error", data: parsed, error: "Valor do aluguel não encontrado" });
-          continue;
-        }
-        if (!parsed.dataInicio || !parsed.dataFim) {
-          results.push({ fileName: file.name, status: "error", data: parsed, error: "Datas do contrato não encontradas" });
-          continue;
-        }
-
-        // Find tenant by CPF
-        const tenantCpfClean = cleanCpfCnpj(parsed.locatarioCpf);
-        const allTenants = await prisma.tenant.findMany({ where: { active: true } });
-        const tenant = allTenants.find(t => cleanCpfCnpj(t.cpfCnpj) === tenantCpfClean);
-        if (!tenant) {
-          results.push({ fileName: file.name, status: "error", data: parsed, error: `Locatário não encontrado: ${parsed.locatarioCpf} (${parsed.locatarioNome})` });
-          continue;
-        }
-
-        // Find owner by CPF/CNPJ
+        // Auto-create: find owner
         let owner = null;
         if (parsed.proprietarioCpfCnpj) {
           const ownerDocClean = cleanCpfCnpj(parsed.proprietarioCpfCnpj);
@@ -226,83 +430,90 @@ export async function POST(request: NextRequest) {
           owner = allOwners.find(o => cleanCpfCnpj(o.cpfCnpj) === ownerDocClean);
         }
         if (!owner) {
-          results.push({ fileName: file.name, status: "error", data: parsed, error: `Proprietário não encontrado: ${parsed.proprietarioCpfCnpj || 'N/A'} (${parsed.proprietarioNome})` });
+          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Proprietário não encontrado: ${parsed.proprietarioCpfCnpj || "N/A"} (${parsed.proprietarioNome || "N/A"})` });
           continue;
         }
 
-        // Find property by description match
+        // Find tenant (only required for LOCACAO)
+        let tenantId: string | null = null;
+        if (parsed.locatarioCpf) {
+          const tenantCpfClean = cleanCpfCnpj(parsed.locatarioCpf);
+          const allTenants = await prisma.tenant.findMany({ where: { active: true } });
+          const tenant = allTenants.find(t => cleanCpfCnpj(t.cpfCnpj) === tenantCpfClean);
+          if (tenant) tenantId = tenant.id;
+        }
+        if (!tenantId && tipo === "LOCACAO") {
+          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Locatário não encontrado: ${parsed.locatarioCpf || "N/A"} (${parsed.locatarioNome || "N/A"})` });
+          continue;
+        }
+
+        // Find property (optional for non-LOCACAO)
         let propertyId: string | null = null;
         if (parsed.imovelDescricao) {
-          const allProps = await prisma.property.findMany({ where: { ownerId: owner.id } });
           const descLower = parsed.imovelDescricao.toLowerCase();
-          const property = allProps.find(p => {
-            const streetLower = (p.street || "").toLowerCase();
-            return streetLower.length > 3 && descLower.includes(streetLower);
+          const ownerProps = await prisma.property.findMany({ where: { ownerId: owner.id } });
+          const prop = ownerProps.find(p => {
+            const street = (p.street || "").toLowerCase();
+            return street.length > 3 && descLower.includes(street);
           });
-          if (property) propertyId = property.id;
+          if (prop) propertyId = prop.id;
+          if (!propertyId) {
+            // Try all properties
+            const allProps = await prisma.property.findMany();
+            const p = allProps.find(p => {
+              const street = (p.street || "").toLowerCase();
+              return street.length > 3 && descLower.includes(street);
+            });
+            if (p) propertyId = p.id;
+          }
         }
-        if (!propertyId) {
-          // Try matching any property by address
-          const allProps = await prisma.property.findMany();
-          const descLower = (parsed.imovelDescricao || "").toLowerCase();
-          const property = allProps.find(p => {
-            const streetLower = (p.street || "").toLowerCase();
-            return streetLower.length > 3 && descLower.includes(streetLower);
-          });
-          if (property) propertyId = property.id;
-        }
-        if (!propertyId) {
-          results.push({ fileName: file.name, status: "error", data: parsed, error: `Imovel nao encontrado: ${parsed.imovelDescricao?.substring(0, 60) || 'N/A'}` });
+        if (!propertyId && tipo === "LOCACAO") {
+          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Imóvel não encontrado: ${parsed.imovelDescricao?.substring(0, 60) || "N/A"}` });
           continue;
         }
 
-        // Generate contract code from filename
+        // Generate code
         const fileCode = file.name.match(/^(\d+)/);
-        const code = fileCode ? `CTR-${fileCode[1]}` : `CTR-${Date.now()}`;
+        const prefix = tipo === "LOCACAO" ? "CTR" : tipo === "ADMINISTRACAO" ? "ADM" : tipo === "VISTORIA" ? "VIS" : tipo === "PROCURACAO" ? "PRO" : tipo === "ADITIVO" ? "ADT" : "DOC";
+        const code = fileCode ? `${prefix}-${fileCode[1]}` : `${prefix}-${Date.now()}`;
 
-        // Check if contract already exists
+        // Check duplicate
         const existing = await prisma.contract.findUnique({ where: { code } });
         if (existing) {
-          results.push({ fileName: file.name, status: "error", data: parsed, error: `Contrato ${code} já existe` });
+          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Documento ${code} já existe` });
           continue;
         }
 
-        // Create contract
+        // Determine status based on type
+        let status = "ATIVO";
+        if (tipo === "VISTORIA" || tipo === "PROCURACAO" || tipo === "ADITIVO") {
+          status = "ATIVO"; // document attached to owner
+        }
+
+        // Create contract/document record
         const contract = await prisma.contract.create({
           data: {
             code,
-            type: "LOCACAO",
-            status: "ATIVO",
-            propertyId,
+            type: tipo,
+            status,
+            propertyId: propertyId || undefined,
             ownerId: owner.id,
-            tenantId: tenant.id,
-            rentalValue: parsed.valorAluguel,
+            tenantId: tenantId || undefined,
+            rentalValue: parsed.valorAluguel || 0,
             adminFeePercent: 10,
-            startDate: new Date(parsed.dataInicio),
-            endDate: new Date(parsed.dataFim),
+            startDate: parsed.dataInicio ? new Date(parsed.dataInicio) : new Date(),
+            endDate: parsed.dataFim ? new Date(parsed.dataFim) : new Date(),
             paymentDay: parsed.diaPagamento || 5,
             guaranteeType: parsed.garantia,
-            adjustmentIndex: parsed.reajuste || "IGPM",
-            notes: `Importado do PDF: ${file.name}. Imóvel: ${parsed.imovelDescricao || 'N/A'}`,
+            adjustmentIndex: parsed.reajuste || (tipo === "LOCACAO" ? "IGPM" : null),
+            notes: parsed.notes ? `${parsed.notes} - Importado: ${file.name}` : `Importado: ${file.name}`,
           },
-        });
-
-        // Save PDF as document
-        const uploadsDir = path.join(process.cwd(), "apps/web/public/uploads/contracts");
-        try { await fs.mkdir(uploadsDir, { recursive: true }); } catch {}
-        const pdfFileName = `${contract.id}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-        const pdfPath = path.join(uploadsDir, pdfFileName);
-        await fs.writeFile(pdfPath, buffer);
-
-        // Update contract with document URL
-        await prisma.contract.update({
-          where: { id: contract.id },
-          data: { documentUrl: `/uploads/contracts/${pdfFileName}` },
         });
 
         results.push({
           fileName: file.name,
           status: "success",
+          tipo,
           data: parsed,
           contractId: contract.id,
         });
@@ -318,8 +529,15 @@ export async function POST(request: NextRequest) {
     const success = results.filter(r => r.status === "success").length;
     const errors = results.filter(r => r.status === "error").length;
     const parsed = results.filter(r => r.status === "parsed").length;
+    const skipped = results.filter(r => r.status === "skipped").length;
 
-    return NextResponse.json({ results, summary: { total: files.length, success, errors, parsed } });
+    // Count by type
+    const byType: Record<string, number> = {};
+    for (const r of results) {
+      if (r.tipo) byType[r.tipo] = (byType[r.tipo] || 0) + 1;
+    }
+
+    return NextResponse.json({ results, summary: { total: files.length, success, errors, parsed, skipped, byType } });
   } catch (error) {
     console.error("Contract import error:", error);
     return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });

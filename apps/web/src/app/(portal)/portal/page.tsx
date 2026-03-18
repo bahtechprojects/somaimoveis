@@ -276,10 +276,10 @@ export default function PortalDashboardPage() {
                           {payment.code}
                         </TableCell>
                         <TableCell className="text-xs font-medium">
-                          {payment.contract.property.title}
+                          {payment.contract.property?.title || "N/A"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {payment.tenant.name}
+                          {payment.tenant?.name || "N/A"}
                         </TableCell>
                         <TableCell className="text-xs font-semibold text-right">
                           {formatCurrency(payment.value)}

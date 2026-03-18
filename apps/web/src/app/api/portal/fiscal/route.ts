@@ -81,8 +81,8 @@ export async function GET(request: NextRequest) {
     >();
 
     for (const payment of payments) {
-      const propId = payment.contract.property.id;
-      const propTitle = payment.contract.property.title;
+      const propId = payment.contract.property?.id || "unknown";
+      const propTitle = payment.contract.property?.title || "N/A";
 
       if (!propertyMap.has(propId)) {
         propertyMap.set(propId, { id: propId, title: propTitle, months: new Map() });

@@ -118,8 +118,8 @@ export async function GET(request: NextRequest) {
         splitOwnerValue: splitOwner,
         splitAdminValue: splitAdmin,
         description: payment.description,
-        property: payment.contract.property.title,
-        tenant: payment.tenant.name,
+        property: payment.contract.property?.title || "N/A",
+        tenant: payment.tenant?.name || "N/A",
       });
 
       group.totals.totalValue += payment.value;

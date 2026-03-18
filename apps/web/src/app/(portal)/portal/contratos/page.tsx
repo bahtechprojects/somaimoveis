@@ -209,11 +209,11 @@ export default function PortalContractsPage() {
                         <TableCell className="text-xs">
                           <div>
                             <p className="font-medium">
-                              {contract.property.title}
+                              {contract.property?.title || "N/A"}
                             </p>
                             <p className="text-muted-foreground text-[11px]">
-                              {contract.property.street},{" "}
-                              {contract.property.number} -{" "}
+                              {contract.property?.street},{" "}
+                              {contract.property?.number} -{" "}
                               {contract.property.neighborhood}
                             </p>
                           </div>
@@ -221,11 +221,11 @@ export default function PortalContractsPage() {
                         <TableCell className="text-xs">
                           <div>
                             <p className="font-medium">
-                              {contract.tenant.name}
+                              {contract.tenant?.name || "N/A"}
                             </p>
-                            {contract.tenant.phone && (
+                            {contract.tenant?.phone && (
                               <p className="text-muted-foreground text-[11px]">
-                                {contract.tenant.phone}
+                                {contract.tenant?.phone}
                               </p>
                             )}
                           </div>

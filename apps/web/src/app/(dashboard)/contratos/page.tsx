@@ -167,8 +167,8 @@ function ContratosContent() {
     const term = search.toLowerCase();
     return (
       contract.code.toLowerCase().includes(term) ||
-      contract.property.title.toLowerCase().includes(term) ||
-      contract.tenant.name.toLowerCase().includes(term)
+      (contract.property?.title || "").toLowerCase().includes(term) ||
+      (contract.tenant?.name || "").toLowerCase().includes(term)
     );
   });
 
@@ -377,7 +377,7 @@ function ContratosContent() {
                                 {status.label}
                               </Badge>
                             </div>
-                            <p className="text-xs text-muted-foreground truncate">{contract.property.title}</p>
+                            <p className="text-xs text-muted-foreground truncate">{contract.property?.title || "N/A"}</p>
                           </div>
                         </div>
                         <DropdownMenu>
@@ -397,7 +397,7 @@ function ContratosContent() {
                         </DropdownMenu>
                       </div>
                       <div className="mt-2 flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">{contract.tenant.name}</span>
+                        <span className="text-muted-foreground">{contract.tenant?.name || "N/A"}</span>
                         <span className="font-semibold text-sm">{formatCurrency(contract.rentalValue)}</span>
                       </div>
                       <div className="mt-1 text-[11px] text-muted-foreground">
@@ -437,10 +437,10 @@ function ContratosContent() {
                           </div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {contract.property.title}
+                          {contract.property?.title || "N/A"}
                         </TableCell>
                         <TableCell className="text-xs">
-                          {contract.tenant.name}
+                          {contract.tenant?.name || "N/A"}
                         </TableCell>
                         <TableCell className="text-xs font-medium">
                           {formatCurrency(contract.rentalValue)}

@@ -78,6 +78,11 @@ export async function POST(request: NextRequest) {
     const errors: { contract: string; message: string }[] = [];
 
     for (const contract of contracts) {
+      // Skip contracts without tenant (e.g. ADMINISTRACAO, VISTORIA)
+      if (!contract.tenantId) {
+        skipped++;
+        continue;
+      }
       // Skip if payment already exists for this contract+month
       if (existingContractIds.has(contract.id)) {
         skipped++;
@@ -105,7 +110,7 @@ export async function POST(request: NextRequest) {
           data: {
             code,
             contractId: contract.id,
-            tenantId: contract.tenantId,
+            tenantId: contract.tenantId!,
             ownerId: contract.ownerId,
             value: contract.rentalValue,
             dueDate,
@@ -192,10 +197,10 @@ export async function GET(request: NextRequest) {
     });
     const existingContractIds = new Set(existingPayments.map((p) => p.contractId));
 
-    const preview = contracts.map((c) => ({
+    const preview = contracts.filter(c => c.tenantId).map((c) => ({
       contractCode: c.code,
-      property: c.property.title,
-      tenant: c.tenant.name,
+      property: c.property?.title || "N/A",
+      tenant: c.tenant?.name || "N/A",
       owner: c.owner.name,
       value: c.rentalValue,
       paymentDay: c.paymentDay,

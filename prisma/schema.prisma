@@ -168,21 +168,21 @@ model PropertyPhoto {
 model Contract {
   id             String   @id @default(cuid())
   code           String   @unique // CTR-001, CTR-002...
-  type           String   @default("LOCACAO") // LOCACAO, VENDA, TEMPORADA
+  type           String   @default("LOCACAO") // LOCACAO, ADMINISTRACAO, VISTORIA, PROCURACAO, ADITIVO, INTERMEDIACAO
   status         String   @default("ATIVO") // ATIVO, ENCERRADO, PENDENTE_RENOVACAO, CANCELADO
   // Partes
-  propertyId     String
-  property       Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  propertyId     String?
+  property       Property? @relation(fields: [propertyId], references: [id], onDelete: Restrict)
   ownerId        String
   owner          Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  tenantId       String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  tenantId       String?
+  tenant         Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   // Valores
-  rentalValue    Float
+  rentalValue    Float    @default(0)
   adminFeePercent Float   @default(10) // Taxa de administracao %
   // Datas
-  startDate      DateTime
-  endDate        DateTime
+  startDate      DateTime @default(now())
+  endDate        DateTime @default(now())
   paymentDay     Int      @default(10) // Dia do vencimento
   // Garantia
   guaranteeType  String?  // FIADOR, CAUCAO, SEGURO_FIANCA, TITULO_CAPITALIZACAO, SEM_GARANTIA

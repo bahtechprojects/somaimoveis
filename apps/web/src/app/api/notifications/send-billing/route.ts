@@ -97,19 +97,19 @@ export async function POST(_request: NextRequest) {
           details.push({
             paymentId: payment.id,
             paymentCode: payment.code,
-            tenantName: payment.tenant.name,
+            tenantName: payment.tenant?.name || "N/A",
             action: "payment_reminder",
             result: "ja_enviado",
           });
           continue;
         }
 
-        if (!payment.tenant.phone) {
+        if (!payment.tenant?.phone) {
           skipped++;
           details.push({
             paymentId: payment.id,
             paymentCode: payment.code,
-            tenantName: payment.tenant.name,
+            tenantName: payment.tenant?.name || "N/A",
             action: "payment_reminder",
             result: "sem_telefone",
           });
@@ -118,15 +118,15 @@ export async function POST(_request: NextRequest) {
 
         try {
           const rendered = renderTemplate("payment_reminder", {
-            tenantName: payment.tenant.name,
+            tenantName: payment.tenant?.name || "N/A",
             value: formatCurrency(payment.value),
-            propertyTitle: payment.contract.property.title,
+            propertyTitle: payment.contract.property?.title || "N/A",
             daysUntilDue: daysBefore,
             dueDate: formatDate(new Date(payment.dueDate)),
           });
 
           const sendResult = await sendWhatsAppMessage({
-            to: payment.tenant.phone,
+            to: payment.tenant?.phone,
             message: rendered.message,
           });
 
@@ -134,8 +134,8 @@ export async function POST(_request: NextRequest) {
             data: {
               type: "WHATSAPP",
               channel: "whatsapp",
-              recipientName: payment.tenant.name,
-              recipientPhone: payment.tenant.phone,
+              recipientName: payment.tenant?.name || "N/A",
+              recipientPhone: payment.tenant?.phone,
               templateKey: "payment_reminder",
               subject: rendered.subject,
               message: rendered.message,
@@ -154,7 +154,7 @@ export async function POST(_request: NextRequest) {
             details.push({
               paymentId: payment.id,
               paymentCode: payment.code,
-              tenantName: payment.tenant.name,
+              tenantName: payment.tenant?.name || "N/A",
               action: "payment_reminder",
               result: "enviado",
             });
@@ -163,7 +163,7 @@ export async function POST(_request: NextRequest) {
             details.push({
               paymentId: payment.id,
               paymentCode: payment.code,
-              tenantName: payment.tenant.name,
+              tenantName: payment.tenant?.name || "N/A",
               action: "payment_reminder",
               result: `falha: ${sendResult.error}`,
             });
@@ -173,7 +173,7 @@ export async function POST(_request: NextRequest) {
           details.push({
             paymentId: payment.id,
             paymentCode: payment.code,
-            tenantName: payment.tenant.name,
+            tenantName: payment.tenant?.name || "N/A",
             action: "payment_reminder",
             result: `erro: ${(err as Error).message}`,
           });
@@ -232,7 +232,7 @@ export async function POST(_request: NextRequest) {
         details.push({
           paymentId: payment.id,
           paymentCode: payment.code,
-          tenantName: payment.tenant.name,
+          tenantName: payment.tenant?.name || "N/A",
           action: "payment_overdue",
           result: "ja_enviado_hoje",
         });
@@ -240,7 +240,7 @@ export async function POST(_request: NextRequest) {
       }
 
       // ---- Enviar notificacao para o locatario ----
-      if (payment.tenant.phone) {
+      if (payment.tenant?.phone) {
         try {
           // Calcular valor atualizado com multa e juros
           const fineValue = payment.fineValue || 0;
@@ -248,15 +248,15 @@ export async function POST(_request: NextRequest) {
           const totalValue = payment.value + fineValue + interestValue;
 
           const rendered = renderTemplate("payment_overdue", {
-            tenantName: payment.tenant.name,
+            tenantName: payment.tenant?.name || "N/A",
             value: formatCurrency(payment.value),
-            propertyTitle: payment.contract.property.title,
+            propertyTitle: payment.contract.property?.title || "N/A",
             dueDate: formatDate(dueDate),
             totalValue: formatCurrency(totalValue),
           });
 
           const sendResult = await sendWhatsAppMessage({
-            to: payment.tenant.phone,
+            to: payment.tenant?.phone,
             message: rendered.message,
           });
 
@@ -264,8 +264,8 @@ export async function POST(_request: NextRequest) {
             data: {
               type: "WHATSAPP",
               channel: "whatsapp",
-              recipientName: payment.tenant.name,
-              recipientPhone: payment.tenant.phone,
+              recipientName: payment.tenant?.name || "N/A",
+              recipientPhone: payment.tenant?.phone,
               templateKey: "payment_overdue",
               subject: rendered.subject,
               message: rendered.message,
@@ -287,7 +287,7 @@ export async function POST(_request: NextRequest) {
             details.push({
               paymentId: payment.id,
               paymentCode: payment.code,
-              tenantName: payment.tenant.name,
+              tenantName: payment.tenant?.name || "N/A",
               action: "payment_overdue",
               result: "enviado",
             });
@@ -296,7 +296,7 @@ export async function POST(_request: NextRequest) {
             details.push({
               paymentId: payment.id,
               paymentCode: payment.code,
-              tenantName: payment.tenant.name,
+              tenantName: payment.tenant?.name || "N/A",
               action: "payment_overdue",
               result: `falha: ${sendResult.error}`,
             });
@@ -306,7 +306,7 @@ export async function POST(_request: NextRequest) {
           details.push({
             paymentId: payment.id,
             paymentCode: payment.code,
-            tenantName: payment.tenant.name,
+            tenantName: payment.tenant?.name || "N/A",
             action: "payment_overdue",
             result: `erro: ${(err as Error).message}`,
           });
@@ -316,7 +316,7 @@ export async function POST(_request: NextRequest) {
         details.push({
           paymentId: payment.id,
           paymentCode: payment.code,
-          tenantName: payment.tenant.name,
+          tenantName: payment.tenant?.name || "N/A",
           action: "payment_overdue",
           result: "sem_telefone_locatario",
         });
@@ -341,7 +341,7 @@ export async function POST(_request: NextRequest) {
           try {
             const rendered = renderTemplate("owner_payment_overdue", {
               ownerName: payment.owner.name,
-              propertyTitle: payment.contract.property.title,
+              propertyTitle: payment.contract.property?.title || "N/A",
               dueDate: formatDate(dueDate),
             });
 
@@ -418,17 +418,17 @@ export async function POST(_request: NextRequest) {
           },
         });
 
-        if (alreadySent || !contract.tenant.phone) continue;
+        if (alreadySent || !contract.tenant?.phone) continue;
 
         try {
           const rendered = renderTemplate("contract_expiring", {
-            tenantName: contract.tenant.name,
-            propertyTitle: contract.property.title,
+            tenantName: contract.tenant?.name || "N/A",
+            propertyTitle: contract.property?.title || "N/A",
             daysUntilExpiry,
           });
 
           const sendResult = await sendWhatsAppMessage({
-            to: contract.tenant.phone,
+            to: contract.tenant?.phone,
             message: rendered.message,
           });
 
@@ -436,8 +436,8 @@ export async function POST(_request: NextRequest) {
             data: {
               type: "WHATSAPP",
               channel: "whatsapp",
-              recipientName: contract.tenant.name,
-              recipientPhone: contract.tenant.phone,
+              recipientName: contract.tenant?.name || "N/A",
+              recipientPhone: contract.tenant?.phone,
               templateKey: "contract_expiring",
               subject: rendered.subject,
               message: rendered.message,

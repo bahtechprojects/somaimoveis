@@ -589,7 +589,7 @@ export default function ContratoDetalhePage() {
                       className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
                     >
                       <Building2 className="h-3.5 w-3.5" />
-                      {contract.property.title}
+                      {contract.property?.title || "N/A"}
                       <ExternalLink className="h-3 w-3" />
                     </Link>
                   </div>
@@ -613,7 +613,7 @@ export default function ContratoDetalhePage() {
                       className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
                     >
                       <UserCheck className="h-3.5 w-3.5" />
-                      {contract.tenant.name}
+                      {contract.tenant?.name || "N/A"}
                       <ExternalLink className="h-3 w-3" />
                     </Link>
                   </div>

@@ -225,7 +225,7 @@ export default function PortalPropertiesPage() {
                         <div className="flex items-center gap-1.5">
                           <User className="h-3.5 w-3.5 text-muted-foreground" />
                           <span className="text-xs text-muted-foreground truncate max-w-[120px]">
-                            {activeContract.tenant.name}
+                            {activeContract.tenant?.name || "N/A"}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">

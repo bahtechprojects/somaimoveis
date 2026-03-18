@@ -19,6 +19,12 @@ import {
   Loader2,
   AlertCircle,
   FileSearch,
+  SkipForward,
+  ClipboardList,
+  Shield,
+  FileEdit,
+  Handshake,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +34,10 @@ interface ImportContractPdfProps {
   onSuccess: () => void;
 }
 
-interface ParsedContract {
+type DocType = "LOCACAO" | "ADMINISTRACAO" | "VISTORIA" | "PROCURACAO" | "ADITIVO" | "INTERMEDIACAO" | "OUTRO";
+
+interface ParsedDocument {
+  tipo: DocType;
   locatarioNome: string | null;
   locatarioCpf: string | null;
   proprietarioNome: string | null;
@@ -41,12 +50,14 @@ interface ParsedContract {
   garantia: string | null;
   reajuste: string | null;
   fileName: string;
+  notes: string | null;
 }
 
 interface ImportResult {
   fileName: string;
-  status: "success" | "error" | "parsed";
-  data?: ParsedContract;
+  status: "success" | "error" | "parsed" | "skipped";
+  tipo?: DocType;
+  data?: ParsedDocument;
   contractId?: string;
   error?: string;
 }
@@ -56,12 +67,44 @@ interface ImportSummary {
   success: number;
   errors: number;
   parsed: number;
+  skipped: number;
+  byType: Record<string, number>;
 }
 
 type ImportStep = "select" | "preview" | "importing" | "done";
 
+const TYPE_LABELS: Record<DocType, string> = {
+  LOCACAO: "Locação",
+  ADMINISTRACAO: "Administração",
+  VISTORIA: "Vistoria",
+  PROCURACAO: "Procuração",
+  ADITIVO: "Aditivo",
+  INTERMEDIACAO: "Intermediação",
+  OUTRO: "Outro",
+};
+
+const TYPE_COLORS: Record<DocType, string> = {
+  LOCACAO: "bg-emerald-100 text-emerald-700",
+  ADMINISTRACAO: "bg-blue-100 text-blue-700",
+  VISTORIA: "bg-amber-100 text-amber-700",
+  PROCURACAO: "bg-purple-100 text-purple-700",
+  ADITIVO: "bg-orange-100 text-orange-700",
+  INTERMEDIACAO: "bg-cyan-100 text-cyan-700",
+  OUTRO: "bg-gray-100 text-gray-700",
+};
+
+const TYPE_ICONS: Record<DocType, typeof FileText> = {
+  LOCACAO: Handshake,
+  ADMINISTRACAO: ClipboardList,
+  VISTORIA: Eye,
+  PROCURACAO: Shield,
+  ADITIVO: FileEdit,
+  INTERMEDIACAO: Handshake,
+  OUTRO: FileText,
+};
+
 function formatCurrency(value: number | null): string {
-  if (value === null) return "N/A";
+  if (value === null || value === 0) return "N/A";
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
@@ -191,7 +234,15 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
     [step]
   );
 
-  const parsedContracts = previewResults.filter((r) => r.status === "parsed" && r.data);
+  const parsedDocs = previewResults.filter((r) => r.status === "parsed" && r.data);
+
+  // Group by type for summary
+  const typeGroups: Record<string, ImportResult[]> = {};
+  for (const r of parsedDocs) {
+    const tipo = r.tipo || r.data?.tipo || "OUTRO";
+    if (!typeGroups[tipo]) typeGroups[tipo] = [];
+    typeGroups[tipo].push(r);
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -199,10 +250,11 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSearch className="h-5 w-5" />
-            Importar Contratos PDF
+            Importar Documentos PDF
           </DialogTitle>
           <DialogDescription>
-            Extraia dados automaticamente dos PDFs de contrato da Somma e crie os registros no sistema.
+            Importe contratos de locação, administração, vistorias, procurações e aditivos.
+            O sistema classifica automaticamente cada arquivo.
           </DialogDescription>
         </DialogHeader>
 
@@ -233,22 +285,31 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
                 <div className="flex flex-col items-center gap-2">
                   <Upload className={cn("h-10 w-10", isDragOver ? "text-primary" : "text-muted-foreground")} />
                   <p className="text-sm font-medium">
-                    {isDragOver ? "Solte os arquivos aqui" : "Arraste os PDFs de contrato ou clique para selecionar"}
+                    {isDragOver ? "Solte os arquivos aqui" : "Arraste os PDFs ou clique para selecionar"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Selecione multiplos PDFs de contrato da Somma - Maximo 20MB cada
+                    Selecione todos os PDFs da pasta de contratos - Maximo 20MB cada
                   </p>
                 </div>
               </div>
 
               <div className="bg-muted/30 rounded-lg p-4">
-                <p className="text-xs font-medium text-muted-foreground mb-2">Como funciona:</p>
-                <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>1. O sistema le cada PDF e extrai: locatario, proprietario, imovel, valor, prazo</li>
-                  <li>2. Vincula automaticamente pelo CPF/CNPJ com locatarios e proprietarios ja cadastrados</li>
-                  <li>3. Cria o contrato e salva o PDF como documento anexo</li>
-                  <li>4. Arquivos que nao sao contratos (vistorias, procuracoes) sao ignorados</li>
-                </ul>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Tipos de documento suportados:</p>
+                <div className="flex flex-wrap gap-2">
+                  {(Object.keys(TYPE_LABELS) as DocType[]).filter(t => t !== "OUTRO").map((tipo) => {
+                    const Icon = TYPE_ICONS[tipo];
+                    return (
+                      <span key={tipo} className={cn("inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium", TYPE_COLORS[tipo])}>
+                        <Icon className="h-3 w-3" />
+                        {TYPE_LABELS[tipo]}
+                      </span>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  O sistema identifica automaticamente o tipo de cada PDF pelo nome e conteudo,
+                  extrai os dados e vincula pelo CPF/CNPJ.
+                </p>
               </div>
             </>
           )}
@@ -256,54 +317,101 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
           {/* Preview */}
           {step === "preview" && (
             <>
-              <div className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">{files.length} PDFs selecionados</span>
-                </div>
-                <div className="flex gap-2">
-                  <Badge variant="secondary" className="text-xs">
-                    {parsedContracts.length} contrato{parsedContracts.length !== 1 ? "s" : ""} detectado{parsedContracts.length !== 1 ? "s" : ""}
+              {/* Type summary badges */}
+              <div className="flex flex-wrap items-center gap-2 bg-muted/30 rounded-lg p-3">
+                <FileText className="h-4 w-4 text-primary shrink-0" />
+                <span className="text-sm font-medium">{files.length} PDFs analisados:</span>
+                {Object.entries(typeGroups).map(([tipo, items]) => {
+                  const Icon = TYPE_ICONS[tipo as DocType];
+                  return (
+                    <span key={tipo} className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium", TYPE_COLORS[tipo as DocType])}>
+                      <Icon className="h-3 w-3" />
+                      {items.length} {TYPE_LABELS[tipo as DocType]}
+                    </span>
+                  );
+                })}
+                {previewResults.filter(r => r.status === "error").length > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    {previewResults.filter(r => r.status === "error").length} erro(s)
                   </Badge>
-                  {previewResults.filter((r) => r.status === "error").length > 0 && (
-                    <Badge variant="destructive" className="text-xs">
-                      {previewResults.filter((r) => r.status === "error").length} ignorado{previewResults.filter((r) => r.status === "error").length !== 1 ? "s" : ""}
-                    </Badge>
-                  )}
-                </div>
+                )}
+                {previewResults.filter(r => r.status === "skipped").length > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {previewResults.filter(r => r.status === "skipped").length} ignorado(s)
+                  </Badge>
+                )}
               </div>
 
               <div className="border rounded-lg overflow-y-auto flex-1 max-h-[400px]">
                 <div className="divide-y">
-                  {previewResults.map((r, i) => (
-                    <div key={i} className={cn("p-3 text-xs", r.status === "error" ? "bg-red-50/50" : "")}>
-                      <div className="flex items-start gap-2">
-                        {r.status === "parsed" ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{r.fileName}</p>
-                          {r.data && (
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-muted-foreground">
-                              <p>Locatario: <span className="text-foreground">{r.data.locatarioNome || "N/A"}</span></p>
-                              <p>CPF: <span className="text-foreground">{r.data.locatarioCpf || "N/A"}</span></p>
-                              <p>Proprietario: <span className="text-foreground">{r.data.proprietarioNome || "N/A"}</span></p>
-                              <p>Doc: <span className="text-foreground">{r.data.proprietarioCpfCnpj || "N/A"}</span></p>
-                              <p>Valor: <span className="text-foreground">{formatCurrency(r.data.valorAluguel)}</span></p>
-                              <p>Dia pgto: <span className="text-foreground">{r.data.diaPagamento || "N/A"}</span></p>
-                              <p>Inicio: <span className="text-foreground">{formatDate(r.data.dataInicio)}</span></p>
-                              <p>Fim: <span className="text-foreground">{formatDate(r.data.dataFim)}</span></p>
-                              <p>Garantia: <span className="text-foreground">{r.data.garantia || "N/A"}</span></p>
-                              <p>Reajuste: <span className="text-foreground">{r.data.reajuste || "N/A"}</span></p>
-                            </div>
+                  {previewResults.map((r, i) => {
+                    const tipo = (r.tipo || r.data?.tipo || "OUTRO") as DocType;
+                    const Icon = TYPE_ICONS[tipo];
+                    return (
+                      <div key={i} className={cn(
+                        "p-3 text-xs",
+                        r.status === "error" ? "bg-red-50/50" : "",
+                        r.status === "skipped" ? "bg-gray-50/50" : ""
+                      )}>
+                        <div className="flex items-start gap-2">
+                          {r.status === "parsed" ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                          ) : r.status === "skipped" ? (
+                            <SkipForward className="h-4 w-4 text-gray-400 shrink-0 mt-0.5" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
                           )}
-                          {r.error && <p className="text-red-500 mt-1">{r.error}</p>}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium truncate">{r.fileName}</p>
+                              <span className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0", TYPE_COLORS[tipo])}>
+                                <Icon className="h-2.5 w-2.5" />
+                                {TYPE_LABELS[tipo]}
+                              </span>
+                            </div>
+                            {r.data && r.status === "parsed" && (
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-muted-foreground">
+                                {r.data.proprietarioNome && (
+                                  <p>Proprietario: <span className="text-foreground">{r.data.proprietarioNome}</span></p>
+                                )}
+                                {r.data.proprietarioCpfCnpj && (
+                                  <p>Doc: <span className="text-foreground">{r.data.proprietarioCpfCnpj}</span></p>
+                                )}
+                                {r.data.locatarioNome && (
+                                  <p>Locatario: <span className="text-foreground">{r.data.locatarioNome}</span></p>
+                                )}
+                                {r.data.locatarioCpf && (
+                                  <p>CPF: <span className="text-foreground">{r.data.locatarioCpf}</span></p>
+                                )}
+                                {r.data.valorAluguel && r.data.valorAluguel > 0 && (
+                                  <p>Valor: <span className="text-foreground">{formatCurrency(r.data.valorAluguel)}</span></p>
+                                )}
+                                {r.data.diaPagamento && (
+                                  <p>Dia pgto: <span className="text-foreground">{r.data.diaPagamento}</span></p>
+                                )}
+                                {r.data.dataInicio && (
+                                  <p>Inicio: <span className="text-foreground">{formatDate(r.data.dataInicio)}</span></p>
+                                )}
+                                {r.data.dataFim && (
+                                  <p>Fim: <span className="text-foreground">{formatDate(r.data.dataFim)}</span></p>
+                                )}
+                                {r.data.garantia && (
+                                  <p>Garantia: <span className="text-foreground">{r.data.garantia}</span></p>
+                                )}
+                                {r.data.imovelDescricao && (
+                                  <p className="col-span-2">Imovel: <span className="text-foreground">{r.data.imovelDescricao.substring(0, 80)}</span></p>
+                                )}
+                                {r.data.notes && (
+                                  <p className="col-span-2 text-muted-foreground italic">{r.data.notes}</p>
+                                )}
+                              </div>
+                            )}
+                            {r.error && <p className="text-red-500 mt-1">{r.error}</p>}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -320,8 +428,8 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
           {step === "importing" && (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <Loader2 className="h-10 w-10 text-primary animate-spin" />
-              <p className="text-sm font-medium">Processando {files.length} PDFs de contrato...</p>
-              <p className="text-xs text-muted-foreground">Extraindo dados e vinculando com locatarios/proprietarios.</p>
+              <p className="text-sm font-medium">Processando {files.length} PDFs...</p>
+              <p className="text-xs text-muted-foreground">Classificando, extraindo dados e vinculando automaticamente.</p>
             </div>
           )}
 
@@ -352,29 +460,60 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
                     {summary.errors > 0 && (
                       <>, <span className="text-red-600">{summary.errors} erro{summary.errors !== 1 ? "s" : ""}</span></>
                     )}
+                    {summary.skipped > 0 && (
+                      <>, <span className="text-gray-500">{summary.skipped} ignorado{summary.skipped !== 1 ? "s" : ""}</span></>
+                    )}
                     {" "}de {summary.total} arquivo{summary.total !== 1 ? "s" : ""}
                   </p>
+                  {summary.byType && Object.keys(summary.byType).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {Object.entries(summary.byType).map(([tipo, count]) => (
+                        <span key={tipo} className={cn("inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium", TYPE_COLORS[tipo as DocType])}>
+                          {count} {TYPE_LABELS[tipo as DocType]}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="border rounded-lg overflow-y-auto max-h-[300px]">
                 <div className="divide-y">
-                  {importResults.map((r, i) => (
-                    <div key={i} className={cn("flex items-start gap-2 p-2.5 text-xs", r.status === "error" ? "bg-red-50/50" : "bg-emerald-50/50")}>
-                      {r.status === "success" ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                      ) : (
-                        <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
-                      )}
-                      <div>
-                        <span className="font-medium">{r.fileName}</span>
-                        {r.status === "success" && r.data && (
-                          <span className="text-muted-foreground"> - {r.data.locatarioNome} - {formatCurrency(r.data.valorAluguel)}</span>
+                  {importResults.map((r, i) => {
+                    const tipo = (r.tipo || "OUTRO") as DocType;
+                    const Icon = TYPE_ICONS[tipo];
+                    return (
+                      <div key={i} className={cn(
+                        "flex items-start gap-2 p-2.5 text-xs",
+                        r.status === "error" ? "bg-red-50/50" : r.status === "skipped" ? "bg-gray-50/30" : "bg-emerald-50/50"
+                      )}>
+                        {r.status === "success" ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                        ) : r.status === "skipped" ? (
+                          <SkipForward className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
+                        ) : (
+                          <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                         )}
-                        {r.error && <span className="text-red-500"> - {r.error}</span>}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium truncate">{r.fileName}</span>
+                            <span className={cn("inline-flex items-center gap-0.5 px-1 py-0 rounded text-[10px]", TYPE_COLORS[tipo])}>
+                              <Icon className="h-2.5 w-2.5" />
+                              {TYPE_LABELS[tipo]}
+                            </span>
+                          </div>
+                          {r.status === "success" && r.data && (
+                            <span className="text-muted-foreground">
+                              {r.data.proprietarioNome && ` - ${r.data.proprietarioNome}`}
+                              {r.data.locatarioNome && ` - ${r.data.locatarioNome}`}
+                              {r.data.valorAluguel ? ` - ${formatCurrency(r.data.valorAluguel)}` : ""}
+                            </span>
+                          )}
+                          {r.error && <span className="text-red-500"> - {r.error}</span>}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </>
@@ -397,10 +536,10 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
               <Button variant="outline" onClick={() => handleOpenChange(false)} disabled={step === "importing"}>
                 Cancelar
               </Button>
-              {step === "preview" && parsedContracts.length > 0 && (
+              {step === "preview" && parsedDocs.length > 0 && (
                 <Button onClick={handleImport}>
                   <Upload className="h-4 w-4 mr-2" />
-                  Importar ({parsedContracts.length})
+                  Importar ({parsedDocs.length})
                 </Button>
               )}
             </>

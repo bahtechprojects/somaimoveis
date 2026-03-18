@@ -197,7 +197,7 @@ function FinanceiroContent() {
     const term = search.toLowerCase();
     return (
       payment.code.toLowerCase().includes(term) ||
-      payment.tenant.name.toLowerCase().includes(term) ||
+      (payment.tenant?.name || "").toLowerCase().includes(term) ||
       payment.contract.code.toLowerCase().includes(term)
     );
   });
@@ -415,10 +415,10 @@ function FinanceiroContent() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold">{payment.tenant.name}</p>
+                            <p className="text-sm font-semibold">{payment.tenant?.name || "N/A"}</p>
                           </div>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {payment.contract.code} - {payment.contract.property.title}
+                            {payment.contract.code} - {payment.contract.property?.title || "N/A"}
                           </p>
                         </div>
                         <DropdownMenu>
@@ -494,7 +494,7 @@ function FinanceiroContent() {
                           {payment.contract.code}
                         </TableCell>
                         <TableCell className="text-xs font-medium">
-                          {payment.tenant.name}
+                          {payment.tenant?.name || "N/A"}
                         </TableCell>
                         <TableCell className="text-xs font-semibold text-right">
                           {formatCurrency(payment.value)}

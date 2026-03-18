@@ -597,7 +597,7 @@ export default function RelatoriosPage() {
                       <div key={c.id} className="flex items-center justify-between text-xs p-2 rounded bg-muted/50">
                         <div>
                           <span className="font-medium">{c.code}</span>
-                          <span className="text-muted-foreground ml-2">{c.tenant.name}</span>
+                          <span className="text-muted-foreground ml-2">{c.tenant?.name || "N/A"}</span>
                         </div>
                         <span className="text-muted-foreground">{formatDate(c.endDate)}</span>
                       </div>
