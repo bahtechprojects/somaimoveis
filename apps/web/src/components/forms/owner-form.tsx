@@ -6,6 +6,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Search } from "lucide-react";
 import { useCepLookup } from "@/hooks/use-cep-lookup";
+import { useCnpjLookup } from "@/hooks/use-cnpj-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,7 @@ const ownerSchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   zipCode: z.string().optional(),
+  stateRegistration: z.string().optional(),
   bankName: z.string().optional(),
   bankAgency: z.string().optional(),
   bankAccount: z.string().optional(),
@@ -81,6 +83,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
       city: "",
       state: "",
       zipCode: "",
+      stateRegistration: "",
       bankName: "",
       bankAgency: "",
       bankAccount: "",
@@ -100,6 +103,21 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
 
   const { lookup: lookupCep, loading: cepLoading, error: cepError, formatCep } = useCepLookup({ onResult: handleCepResult });
 
+  const handleCnpjResult = useCallback((data: { name: string; email: string; phone: string; street: string; number: string; complement: string; neighborhood: string; city: string; state: string; zipCode: string }) => {
+    setValue("name", data.name, { shouldValidate: true });
+    if (data.email) setValue("email", data.email);
+    if (data.phone) setValue("phone", data.phone);
+    setValue("street", data.street, { shouldValidate: true });
+    setValue("number", data.number);
+    setValue("complement", data.complement);
+    setValue("neighborhood", data.neighborhood, { shouldValidate: true });
+    setValue("city", data.city, { shouldValidate: true });
+    setValue("state", data.state, { shouldValidate: true });
+    setValue("zipCode", data.zipCode);
+  }, [setValue]);
+
+  const { lookup: lookupCnpj, loading: cnpjLoading, error: cnpjError, formatCpfCnpj } = useCnpjLookup({ onResult: handleCnpjResult });
+
   useEffect(() => {
     if (open) {
       if (owner) {
@@ -116,6 +134,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
           city: owner.city || "",
           state: owner.state || "",
           zipCode: owner.zipCode || "",
+          stateRegistration: owner.stateRegistration || "",
           bankName: owner.bankName || "",
           bankAgency: owner.bankAgency || "",
           bankAccount: owner.bankAccount || "",
@@ -136,6 +155,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
           city: "",
           state: "",
           zipCode: "",
+          stateRegistration: "",
           bankName: "",
           bankAgency: "",
           bankAccount: "",
@@ -206,18 +226,6 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cpfCnpj">CPF/CNPJ *</Label>
-                <Input
-                  id="cpfCnpj"
-                  placeholder="000.000.000-00"
-                  {...register("cpfCnpj")}
-                />
-                {errors.cpfCnpj && (
-                  <p className="text-xs text-destructive">{errors.cpfCnpj.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="personType">Tipo de Pessoa</Label>
                 <Select
                   value={personType}
@@ -232,6 +240,57 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cpfCnpj">{personType === "PJ" ? "CNPJ" : "CPF"} *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="cpfCnpj"
+                    placeholder={personType === "PJ" ? "00.000.000/0000-00" : "000.000.000-00"}
+                    maxLength={personType === "PJ" ? 18 : 14}
+                    {...register("cpfCnpj", {
+                      onChange: (e) => {
+                        const formatted = formatCpfCnpj(e.target.value);
+                        setValue("cpfCnpj", formatted);
+                        // Auto-detect person type
+                        const clean = formatted.replace(/\D/g, "");
+                        if (clean.length > 11) setValue("personType", "PJ");
+                        // Auto-lookup CNPJ when complete
+                        if (clean.length === 14) lookupCnpj(formatted);
+                      },
+                    })}
+                  />
+                  {personType === "PJ" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={cnpjLoading}
+                      onClick={() => lookupCnpj(watch("cpfCnpj") || "")}
+                      title="Buscar CNPJ"
+                    >
+                      {cnpjLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    </Button>
+                  )}
+                </div>
+                {errors.cpfCnpj && (
+                  <p className="text-xs text-destructive">{errors.cpfCnpj.message}</p>
+                )}
+                {cnpjError && (
+                  <p className="text-xs text-destructive">{cnpjError}</p>
+                )}
+              </div>
+
+              {personType === "PJ" && (
+                <div className="space-y-2">
+                  <Label htmlFor="stateRegistration">Inscricao Estadual</Label>
+                  <Input
+                    id="stateRegistration"
+                    placeholder="Inscricao estadual"
+                    {...register("stateRegistration")}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>

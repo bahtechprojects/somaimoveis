@@ -37,6 +37,7 @@ model Owner {
   phone        String?
   cpfCnpj      String   @unique
   personType   String   @default("PF") // PF ou PJ
+  stateRegistration String? // Inscricao Estadual (PJ)
   // Endereco
   street       String?
   number       String?
@@ -77,6 +78,7 @@ model Tenant {
   phone        String?
   cpfCnpj      String   @unique
   personType   String   @default("PF") // PF ou PJ
+  stateRegistration String? // Inscricao Estadual (PJ)
   // Endereco (anterior)
   street       String?
   number       String?
