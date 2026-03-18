@@ -101,16 +101,17 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
   const { lookup: lookupCep, loading: cepLoading, error: cepError, formatCep } = useCepLookup({ onResult: handleCepResult });
 
   const handleCnpjResult = useCallback((data: { name: string; email: string; phone: string; street: string; number: string; complement: string; neighborhood: string; city: string; state: string; zipCode: string }) => {
-    setValue("name", data.name, { shouldValidate: true });
-    if (data.email) setValue("email", data.email);
-    if (data.phone) setValue("phone", data.phone);
-    setValue("street", data.street, { shouldValidate: true });
-    setValue("number", data.number);
-    setValue("complement", data.complement);
-    setValue("neighborhood", data.neighborhood, { shouldValidate: true });
-    setValue("city", data.city, { shouldValidate: true });
-    setValue("state", data.state, { shouldValidate: true });
-    setValue("zipCode", data.zipCode);
+    const opts = { shouldValidate: true, shouldDirty: true };
+    if (data.name) setValue("name", data.name, opts);
+    if (data.email) setValue("email", data.email, opts);
+    if (data.phone) setValue("phone", data.phone, opts);
+    if (data.street) setValue("street", data.street, opts);
+    if (data.number) setValue("number", data.number, opts);
+    if (data.complement) setValue("complement", data.complement, opts);
+    if (data.neighborhood) setValue("neighborhood", data.neighborhood, opts);
+    if (data.city) setValue("city", data.city, opts);
+    if (data.state) setValue("state", data.state, opts);
+    if (data.zipCode) setValue("zipCode", data.zipCode, opts);
   }, [setValue]);
 
   const { lookup: lookupCnpj, loading: cnpjLoading, error: cnpjError, formatCpfCnpj } = useCnpjLookup({ onResult: handleCnpjResult });

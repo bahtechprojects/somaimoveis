@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
 
     if (res.ok) {
       const d = await res.json();
+      console.log("BrasilAPI response:", JSON.stringify({ razao_social: d.razao_social, nome_fantasia: d.nome_fantasia, email: d.email }));
       // Map BrasilAPI response to ReceitaWS format for compatibility
       return NextResponse.json({
         razao_social: d.razao_social || "",

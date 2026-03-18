@@ -72,10 +72,10 @@ export function useCnpjLookup({ onResult }: UseCnpjLookupOptions) {
       let phone = (data.telefone || "").replace(/[^\d]/g, "");
       if (phone.length > 11) phone = phone.substring(0, 11);
 
-      // Prefer nome_fantasia if not empty, otherwise razao_social
-      const nome = (data.nome_fantasia && data.nome_fantasia.trim())
-        ? data.nome_fantasia.trim()
-        : (data.razao_social || "").trim();
+      // Prefer razao_social (full legal name), fallback to nome_fantasia
+      const razao = String(data.razao_social || "").trim();
+      const fantasia = String(data.nome_fantasia || "").trim();
+      const nome = razao || fantasia || "";
 
       onResult({
         name: nome,
