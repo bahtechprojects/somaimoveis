@@ -56,7 +56,7 @@ function extractContractData(text: string, fileName: string): ParsedContract {
 
   // Locatario CPF - search in the LOCATARIO section (before FIADOR or IMOVEL)
   let locCpf: string | null = null;
-  const locSection = t.match(/LOCAT[ÁA]RIO.*?(?:FIADOR|IM[ÓO]VEL|OBJETO)/is);
+  const locSection = t.match(/LOCAT[ÁA]RIO[\s\S]*?(?:FIADOR|IM[ÓO]VEL|OBJETO)/i);
   if (locSection) {
     const cpfMatch = locSection[0].match(/(?:CPF|CPF\/MF)\s*(?:n[°ºo]|sob\s*n[°ºo])?\s*(\d{3}\.?\d{3}\.?\d{3}[\-]\d{2})/i);
     if (cpfMatch) locCpf = cpfMatch[1];
@@ -230,18 +230,30 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Find or create property by description match
-        let property = null;
+        // Find property by description match
+        let propertyId: string | null = null;
         if (parsed.imovelDescricao) {
-          // Try to match property by address keywords
           const allProps = await prisma.property.findMany({ where: { ownerId: owner.id } });
           const descLower = parsed.imovelDescricao.toLowerCase();
-          property = allProps.find(p => {
-            const titleLower = (p.title || "").toLowerCase();
+          const property = allProps.find(p => {
             const streetLower = (p.street || "").toLowerCase();
-            // Match by street name or title keywords
-            return descLower.includes(streetLower) || streetLower.includes(descLower.split(",")[0].toLowerCase().trim());
+            return streetLower.length > 3 && descLower.includes(streetLower);
           });
+          if (property) propertyId = property.id;
+        }
+        if (!propertyId) {
+          // Try matching any property by address
+          const allProps = await prisma.property.findMany();
+          const descLower = (parsed.imovelDescricao || "").toLowerCase();
+          const property = allProps.find(p => {
+            const streetLower = (p.street || "").toLowerCase();
+            return streetLower.length > 3 && descLower.includes(streetLower);
+          });
+          if (property) propertyId = property.id;
+        }
+        if (!propertyId) {
+          results.push({ fileName: file.name, status: "error", data: parsed, error: `Imovel nao encontrado: ${parsed.imovelDescricao?.substring(0, 60) || 'N/A'}` });
+          continue;
         }
 
         // Generate contract code from filename
@@ -261,7 +273,7 @@ export async function POST(request: NextRequest) {
             code,
             type: "LOCACAO",
             status: "ATIVO",
-            propertyId: property?.id || null,
+            propertyId,
             ownerId: owner.id,
             tenantId: tenant.id,
             rentalValue: parsed.valorAluguel,
