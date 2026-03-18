@@ -72,9 +72,14 @@ export function useCnpjLookup({ onResult }: UseCnpjLookupOptions) {
       let phone = (data.telefone || "").replace(/[^\d]/g, "");
       if (phone.length > 11) phone = phone.substring(0, 11);
 
+      // Prefer nome_fantasia if not empty, otherwise razao_social
+      const nome = (data.nome_fantasia && data.nome_fantasia.trim())
+        ? data.nome_fantasia.trim()
+        : (data.razao_social || "").trim();
+
       onResult({
-        name: data.nome_fantasia || data.razao_social || "",
-        email: (data.email || "").toLowerCase(),
+        name: nome,
+        email: (data.email || "").toLowerCase().trim(),
         phone,
         street: data.logradouro || "",
         number: data.numero || "",
