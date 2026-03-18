@@ -51,7 +51,8 @@ import { ContractForm } from "@/components/forms/contract-form";
 import { UploadPdf } from "@/components/forms/upload-pdf";
 import { BatchUploadPdf } from "@/components/forms/batch-upload-pdf";
 import { ImportSpreadsheet } from "@/components/forms/import-spreadsheet";
-import { FileSpreadsheet } from "lucide-react";
+import { ImportContractPdf } from "@/components/forms/import-contract-pdf";
+import { FileSpreadsheet, FileSearch } from "lucide-react";
 
 interface Contract {
   id: string;
@@ -122,6 +123,7 @@ function ContratosContent() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [batchUploadOpen, setBatchUploadOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [importContractPdfOpen, setImportContractPdfOpen] = useState(false);
 
   async function fetchContracts() {
     setLoading(true);
@@ -307,6 +309,10 @@ function ContratosContent() {
                     <Files className="h-3.5 w-3.5" />
                     Importar Lote
                   </Button>
+                  <Button variant="default" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setImportContractPdfOpen(true)}>
+                    <FileSearch className="h-3.5 w-3.5" />
+                    Importar Contratos PDF
+                  </Button>
                 </div>
                 {/* Mobile: import dropdown */}
                 <div className="sm:hidden">
@@ -326,6 +332,9 @@ function ContratosContent() {
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setBatchUploadOpen(true)}>
                         <Files className="h-3.5 w-3.5 mr-2" /> Lote
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setImportContractPdfOpen(true)}>
+                        <FileSearch className="h-3.5 w-3.5 mr-2" /> Contratos PDF
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -527,6 +536,13 @@ function ContratosContent() {
         entityType="contracts"
         open={importOpen}
         onOpenChange={setImportOpen}
+        onSuccess={() => fetchContracts()}
+      />
+
+      {/* Import Contract PDFs Dialog */}
+      <ImportContractPdf
+        open={importContractPdfOpen}
+        onOpenChange={setImportContractPdfOpen}
         onSuccess={() => fetchContracts()}
       />
     </div>
