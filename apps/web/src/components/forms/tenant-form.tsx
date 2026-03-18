@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
+import { useCepLookup } from "@/hooks/use-cep-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -87,6 +88,15 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
   });
 
   const personType = watch("personType");
+
+  const handleCepResult = useCallback((data: { street: string; neighborhood: string; city: string; state: string }) => {
+    setValue("street", data.street, { shouldValidate: true });
+    setValue("neighborhood", data.neighborhood, { shouldValidate: true });
+    setValue("city", data.city, { shouldValidate: true });
+    setValue("state", data.state, { shouldValidate: true });
+  }, [setValue]);
+
+  const { lookup: lookupCep, loading: cepLoading, error: cepError, formatCep } = useCepLookup({ onResult: handleCepResult });
 
   useEffect(() => {
     if (open) {
@@ -343,11 +353,33 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
 
               <div className="space-y-2">
                 <Label htmlFor="zipCode">CEP</Label>
-                <Input
-                  id="zipCode"
-                  placeholder="00000-000"
-                  {...register("zipCode")}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="zipCode"
+                    placeholder="00000-000"
+                    maxLength={9}
+                    {...register("zipCode", {
+                      onChange: (e) => {
+                        const formatted = formatCep(e.target.value);
+                        setValue("zipCode", formatted);
+                        if (formatted.length === 9) lookupCep(formatted);
+                      },
+                    })}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    disabled={cepLoading}
+                    onClick={() => lookupCep(watch("zipCode") || "")}
+                    title="Buscar CEP"
+                  >
+                    {cepLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {cepError && (
+                  <p className="text-xs text-destructive">{cepError}</p>
+                )}
               </div>
             </div>
           </div>

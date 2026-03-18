@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
+import { useCepLookup } from "@/hooks/use-cep-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -109,6 +110,15 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
   const selectedStatus = watch("status");
   const selectedOwnerId = watch("ownerId");
   const furnished = watch("furnished");
+
+  const handleCepResult = useCallback((data: { street: string; neighborhood: string; city: string; state: string }) => {
+    setValue("street", data.street, { shouldValidate: true });
+    setValue("neighborhood", data.neighborhood, { shouldValidate: true });
+    setValue("city", data.city, { shouldValidate: true });
+    setValue("state", data.state, { shouldValidate: true });
+  }, [setValue]);
+
+  const { lookup: lookupCep, loading: cepLoading, error: cepError, formatCep } = useCepLookup({ onResult: handleCepResult });
 
   // Fetch owners list
   useEffect(() => {
@@ -338,15 +348,37 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
               Endereco
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="street">Rua *</Label>
-                <Input
-                  id="street"
-                  placeholder="Nome da rua"
-                  {...register("street")}
-                />
-                {errors.street && (
-                  <p className="text-xs text-destructive">{errors.street.message}</p>
+              <div className="space-y-2">
+                <Label htmlFor="zipCode">CEP *</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="zipCode"
+                    placeholder="00000-000"
+                    maxLength={9}
+                    {...register("zipCode", {
+                      onChange: (e) => {
+                        const formatted = formatCep(e.target.value);
+                        setValue("zipCode", formatted);
+                        if (formatted.length === 9) lookupCep(formatted);
+                      },
+                    })}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    disabled={cepLoading}
+                    onClick={() => lookupCep(watch("zipCode"))}
+                    title="Buscar CEP"
+                  >
+                    {cepLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {errors.zipCode && (
+                  <p className="text-xs text-destructive">{errors.zipCode.message}</p>
+                )}
+                {cepError && (
+                  <p className="text-xs text-destructive">{cepError}</p>
                 )}
               </div>
 
@@ -359,6 +391,18 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
                 />
                 {errors.number && (
                   <p className="text-xs text-destructive">{errors.number.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="street">Rua *</Label>
+                <Input
+                  id="street"
+                  placeholder="Nome da rua"
+                  {...register("street")}
+                />
+                {errors.street && (
+                  <p className="text-xs text-destructive">{errors.street.message}</p>
                 )}
               </div>
 
@@ -405,18 +449,6 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
                 />
                 {errors.state && (
                   <p className="text-xs text-destructive">{errors.state.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="zipCode">CEP *</Label>
-                <Input
-                  id="zipCode"
-                  placeholder="00000-000"
-                  {...register("zipCode")}
-                />
-                {errors.zipCode && (
-                  <p className="text-xs text-destructive">{errors.zipCode.message}</p>
                 )}
               </div>
             </div>
