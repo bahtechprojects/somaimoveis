@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
-
-// pdf-parse v1.1.1 is CommonJS and works without canvas/DOMMatrix
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
+import { extractTextFromPDF } from "@/lib/pdf-ocr";
 
 // Regex patterns - include soft hyphen (U+00AD) used by some PDF generators
 const HYPH = "[-\\u00AD]"; // regular hyphen or soft hyphen
@@ -39,8 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const pdf = await pdfParse(buffer);
-    const text = pdf.text;
+    const text = await extractTextFromPDF(buffer);
 
     if (!text || text.trim().length === 0) {
       return NextResponse.json({ error: "PDF vazio ou sem texto extraivel" }, { status: 400 });

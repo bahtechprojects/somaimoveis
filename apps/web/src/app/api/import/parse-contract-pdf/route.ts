@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const pdfParse = require("pdf-parse");
+import { extractTextFromPDF } from "@/lib/pdf-ocr";
 
 const MONTHS: Record<string, number> = {
   janeiro: 1, fevereiro: 2, março: 3, marco: 3, abril: 4, maio: 5, junho: 6,
@@ -400,8 +398,7 @@ export async function POST(request: NextRequest) {
         const buffer = Buffer.from(await file.arrayBuffer());
         let pdfText = "";
         try {
-          const pdf = await pdfParse(buffer);
-          pdfText = pdf.text || "";
+          pdfText = await extractTextFromPDF(buffer);
         } catch (pdfErr) {
           results.push({ fileName: file.name, status: "error", error: `Erro ao ler PDF: ${pdfErr instanceof Error ? pdfErr.message : "desconhecido"}` });
           continue;
