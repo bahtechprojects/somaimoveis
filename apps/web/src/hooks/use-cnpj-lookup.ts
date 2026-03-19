@@ -37,8 +37,63 @@ export function useCnpjLookup({ onResult }: UseCnpjLookupOptions) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const lookupCpfLocal = useCallback(async (cpf: string): Promise<boolean> => {
+    try {
+      // Search in owners and tenants by CPF
+      const [ownersRes, tenantsRes] = await Promise.all([
+        fetch(`/api/owners?search=${cpf}`),
+        fetch(`/api/tenants?search=${cpf}`),
+      ]);
+      const owners = ownersRes.ok ? await ownersRes.json() : [];
+      const tenants = tenantsRes.ok ? await tenantsRes.json() : [];
+      const ownersList = Array.isArray(owners) ? owners : owners.data || [];
+      const tenantsList = Array.isArray(tenants) ? tenants : tenants.data || [];
+
+      // Find exact CPF match
+      const match = [...ownersList, ...tenantsList].find(
+        (p: any) => p.cpfCnpj?.replace(/\D/g, "") === cpf
+      );
+
+      if (match) {
+        onResult({
+          name: match.name || "",
+          email: match.email || "",
+          phone: match.phone || "",
+          street: match.street || "",
+          number: match.number || "",
+          complement: match.complement || "",
+          neighborhood: match.neighborhood || "",
+          city: match.city || "",
+          state: match.state || "",
+          zipCode: match.zipCode || "",
+        });
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, [onResult]);
+
   const lookup = useCallback(async (cnpj: string) => {
     const clean = cnpj.replace(/\D/g, "");
+
+    // CPF: 11 digits - search local database
+    if (clean.length === 11) {
+      setLoading(true);
+      setError(null);
+      try {
+        const found = await lookupCpfLocal(clean);
+        if (!found) {
+          setError("CPF nao encontrado na base local");
+        }
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // CNPJ: 14 digits - search external API
     if (clean.length !== 14) {
       setError(null);
       return;
@@ -95,7 +150,7 @@ export function useCnpjLookup({ onResult }: UseCnpjLookupOptions) {
     } finally {
       setLoading(false);
     }
-  }, [onResult]);
+  }, [onResult, lookupCpfLocal]);
 
   // Format CNPJ as user types: 00.000.000/0000-00
   const formatCnpj = useCallback((value: string): string => {
