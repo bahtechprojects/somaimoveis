@@ -7,6 +7,12 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname, "../../"),
   // pdf-parse uses fs and loads test files - must be external
   serverExternalPackages: ["pdf-parse"],
+  // Increase body size limit for PDF uploads (default 10MB)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "25mb",
+    },
+  },
 };
 
 export default nextConfig;

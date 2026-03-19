@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 import { extractTextFromPDF } from "@/lib/pdf-ocr";
 
+// Allow large PDF uploads (up to 25MB)
+export const maxDuration = 300; // 5 minutes timeout
+
 const MONTHS: Record<string, number> = {
   janeiro: 1, fevereiro: 2, março: 3, marco: 3, abril: 4, maio: 5, junho: 6,
   julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
