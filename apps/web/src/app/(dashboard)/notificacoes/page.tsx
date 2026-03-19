@@ -364,10 +364,6 @@ export default function NotificacoesPage() {
                       <Mail className="h-3 w-3 sm:mr-1" />
                       <span className="hidden sm:inline">Email</span>
                     </TabsTrigger>
-                    <TabsTrigger value="sms" className="text-xs h-7 px-2 sm:px-3">
-                      <Phone className="h-3 w-3 sm:mr-1" />
-                      <span className="hidden sm:inline">SMS</span>
-                    </TabsTrigger>
                   </TabsList>
                 </Tabs>
                 <Button
