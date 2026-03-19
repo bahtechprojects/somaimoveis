@@ -441,7 +441,9 @@ export async function POST(request: NextRequest) {
             });
           }
         }
-        if (!owner) {
+        // Owner is only required for LOCACAO. For VISTORIA, PROCURACAO, ADITIVO etc, it's optional
+        const ownerRequired = tipo === "LOCACAO" || tipo === "ADMINISTRACAO";
+        if (!owner && ownerRequired) {
           results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Proprietário não encontrado e dados insuficientes para criar: ${parsed.proprietarioCpfCnpj || "N/A"}` });
           continue;
         }
@@ -526,6 +528,19 @@ export async function POST(request: NextRequest) {
           status = "ATIVO"; // document attached to owner
         }
 
+        // For documents without owner (VISTORIA, PROCURACAO), use or create a system owner
+        let ownerId = owner?.id;
+        if (!ownerId) {
+          // Find or create Somma as system owner for unlinked documents
+          let sommaOwner = await prisma.owner.findFirst({ where: { cpfCnpj: "40.528.068/0001-62" } });
+          if (!sommaOwner) {
+            sommaOwner = await prisma.owner.create({
+              data: { name: "Somma Imoveis (Sistema)", cpfCnpj: "40.528.068/0001-62", personType: "PJ" },
+            });
+          }
+          ownerId = sommaOwner.id;
+        }
+
         // Create contract/document record
         const contract = await prisma.contract.create({
           data: {
@@ -533,7 +548,7 @@ export async function POST(request: NextRequest) {
             type: tipo,
             status,
             propertyId: propertyId || undefined,
-            ownerId: owner.id,
+            ownerId,
             tenantId: tenantId || undefined,
             rentalValue: parsed.valorAluguel || 0,
             adminFeePercent: 10,
