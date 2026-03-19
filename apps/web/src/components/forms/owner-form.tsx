@@ -126,6 +126,8 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
 
   const { lookup: lookupCnpj, loading: cnpjLoading, error: cnpjError, formatCpfCnpj } = useCnpjLookup({ onResult: handleCnpjResult });
 
+  const DRAFT_KEY = "somma-draft-owner";
+
   useEffect(() => {
     if (open) {
       if (owner) {
@@ -150,29 +152,43 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
           notes: owner.notes || "",
         });
       } else {
-        reset({
-          name: "",
-          cpfCnpj: "",
-          personType: "PF",
-          email: "",
-          phone: "",
-          street: "",
-          number: "",
-          complement: "",
-          neighborhood: "",
-          city: "",
-          state: "",
-          zipCode: "",
-          stateRegistration: "",
-          bankName: "",
-          bankAgency: "",
-          bankAccount: "",
-          bankPix: "",
-              notes: "",
-        });
+        // Try to restore draft
+        try {
+          const draft = localStorage.getItem(DRAFT_KEY);
+          if (draft) {
+            const parsed = JSON.parse(draft);
+            reset(parsed);
+          } else {
+            reset({
+              name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
+              street: "", number: "", complement: "", neighborhood: "",
+              city: "", state: "", zipCode: "", stateRegistration: "",
+              bankName: "", bankAgency: "", bankAccount: "", bankPix: "", notes: "",
+            });
+          }
+        } catch {
+          reset({
+            name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
+            street: "", number: "", complement: "", neighborhood: "",
+            city: "", state: "", zipCode: "", stateRegistration: "",
+            bankName: "", bankAgency: "", bankAccount: "", bankPix: "", notes: "",
+          });
+        }
       }
     }
   }, [open, owner, reset]);
+
+  // Save draft when closing without saving
+  const handleOpenChange = useCallback((newOpen: boolean) => {
+    if (!newOpen && !isEditing) {
+      const current = watch();
+      const hasData = Object.values(current).some(v => v && v !== "PF");
+      if (hasData) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(current));
+      }
+    }
+    onOpenChange(newOpen);
+  }, [isEditing, watch, onOpenChange]);
 
   async function onSubmit(data: OwnerFormData) {
     setLoading(true);
@@ -191,6 +207,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
         throw new Error(error.error || "Erro ao salvar proprietario");
       }
 
+      localStorage.removeItem(DRAFT_KEY);
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
@@ -201,8 +218,8 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[680px] sm:max-h-[90vh]">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[680px] sm:max-h-[90vh]" preventOutsideClose>
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Editar Proprietario" : "Novo Proprietario"}
@@ -475,7 +492,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
             >
               Cancelar
             </Button>

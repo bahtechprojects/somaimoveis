@@ -300,7 +300,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh]">
+      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh]" preventOutsideClose>
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Editar Cobranca" : "Nova Cobranca"}

@@ -51,15 +51,19 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  preventOutsideClose = false,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  preventOutsideClose?: boolean
 }) {
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        onInteractOutside={preventOutsideClose ? (e) => e.preventDefault() : undefined}
+        onEscapeKeyDown={preventOutsideClose ? (e) => e.preventDefault() : undefined}
         className={cn(
           "fixed z-50 grid w-full bg-background shadow-lg duration-200 outline-none",
           // Mobile: full-screen bottom sheet

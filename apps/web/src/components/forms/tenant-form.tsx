@@ -121,6 +121,8 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
 
   const { lookup: lookupCnpj, loading: cnpjLoading, error: cnpjError, formatCpfCnpj } = useCnpjLookup({ onResult: handleCnpjResult });
 
+  const DRAFT_KEY = "somma-draft-tenant";
+
   useEffect(() => {
     if (open) {
       if (tenant) {
@@ -144,28 +146,40 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
           notes: tenant.notes || "",
         });
       } else {
-        reset({
-          name: "",
-          cpfCnpj: "",
-          personType: "PF",
-          email: "",
-          phone: "",
-          rgNumber: "",
-          occupation: "",
-          monthlyIncome: undefined,
-          street: "",
-          number: "",
-          complement: "",
-          neighborhood: "",
-          city: "",
-          state: "",
-          zipCode: "",
-          stateRegistration: "",
-          notes: "",
-        });
+        try {
+          const draft = localStorage.getItem(DRAFT_KEY);
+          if (draft) {
+            reset(JSON.parse(draft));
+          } else {
+            reset({
+              name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
+              rgNumber: "", occupation: "", monthlyIncome: undefined,
+              street: "", number: "", complement: "", neighborhood: "",
+              city: "", state: "", zipCode: "", stateRegistration: "", notes: "",
+            });
+          }
+        } catch {
+          reset({
+            name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
+            rgNumber: "", occupation: "", monthlyIncome: undefined,
+            street: "", number: "", complement: "", neighborhood: "",
+            city: "", state: "", zipCode: "", stateRegistration: "", notes: "",
+          });
+        }
       }
     }
   }, [open, tenant, reset]);
+
+  const handleOpenChange = useCallback((newOpen: boolean) => {
+    if (!newOpen && !isEditing) {
+      const current = watch();
+      const hasData = Object.values(current).some(v => v && v !== "PF");
+      if (hasData) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(current));
+      }
+    }
+    onOpenChange(newOpen);
+  }, [isEditing, watch, onOpenChange]);
 
   async function onSubmit(data: TenantFormData) {
     setLoading(true);
@@ -184,6 +198,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
         throw new Error(error.error || "Erro ao salvar locatario");
       }
 
+      localStorage.removeItem(DRAFT_KEY);
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
@@ -194,8 +209,8 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[680px] sm:max-h-[90vh]">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent className="sm:max-w-[680px] sm:max-h-[90vh]" preventOutsideClose>
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Editar Locatario" : "Novo Locatario"}
@@ -460,7 +475,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleOpenChange(false)}
             >
               Cancelar
             </Button>
