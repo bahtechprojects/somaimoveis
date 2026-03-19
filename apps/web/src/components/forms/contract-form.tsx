@@ -28,10 +28,10 @@ const contractSchema = z.object({
   code: z.string().min(1, "Codigo e obrigatorio"),
   type: z.string().min(1),
   status: z.string().min(1),
-  propertyId: z.string().min(1, "Imovel e obrigatorio"),
+  propertyId: z.string().optional(),
   ownerId: z.string().min(1, "Proprietario e obrigatorio"),
-  tenantId: z.string().min(1, "Locatario e obrigatorio"),
-  rentalValue: z.coerce.number().min(0.01, "Valor do aluguel e obrigatorio"),
+  tenantId: z.string().optional(),
+  rentalValue: z.coerce.number().min(0).optional(),
   adminFeePercent: z.coerce.number().min(0),
   intermediationFee: z.coerce.number().min(0).optional(),
   paymentDay: z.coerce.number().int().min(1).max(31),
@@ -328,8 +328,13 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="LOCACAO">Locacao</SelectItem>
+                    <SelectItem value="ADMINISTRACAO">Administracao</SelectItem>
+                    <SelectItem value="VISTORIA">Vistoria</SelectItem>
                     <SelectItem value="VENDA">Venda</SelectItem>
                     <SelectItem value="TEMPORADA">Temporada</SelectItem>
+                    <SelectItem value="PROCURACAO">Procuracao</SelectItem>
+                    <SelectItem value="ADITIVO">Aditivo</SelectItem>
+                    <SelectItem value="INTERMEDIACAO">Intermediacao</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

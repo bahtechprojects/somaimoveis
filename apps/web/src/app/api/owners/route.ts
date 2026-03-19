@@ -101,6 +101,9 @@ export async function POST(request: NextRequest) {
       bankAgency: body.bankAgency || null,
       bankAccount: body.bankAccount || null,
       bankPix: body.bankPix || null,
+      bankPixType: body.bankPixType || null,
+      birthDate: body.birthDate ? new Date(body.birthDate) : null,
+      rgIssuer: body.rgIssuer || null,
       notes: body.notes || null,
     },
   });

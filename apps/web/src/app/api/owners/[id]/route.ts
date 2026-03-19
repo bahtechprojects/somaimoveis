@@ -40,6 +40,8 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    if (body.birthDate) body.birthDate = new Date(body.birthDate);
+    if (body.monthlyIncome) body.monthlyIncome = parseFloat(body.monthlyIncome);
     const owner = await prisma.owner.update({
       where: { id },
       data: body,

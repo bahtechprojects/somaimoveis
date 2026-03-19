@@ -108,6 +108,8 @@ export async function POST(request: NextRequest) {
       state: body.state || null,
       zipCode: body.zipCode || null,
       rgNumber: body.rgNumber || null,
+      rgIssuer: body.rgIssuer || null,
+      birthDate: body.birthDate ? new Date(body.birthDate) : null,
       occupation: body.occupation || null,
       monthlyIncome: body.monthlyIncome ? parseFloat(body.monthlyIncome) : null,
       notes: body.notes || null,

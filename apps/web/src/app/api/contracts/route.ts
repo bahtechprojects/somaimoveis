@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     property: { select: { id: true, title: true } },
     owner: { select: { id: true, name: true } },
     tenant: { select: { id: true, name: true } },
+    guarantor: { select: { id: true, name: true } },
   };
 
   const pageParam = searchParams.get("page");
@@ -62,26 +63,31 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
   const body = await request.json();
-  const { code, propertyId, ownerId, tenantId, rentalValue, startDate, endDate } = body;
-  if (!code || !propertyId || !ownerId || !tenantId || !rentalValue || !startDate || !endDate) {
+  const { code, ownerId, rentalValue, startDate, endDate } = body;
+  if (!code || !ownerId || !startDate || !endDate) {
     return NextResponse.json(
-      { error: "Campos obrigatórios: code, propertyId, ownerId, tenantId, rentalValue, startDate, endDate" },
+      { error: "Campos obrigatórios: code, ownerId, startDate, endDate" },
       { status: 400 }
     );
   }
   const contract = await prisma.contract.create({
     data: {
-      code, propertyId, ownerId, tenantId,
-      rentalValue: parseFloat(rentalValue),
+      code,
+      ownerId,
+      propertyId: body.propertyId || null,
+      tenantId: body.tenantId || null,
+      rentalValue: rentalValue ? parseFloat(rentalValue) : 0,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       type: body.type || "LOCACAO",
       status: body.status || "ATIVO",
       adminFeePercent: body.adminFeePercent ? parseFloat(body.adminFeePercent) : 10,
+      intermediationFee: body.intermediationFee ? parseFloat(body.intermediationFee) : null,
       paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 10,
       guaranteeType: body.guaranteeType || null,
       guaranteeValue: body.guaranteeValue ? parseFloat(body.guaranteeValue) : null,
       guaranteeNotes: body.guaranteeNotes || null,
+      guarantorId: body.guaranteeType === "FIADOR" && body.guarantorId ? body.guarantorId : null,
       adjustmentIndex: body.adjustmentIndex || "IGPM",
       adjustmentMonth: body.adjustmentMonth ? parseInt(body.adjustmentMonth) : null,
       documentUrl: body.documentUrl || null,
@@ -91,6 +97,7 @@ export async function POST(request: NextRequest) {
       property: { select: { id: true, title: true } },
       owner: { select: { id: true, name: true } },
       tenant: { select: { id: true, name: true } },
+      guarantor: { select: { id: true, name: true } },
     },
   });
   return NextResponse.json(contract, { status: 201 });
