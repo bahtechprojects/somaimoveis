@@ -45,17 +45,38 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    if (body.birthDate) body.birthDate = new Date(body.birthDate);
-    if (body.monthlyIncome) body.monthlyIncome = parseFloat(body.monthlyIncome);
+    const data: Record<string, unknown> = {
+      name: body.name || undefined,
+      cpfCnpj: body.cpfCnpj || undefined,
+      personType: body.personType || undefined,
+      email: body.email || null,
+      phone: body.phone || null,
+      rg: body.rg || null,
+      rgIssuer: body.rgIssuer || null,
+      profession: body.profession || null,
+      monthlyIncome: body.monthlyIncome ? parseFloat(body.monthlyIncome) : null,
+      birthDate: body.birthDate ? new Date(body.birthDate) : null,
+      street: body.street || null,
+      number: body.number || null,
+      complement: body.complement || null,
+      neighborhood: body.neighborhood || null,
+      city: body.city || null,
+      state: body.state || null,
+      zipCode: body.zipCode || null,
+      notes: body.notes || null,
+    };
+    // Remove undefined keys (only update provided fields)
+    Object.keys(data).forEach(k => { if (data[k] === undefined) delete data[k]; });
     const tenant = await prisma.tenant.update({
       where: { id },
-      data: body,
+      data,
     });
     return NextResponse.json(tenant);
   } catch (error: any) {
     if (error?.code === "P2025") {
       return NextResponse.json({ error: "Locatário não encontrado" }, { status: 404 });
     }
+    console.error("Tenant update error:", error);
     return NextResponse.json({ error: "Erro ao atualizar locatário" }, { status: 500 });
   }
 }
