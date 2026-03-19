@@ -20,9 +20,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Apenas arquivos PDF são aceitos" }, { status: 400 });
     }
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ error: "Arquivo deve ter no máximo 10MB" }, { status: 400 });
+    // Validate file size (max 25MB)
+    if (file.size > 25 * 1024 * 1024) {
+      return NextResponse.json({ error: "Arquivo deve ter no máximo 25MB" }, { status: 400 });
     }
 
     // Create uploads directory

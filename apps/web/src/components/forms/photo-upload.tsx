@@ -57,8 +57,8 @@ export function PhotoUpload({
         alert(`Arquivo "${file.name}" ignorado. Apenas JPEG, PNG e WebP sao aceitos.`);
         return;
       }
-      if (file.size > 5 * 1024 * 1024) {
-        alert(`Arquivo "${file.name}" ignorado. Tamanho maximo: 5MB.`);
+      if (file.size > 25 * 1024 * 1024) {
+        alert(`Arquivo "${file.name}" ignorado. Tamanho maximo: 25MB.`);
         return;
       }
       validFiles.push({
@@ -345,7 +345,7 @@ export function PhotoUpload({
                 : "Arraste fotos ou clique para selecionar"}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              JPEG, PNG ou WebP - Maximo 5MB por arquivo
+              JPEG, PNG ou WebP - Maximo 25MB por arquivo
             </p>
           </div>
         </div>

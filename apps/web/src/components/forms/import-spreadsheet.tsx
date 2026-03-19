@@ -186,8 +186,8 @@ export function ImportSpreadsheet({
       return;
     }
 
-    if (f.size > 20 * 1024 * 1024) {
-      setError("Arquivo muito grande. Maximo 20MB.");
+    if (f.size > 25 * 1024 * 1024) {
+      setError("Arquivo muito grande. Maximo 25MB.");
       return;
     }
 
@@ -309,7 +309,7 @@ export function ImportSpreadsheet({
                       : "Arraste o arquivo aqui ou clique para selecionar"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Formatos aceitos: CSV (.csv), Excel (.xlsx) ou PDF (.pdf) - Maximo 20MB
+                    Formatos aceitos: CSV (.csv), Excel (.xlsx) ou PDF (.pdf) - Maximo 25MB
                   </p>
                 </div>
               </div>

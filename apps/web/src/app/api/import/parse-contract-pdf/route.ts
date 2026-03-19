@@ -70,30 +70,38 @@ interface ParsedDocument {
   notes: string | null;
 }
 
+function truncateName(name: string): string {
+  return name
+    .split(/,\s*(?:brasileir[oa]|ambos|inscrit|portador|nascid|casad|solteir|divorci|viuv|viúv|natural|residente|pessoa|empresa|com sede|representad|maior|menor)/i)[0]
+    .split(/\s+(?:CPF|RG\s)/i)[0]
+    .trim()
+    .substring(0, 200);
+}
+
 function extractOwnerInfo(t: string): { nome: string | null; doc: string | null } {
   let nome: string | null = null;
   let doc: string | null = null;
 
   // Find proprietario section
   const propMatch = t.match(
-    /PROPRIET[ÁA]RIO[S]?(?:\(A\))?(?:\(S\))?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|com sede|portador|solteiro|casad|viúv|divorc|natural|CPF|CNPJ))/i
+    /PROPRIET[ÁA]RIO[S]?(?:\(A\))?(?:\(S\))?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|com sede|portador|solteiro|casad|viúv|divorc|natural|ambos|nascid|CPF|CNPJ))/i
   );
-  if (propMatch) nome = propMatch[1].trim();
+  if (propMatch) nome = truncateName(propMatch[1]);
 
   // Also try OUTORGANTE for procuracoes
   if (!nome) {
     const outMatch = t.match(
-      /OUTORGANTE[S]?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|com sede|portador|solteiro|casad))/i
+      /OUTORGANTE[S]?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|com sede|portador|solteiro|casad|ambos|nascid))/i
     );
-    if (outMatch) nome = outMatch[1].trim();
+    if (outMatch) nome = truncateName(outMatch[1]);
   }
 
   // Also try LOCADOR for some contract formats
   if (!nome) {
     const locadorMatch = t.match(
-      /LOCADOR[A]?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|com sede|portador|solteiro|casad|representad))/i
+      /LOCADOR[A]?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|com sede|portador|solteiro|casad|representad|ambos|nascid))/i
     );
-    if (locadorMatch) nome = locadorMatch[1].trim();
+    if (locadorMatch) nome = truncateName(locadorMatch[1]);
   }
 
   // Find CNPJ (skip Somma's)
@@ -125,9 +133,9 @@ function extractTenantInfo(t: string): { nome: string | null; cpf: string | null
   let cpf: string | null = null;
 
   const locMatch = t.match(
-    /LOCAT[ÁA]RIO[S]?(?:\(A\))?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|portador|solteiro|casad|viúv|divorc|natural|menor|maior|CPF|CNPJ))/i
+    /LOCAT[ÁA]RIO[S]?(?:\(A\))?[:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|portador|solteiro|casad|viúv|divorc|natural|menor|maior|ambos|nascid|CPF|CNPJ))/i
   );
-  if (locMatch) nome = locMatch[1].trim();
+  if (locMatch) nome = truncateName(locMatch[1]);
 
   // CPF in locatario section
   const locStart = t.search(/LOCAT[ÁA]RIO/i);
@@ -321,7 +329,7 @@ function extractAditivoData(text: string, fileName: string): ParsedDocument {
   const cessMatch = t.match(
     /CESSION[ÁA]RI[AO][:\s]+(.+?)(?:,\s*(?:brasileir|pessoa|empresa|inscrit|portador|solteiro|casad))/i
   );
-  if (cessMatch) newTenantNome = cessMatch[1].trim();
+  if (cessMatch) newTenantNome = truncateName(cessMatch[1]);
 
   // Imovel
   let imovelDesc: string | null = null;

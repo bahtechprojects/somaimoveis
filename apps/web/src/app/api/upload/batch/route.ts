@@ -63,10 +63,10 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Validate file size (max 10MB)
-        if (file.size > 10 * 1024 * 1024) {
+        // Validate file size (max 25MB)
+        if (file.size > 25 * 1024 * 1024) {
           result.status = "error";
-          result.error = "Arquivo excede o limite de 10MB.";
+          result.error = "Arquivo excede o limite de 25MB.";
           results.push(result);
           continue;
         }

@@ -164,7 +164,7 @@ export function UploadPdf({ open, onOpenChange, onSuccess }: UploadPdfProps) {
               <div className="flex flex-col items-center gap-2">
                 <Upload className="h-10 w-10 text-muted-foreground" />
                 <p className="text-sm font-medium">Clique para selecionar o PDF</p>
-                <p className="text-xs text-muted-foreground">Máximo 10MB</p>
+                <p className="text-xs text-muted-foreground">Máximo 25MB</p>
               </div>
             )}
           </div>

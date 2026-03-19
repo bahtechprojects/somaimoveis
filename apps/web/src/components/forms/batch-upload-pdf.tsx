@@ -368,7 +368,7 @@ export function BatchUploadPdf({
                     : "Arraste PDFs aqui ou clique para selecionar"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Varios arquivos PDF, maximo 10MB cada
+                  Varios arquivos PDF, maximo 25MB cada
                 </p>
               </div>
             </div>
@@ -434,12 +434,12 @@ export function BatchUploadPdf({
                         <span className="text-xs text-muted-foreground">
                           {formatFileSize(entry.file.size)}
                         </span>
-                        {entry.file.size > 10 * 1024 * 1024 && (
+                        {entry.file.size > 25 * 1024 * 1024 && (
                           <Badge
                             variant="outline"
                             className="text-[10px] px-1 h-4 border-red-200 text-red-600"
                           >
-                            Excede 10MB
+                            Excede 25MB
                           </Badge>
                         )}
                         {entry.matchedContractCode && (

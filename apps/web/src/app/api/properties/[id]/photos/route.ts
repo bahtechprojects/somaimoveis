@@ -5,7 +5,7 @@ import path from "path";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 export async function GET(
   request: NextRequest,
@@ -79,7 +79,7 @@ export async function POST(
       if (file.size > MAX_FILE_SIZE) {
         return NextResponse.json(
           {
-            error: `Arquivo muito grande: ${file.name}. Tamanho maximo: 5MB.`,
+            error: `Arquivo muito grande: ${file.name}. Tamanho maximo: 25MB.`,
           },
           { status: 400 }
         );

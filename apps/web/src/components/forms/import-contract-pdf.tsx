@@ -140,7 +140,7 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
 
   function handleFileSelect(selectedFiles: FileList | File[]) {
     const pdfFiles = Array.from(selectedFiles).filter(
-      (f) => f.name.toLowerCase().endsWith(".pdf") && f.size <= 20 * 1024 * 1024
+      (f) => f.name.toLowerCase().endsWith(".pdf") && f.size <= 25 * 1024 * 1024
     );
     if (pdfFiles.length === 0) {
       setError("Nenhum arquivo PDF valido selecionado.");
@@ -288,7 +288,7 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
                     {isDragOver ? "Solte os arquivos aqui" : "Arraste os PDFs ou clique para selecionar"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Selecione todos os PDFs da pasta de contratos - Maximo 20MB cada
+                    Selecione todos os PDFs da pasta de contratos - Maximo 25MB cada
                   </p>
                 </div>
               </div>

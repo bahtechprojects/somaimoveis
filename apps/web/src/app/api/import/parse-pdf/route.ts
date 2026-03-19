@@ -33,8 +33,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Nenhum arquivo enviado" }, { status: 400 });
     }
 
-    if (file.size > 20 * 1024 * 1024) {
-      return NextResponse.json({ error: "Arquivo muito grande. Maximo 20MB" }, { status: 400 });
+    if (file.size > 25 * 1024 * 1024) {
+      return NextResponse.json({ error: "Arquivo muito grande. Maximo 25MB" }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
