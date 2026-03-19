@@ -422,54 +422,90 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Auto-create: find owner
+        // Auto-create: find or create owner
         let owner = null;
         if (parsed.proprietarioCpfCnpj) {
           const ownerDocClean = cleanCpfCnpj(parsed.proprietarioCpfCnpj);
           const allOwners = await prisma.owner.findMany({ where: { active: true } });
           owner = allOwners.find(o => cleanCpfCnpj(o.cpfCnpj) === ownerDocClean);
+
+          // Auto-create owner if not found
+          if (!owner && parsed.proprietarioNome) {
+            const isPJ = ownerDocClean.length > 11;
+            owner = await prisma.owner.create({
+              data: {
+                name: parsed.proprietarioNome,
+                cpfCnpj: parsed.proprietarioCpfCnpj,
+                personType: isPJ ? "PJ" : "PF",
+              },
+            });
+          }
         }
         if (!owner) {
-          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Proprietário não encontrado: ${parsed.proprietarioCpfCnpj || "N/A"} (${parsed.proprietarioNome || "N/A"})` });
+          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Proprietário não encontrado e dados insuficientes para criar: ${parsed.proprietarioCpfCnpj || "N/A"}` });
           continue;
         }
 
-        // Find tenant (only required for LOCACAO)
+        // Find or create tenant
         let tenantId: string | null = null;
         if (parsed.locatarioCpf) {
           const tenantCpfClean = cleanCpfCnpj(parsed.locatarioCpf);
           const allTenants = await prisma.tenant.findMany({ where: { active: true } });
           const tenant = allTenants.find(t => cleanCpfCnpj(t.cpfCnpj) === tenantCpfClean);
-          if (tenant) tenantId = tenant.id;
+          if (tenant) {
+            tenantId = tenant.id;
+          } else if (parsed.locatarioNome) {
+            // Auto-create tenant
+            const isPJ = tenantCpfClean.length > 11;
+            const newTenant = await prisma.tenant.create({
+              data: {
+                name: parsed.locatarioNome,
+                cpfCnpj: parsed.locatarioCpf,
+                personType: isPJ ? "PJ" : "PF",
+              },
+            });
+            tenantId = newTenant.id;
+          }
         }
         if (!tenantId && tipo === "LOCACAO") {
-          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Locatário não encontrado: ${parsed.locatarioCpf || "N/A"} (${parsed.locatarioNome || "N/A"})` });
+          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Locatário não encontrado e dados insuficientes: ${parsed.locatarioCpf || "N/A"}` });
           continue;
         }
 
-        // Find property (optional for non-LOCACAO)
+        // Find or create property
         let propertyId: string | null = null;
         if (parsed.imovelDescricao) {
           const descLower = parsed.imovelDescricao.toLowerCase();
-          const ownerProps = await prisma.property.findMany({ where: { ownerId: owner.id } });
-          const prop = ownerProps.find(p => {
+          const allProps = await prisma.property.findMany();
+          const prop = allProps.find(p => {
             const street = (p.street || "").toLowerCase();
             return street.length > 3 && descLower.includes(street);
           });
-          if (prop) propertyId = prop.id;
-          if (!propertyId) {
-            // Try all properties
-            const allProps = await prisma.property.findMany();
-            const p = allProps.find(p => {
-              const street = (p.street || "").toLowerCase();
-              return street.length > 3 && descLower.includes(street);
+          if (prop) {
+            propertyId = prop.id;
+          } else if (owner) {
+            // Auto-create property from contract description
+            const descParts = parsed.imovelDescricao.split(",").map(s => s.trim());
+            const newProp = await prisma.property.create({
+              data: {
+                title: descParts[0]?.substring(0, 100) || "Imóvel importado",
+                type: parsed.imovelDescricao.toLowerCase().includes("apartamento") ? "APARTAMENTO"
+                  : parsed.imovelDescricao.toLowerCase().includes("sala") ? "SALA"
+                  : parsed.imovelDescricao.toLowerCase().includes("comercial") ? "COMERCIAL"
+                  : "CASA",
+                status: "ALUGADO",
+                street: descParts[0] || "A definir",
+                number: descParts.find(p => /^\d+$/.test(p)) || "S/N",
+                neighborhood: descParts.length > 2 ? descParts[descParts.length - 2] : "A definir",
+                city: descParts.length > 1 ? descParts[descParts.length - 1] : "A definir",
+                state: "RS",
+                zipCode: "",
+                ownerId: owner.id,
+                rentalValue: parsed.valorAluguel || 0,
+              },
             });
-            if (p) propertyId = p.id;
+            propertyId = newProp.id;
           }
-        }
-        if (!propertyId && tipo === "LOCACAO") {
-          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Imóvel não encontrado: ${parsed.imovelDescricao?.substring(0, 60) || "N/A"}` });
-          continue;
         }
 
         // Generate code
