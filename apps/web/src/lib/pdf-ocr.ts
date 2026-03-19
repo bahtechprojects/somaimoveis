@@ -77,8 +77,8 @@ export async function extractTextWithOCR(pdfBuffer: Buffer): Promise<string> {
 
   const texts: string[] = [];
 
-  // Process max 15 pages to avoid timeout
-  for (let i = 0; i < Math.min(jpegs.length, 15); i++) {
+  // Process max 3 pages (contract data is always in the first pages)
+  for (let i = 0; i < Math.min(jpegs.length, 3); i++) {
     const imgPath = join(tempDir, `page-${i}.jpg`);
     try {
       await writeFile(imgPath, jpegs[i]);

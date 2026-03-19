@@ -364,6 +364,9 @@ function extractDocumentData(text: string, fileName: string, tipo: DocType): Par
   }
 }
 
+// Allow up to 5 minutes for OCR processing
+export const maxDuration = 300;
+
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
