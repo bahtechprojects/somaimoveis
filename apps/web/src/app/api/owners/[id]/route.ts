@@ -40,17 +40,41 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    if (body.birthDate) body.birthDate = new Date(body.birthDate);
-    if (body.monthlyIncome) body.monthlyIncome = parseFloat(body.monthlyIncome);
+    const data: Record<string, unknown> = {
+      name: body.name || undefined,
+      cpfCnpj: body.cpfCnpj || undefined,
+      personType: body.personType || undefined,
+      email: body.email || null,
+      phone: body.phone || null,
+      stateRegistration: body.stateRegistration || null,
+      birthDate: body.birthDate ? new Date(body.birthDate) : null,
+      rgIssuer: body.rgIssuer || null,
+      street: body.street || null,
+      number: body.number || null,
+      complement: body.complement || null,
+      neighborhood: body.neighborhood || null,
+      city: body.city || null,
+      state: body.state || null,
+      zipCode: body.zipCode || null,
+      bankName: body.bankName || null,
+      bankAgency: body.bankAgency || null,
+      bankAccount: body.bankAccount || null,
+      bankPix: body.bankPix || null,
+      bankPixType: body.bankPixType || null,
+      notes: body.notes || null,
+    };
+    // Remove undefined keys
+    Object.keys(data).forEach(k => { if (data[k] === undefined) delete data[k]; });
     const owner = await prisma.owner.update({
       where: { id },
-      data: body,
+      data,
     });
     return NextResponse.json(owner);
   } catch (error: any) {
     if (error?.code === "P2025") {
       return NextResponse.json({ error: "Proprietário não encontrado" }, { status: 404 });
     }
+    console.error("Owner update error:", error);
     return NextResponse.json({ error: "Erro ao atualizar proprietário" }, { status: 500 });
   }
 }
