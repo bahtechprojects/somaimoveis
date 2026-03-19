@@ -63,6 +63,11 @@ const navigation = [
     icon: DollarSign,
   },
   {
+    label: "Lancamentos",
+    href: "/lancamentos",
+    icon: Receipt,
+  },
+  {
     label: "Relatorios",
     href: "/relatorios",
     icon: BarChart3,
