@@ -441,12 +441,7 @@ export async function POST(request: NextRequest) {
             });
           }
         }
-        // Owner is only required for LOCACAO. For VISTORIA, PROCURACAO, ADITIVO etc, it's optional
-        const ownerRequired = tipo === "LOCACAO" || tipo === "ADMINISTRACAO";
-        if (!owner && ownerRequired) {
-          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Proprietário não encontrado e dados insuficientes para criar: ${parsed.proprietarioCpfCnpj || "N/A"}` });
-          continue;
-        }
+        // Owner is optional - if not found, will use Somma as fallback
 
         // Find or create tenant
         let tenantId: string | null = null;
@@ -469,10 +464,7 @@ export async function POST(request: NextRequest) {
             tenantId = newTenant.id;
           }
         }
-        if (!tenantId && tipo === "LOCACAO") {
-          results.push({ fileName: file.name, status: "error", tipo, data: parsed, error: `Locatário não encontrado e dados insuficientes: ${parsed.locatarioCpf || "N/A"}` });
-          continue;
-        }
+        // Tenant is optional - can be linked manually later
 
         // Find or create property
         let propertyId: string | null = null;
