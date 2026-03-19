@@ -436,11 +436,15 @@ function ContratosContent() {
                             {contract.code}
                           </div>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {contract.property?.title || "N/A"}
+                        <TableCell className="text-xs text-muted-foreground max-w-[300px]">
+                          <span className="block truncate" title={contract.property?.title || "N/A"}>
+                            {contract.property?.title || "N/A"}
+                          </span>
                         </TableCell>
-                        <TableCell className="text-xs">
-                          {contract.tenant?.name || "N/A"}
+                        <TableCell className="text-xs max-w-[250px]">
+                          <span className="block truncate" title={contract.tenant?.name || "N/A"}>
+                            {contract.tenant?.name || "N/A"}
+                          </span>
                         </TableCell>
                         <TableCell className="text-xs font-medium">
                           {formatCurrency(contract.rentalValue)}
