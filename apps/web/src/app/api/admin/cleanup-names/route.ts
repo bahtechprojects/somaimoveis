@@ -3,10 +3,19 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 
 function truncateName(name: string): string {
-  return name
-    .split(/,\s*(?:brasileir[oa]|ambos|inscrit|portador|nascid|casad|solteir|divorci|viuv|viúv|natural|residente|pessoa|empresa|com sede|representad|maior|menor)/i)[0]
+  let n = name;
+  // Remove "Alteração do LOCATÁRIO..." preamble - extract the actual new tenant name
+  const altMatch = n.match(/(?:será|sera|será\s*a?\s*)\s*(?:SANTA CRUZ DO SUL\s*[-–]\s*)?(.+)/i);
+  if (n.toLowerCase().startsWith("alteração do locat") || n.toLowerCase().startsWith("alteracao do locat")) {
+    // Try to extract the new entity name after "será" or use as-is but truncated
+    if (altMatch) {
+      n = altMatch[1];
+    }
+  }
+  return n
+    .split(/,\s*(?:brasileir[oa]|ambos|inscrit|portador|nascid|casad|solteir|divorci|viuv|viúv|natural|residente|pessoa|empresa|com sede|representad|maior|menor|anteriormente)/i)[0]
     .split(/\s+(?:CPF|RG\s)/i)[0]
-    .replace(/Alteração do LOCAT[ÁA]RIO.*?(?:será|sera)\s*/i, "")
+    .split(/,\s*(?:deixa de fazer|a partir da)/i)[0]
     .trim()
     .substring(0, 200);
 }

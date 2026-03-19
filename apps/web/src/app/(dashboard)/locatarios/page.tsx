@@ -294,8 +294,8 @@ function LocatariosContent() {
                               {getInitials(tenant.name)}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold truncate">{tenant.name}</p>
+                          <div className="min-w-0 flex-1 max-w-[400px]">
+                            <p className="text-sm font-semibold truncate" title={tenant.name}>{tenant.name}</p>
                             <p className="text-xs text-muted-foreground">{tenant.cpfCnpj}</p>
                           </div>
                         </div>
