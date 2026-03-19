@@ -1,4 +1,8 @@
-import Tesseract from "tesseract.js";
+import { execFile } from "child_process";
+import { writeFile, unlink, mkdir } from "fs/promises";
+import { join } from "path";
+import { randomUUID } from "crypto";
+import { tmpdir } from "os";
 
 /**
  * Find JPEG image streams embedded in a PDF buffer.
@@ -18,7 +22,6 @@ function findJpegStreams(buffer: Buffer): Buffer[] {
     if (end === -1) break;
 
     const jpeg = buffer.subarray(start, end + 2);
-    // Only include reasonably sized images (> 10KB, likely a page scan)
     if (jpeg.length > 10000) {
       jpegs.push(Buffer.from(jpeg));
     }
@@ -30,8 +33,37 @@ function findJpegStreams(buffer: Buffer): Buffer[] {
 }
 
 /**
- * Extract text from a scanned PDF using OCR.
- * Finds embedded JPEG images and runs Tesseract OCR on each.
+ * Run tesseract CLI on an image file and return the extracted text.
+ */
+function runTesseract(imagePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const outputBase = imagePath + "_out";
+    execFile(
+      "tesseract",
+      [imagePath, outputBase, "-l", "por", "--psm", "1"],
+      { timeout: 60000 },
+      async (error) => {
+        if (error) {
+          reject(new Error(`Tesseract falhou: ${error.message}`));
+          return;
+        }
+        try {
+          const { readFile } = await import("fs/promises");
+          const text = await readFile(outputBase + ".txt", "utf-8");
+          // Clean up output file
+          await unlink(outputBase + ".txt").catch(() => {});
+          resolve(text);
+        } catch (e) {
+          reject(e);
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Extract text from a scanned PDF using system tesseract-ocr.
+ * Finds embedded JPEG images and runs tesseract CLI on each.
  */
 export async function extractTextWithOCR(pdfBuffer: Buffer): Promise<string> {
   const jpegs = findJpegStreams(pdfBuffer);
@@ -40,22 +72,33 @@ export async function extractTextWithOCR(pdfBuffer: Buffer): Promise<string> {
     throw new Error("Nenhuma imagem encontrada no PDF escaneado");
   }
 
+  const tempDir = join(tmpdir(), "somma-ocr-" + randomUUID());
+  await mkdir(tempDir, { recursive: true });
+
   const texts: string[] = [];
 
   // Process max 15 pages to avoid timeout
-  for (const jpeg of jpegs.slice(0, 15)) {
+  for (let i = 0; i < Math.min(jpegs.length, 15); i++) {
+    const imgPath = join(tempDir, `page-${i}.jpg`);
     try {
-      const { data } = await Tesseract.recognize(jpeg, "por");
-      if (data.text && data.text.trim().length > 10) {
-        texts.push(data.text);
+      await writeFile(imgPath, jpegs[i]);
+      const text = await runTesseract(imgPath);
+      if (text.trim().length > 10) {
+        texts.push(text);
       }
     } catch {
       // Skip unreadable images
+    } finally {
+      await unlink(imgPath).catch(() => {});
     }
   }
 
+  // Clean up temp dir
+  const { rmdir } = await import("fs/promises");
+  await rmdir(tempDir).catch(() => {});
+
   if (texts.length === 0) {
-    throw new Error("Nao foi possivel extrair texto do PDF escaneado");
+    throw new Error("Nao foi possivel extrair texto do PDF escaneado. Verifique se o tesseract-ocr esta instalado.");
   }
 
   return texts.join("\n\n");
@@ -72,7 +115,6 @@ export async function extractTextFromPDF(pdfBuffer: Buffer): Promise<string> {
     const result = await pdfParse(pdfBuffer);
     const text = (result.text || "").trim();
 
-    // If we got meaningful text (more than just whitespace/newlines)
     if (text.length > 50) {
       return text;
     }
