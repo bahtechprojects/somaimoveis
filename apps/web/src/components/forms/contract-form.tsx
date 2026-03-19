@@ -33,12 +33,14 @@ const contractSchema = z.object({
   tenantId: z.string().min(1, "Locatario e obrigatorio"),
   rentalValue: z.coerce.number().min(0.01, "Valor do aluguel e obrigatorio"),
   adminFeePercent: z.coerce.number().min(0),
+  intermediationFee: z.coerce.number().min(0).optional(),
   paymentDay: z.coerce.number().int().min(1).max(31),
   startDate: z.string().min(1, "Data de inicio e obrigatoria"),
   endDate: z.string().min(1, "Data de termino e obrigatoria"),
   guaranteeType: z.string().optional(),
   guaranteeValue: z.coerce.number().optional(),
   guaranteeNotes: z.string().optional(),
+  guarantorId: z.string().optional(),
   adjustmentIndex: z.string().optional(),
   adjustmentMonth: z.coerce.number().int().min(1).max(12).optional(),
   notes: z.string().optional(),
@@ -53,12 +55,14 @@ type ContractFormData = {
   tenantId: string;
   rentalValue: number;
   adminFeePercent: number;
+  intermediationFee?: number;
   paymentDay: number;
   startDate: string;
   endDate: string;
   guaranteeType?: string;
   guaranteeValue?: number;
   guaranteeNotes?: string;
+  guarantorId?: string;
   adjustmentIndex?: string;
   adjustmentMonth?: number;
   notes?: string;
@@ -82,6 +86,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   const [owners, setOwners] = useState<SelectOption[]>([]);
   const [tenants, setTenants] = useState<SelectOption[]>([]);
   const [properties, setProperties] = useState<SelectOption[]>([]);
+  const [guarantors, setGuarantors] = useState<SelectOption[]>([]);
   const isEditing = !!contract;
 
   const {
@@ -103,12 +108,14 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       tenantId: "",
       rentalValue: undefined,
       adminFeePercent: 10,
+      intermediationFee: undefined,
       paymentDay: 10,
       startDate: "",
       endDate: "",
       guaranteeType: "",
       guaranteeValue: undefined,
       guaranteeNotes: "",
+      guarantorId: "",
       adjustmentIndex: "IGPM",
       adjustmentMonth: undefined,
       notes: "",
@@ -121,16 +128,18 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   const selectedOwnerId = watch("ownerId");
   const selectedTenantId = watch("tenantId");
   const selectedGuaranteeType = watch("guaranteeType");
+  const selectedGuarantorId = watch("guarantorId");
   const selectedAdjustmentIndex = watch("adjustmentIndex");
 
   // Fetch related data on dialog open
   useEffect(() => {
     async function fetchData() {
       try {
-        const [ownersRes, tenantsRes, propertiesRes] = await Promise.all([
+        const [ownersRes, tenantsRes, propertiesRes, guarantorsRes] = await Promise.all([
           fetch("/api/owners"),
           fetch("/api/tenants"),
           fetch("/api/properties"),
+          fetch("/api/guarantors"),
         ]);
 
         if (ownersRes.ok) {
@@ -144,6 +153,10 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         if (propertiesRes.ok) {
           const data = await propertiesRes.json();
           setProperties(data.map((p: any) => ({ id: p.id, title: p.title })));
+        }
+        if (guarantorsRes.ok) {
+          const data = await guarantorsRes.json();
+          setGuarantors(data.map((g: any) => ({ id: g.id, name: g.name })));
         }
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
@@ -189,6 +202,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           tenantId: contract.tenantId || "",
           rentalValue: contract.rentalValue ?? undefined,
           adminFeePercent: contract.adminFeePercent ?? 10,
+          intermediationFee: contract.intermediationFee ?? undefined,
           paymentDay: contract.paymentDay ?? 10,
           startDate: contract.startDate
             ? new Date(contract.startDate).toISOString().split("T")[0]
@@ -199,6 +213,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           guaranteeType: contract.guaranteeType || "",
           guaranteeValue: contract.guaranteeValue ?? undefined,
           guaranteeNotes: contract.guaranteeNotes || "",
+          guarantorId: contract.guarantorId || "",
           adjustmentIndex: contract.adjustmentIndex || "IGPM",
           adjustmentMonth: contract.adjustmentMonth ?? undefined,
           notes: contract.notes || "",
@@ -213,12 +228,14 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           tenantId: "",
           rentalValue: undefined,
           adminFeePercent: 10,
+          intermediationFee: undefined,
           paymentDay: 10,
           startDate: "",
           endDate: "",
           guaranteeType: "",
           guaranteeValue: undefined,
           guaranteeNotes: "",
+          guarantorId: "",
           adjustmentIndex: "IGPM",
           adjustmentMonth: undefined,
           notes: "",
@@ -237,9 +254,11 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         ...data,
         startDate: new Date(data.startDate).toISOString(),
         endDate: new Date(data.endDate).toISOString(),
+        intermediationFee: data.intermediationFee || null,
         guaranteeType: data.guaranteeType || null,
         guaranteeValue: data.guaranteeValue || null,
         guaranteeNotes: data.guaranteeNotes || null,
+        guarantorId: (data.guaranteeType === "FIADOR" && data.guarantorId) ? data.guarantorId : null,
         adjustmentIndex: data.adjustmentIndex || null,
         adjustmentMonth: data.adjustmentMonth || null,
         notes: data.notes || null,
@@ -441,6 +460,17 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="intermediationFee">Taxa de Intermediacao (%)</Label>
+                <Input
+                  id="intermediationFee"
+                  type="number"
+                  step="0.1"
+                  placeholder="0"
+                  {...register("intermediationFee")}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="paymentDay">Dia de Pagamento</Label>
                 <Input
                   id="paymentDay"
@@ -530,6 +560,30 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                   {...register("guaranteeNotes")}
                 />
               </div>
+
+              {selectedGuaranteeType === "FIADOR" && (
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="guarantorId">Fiador</Label>
+                  <Select
+                    value={selectedGuarantorId || ""}
+                    onValueChange={(value) => setValue("guarantorId", value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o fiador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {guarantors.map((guarantor) => (
+                        <SelectItem key={guarantor.id} value={guarantor.id}>
+                          {guarantor.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__new__" disabled>
+                        Cadastrar novo fiador (em breve)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
 

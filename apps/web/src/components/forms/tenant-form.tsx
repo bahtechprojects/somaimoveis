@@ -33,6 +33,8 @@ const tenantSchema = z.object({
   email: z.string().email("Email invalido").or(z.literal("")).optional(),
   phone: z.string().optional(),
   rgNumber: z.string().optional(),
+  rgIssuer: z.string().optional(),
+  birthDate: z.string().optional(),
   occupation: z.string().optional(),
   monthlyIncome: z.coerce.number().optional(),
   street: z.string().optional(),
@@ -76,6 +78,8 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
       email: "",
       phone: "",
       rgNumber: "",
+      rgIssuer: "",
+      birthDate: "",
       occupation: "",
       monthlyIncome: undefined,
       street: "",
@@ -133,6 +137,8 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
           email: tenant.email || "",
           phone: tenant.phone || "",
           rgNumber: tenant.rgNumber || "",
+          rgIssuer: tenant.rgIssuer || "",
+          birthDate: tenant.birthDate || "",
           occupation: tenant.occupation || "",
           monthlyIncome: tenant.monthlyIncome ?? undefined,
           street: tenant.street || "",
@@ -153,7 +159,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
           } else {
             reset({
               name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
-              rgNumber: "", occupation: "", monthlyIncome: undefined,
+              rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined,
               street: "", number: "", complement: "", neighborhood: "",
               city: "", state: "", zipCode: "", stateRegistration: "", notes: "",
             });
@@ -161,7 +167,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
         } catch {
           reset({
             name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
-            rgNumber: "", occupation: "", monthlyIncome: undefined,
+            rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined,
             street: "", number: "", complement: "", neighborhood: "",
             city: "", state: "", zipCode: "", stateRegistration: "", notes: "",
           });
@@ -328,14 +334,35 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="rgNumber">RG</Label>
-                <Input
-                  id="rgNumber"
-                  placeholder="00.000.000-0"
-                  {...register("rgNumber")}
-                />
+              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="rgNumber">RG</Label>
+                  <Input
+                    id="rgNumber"
+                    placeholder="00.000.000-0"
+                    {...register("rgNumber")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rgIssuer">Orgao Expedidor</Label>
+                  <Input
+                    id="rgIssuer"
+                    placeholder="SSP/SP"
+                    {...register("rgIssuer")}
+                  />
+                </div>
               </div>
+
+              {personType === "PF" && (
+                <div className="space-y-2">
+                  <Label htmlFor="birthDate">Data de Nascimento</Label>
+                  <Input
+                    id="birthDate"
+                    type="date"
+                    {...register("birthDate")}
+                  />
+                </div>
+              )}
             </div>
           </div>
 

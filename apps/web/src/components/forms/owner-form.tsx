@@ -40,9 +40,12 @@ const ownerSchema = z.object({
   state: z.string().optional(),
   zipCode: z.string().optional(),
   stateRegistration: z.string().optional(),
+  rgIssuer: z.string().optional(),
+  birthDate: z.string().optional(),
   bankName: z.string().optional(),
   bankAgency: z.string().optional(),
   bankAccount: z.string().optional(),
+  bankPixType: z.string().optional(),
   bankPix: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -84,9 +87,12 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
       state: "",
       zipCode: "",
       stateRegistration: "",
+      rgIssuer: "",
+      birthDate: "",
       bankName: "",
       bankAgency: "",
       bankAccount: "",
+      bankPixType: "",
       bankPix: "",
       notes: "",
     },
@@ -145,9 +151,12 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
           state: owner.state || "",
           zipCode: owner.zipCode || "",
           stateRegistration: owner.stateRegistration || "",
+          rgIssuer: owner.rgIssuer || "",
+          birthDate: owner.birthDate || "",
           bankName: owner.bankName || "",
           bankAgency: owner.bankAgency || "",
           bankAccount: owner.bankAccount || "",
+          bankPixType: owner.bankPixType || "",
           bankPix: owner.bankPix || "",
           notes: owner.notes || "",
         });
@@ -163,7 +172,8 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
               name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
               street: "", number: "", complement: "", neighborhood: "",
               city: "", state: "", zipCode: "", stateRegistration: "",
-              bankName: "", bankAgency: "", bankAccount: "", bankPix: "", notes: "",
+              rgIssuer: "", birthDate: "",
+              bankName: "", bankAgency: "", bankAccount: "", bankPixType: "", bankPix: "", notes: "",
             });
           }
         } catch {
@@ -307,14 +317,45 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
               </div>
 
               {personType === "PJ" && (
-                <div className="space-y-2">
-                  <Label htmlFor="stateRegistration">Inscricao Estadual</Label>
-                  <Input
-                    id="stateRegistration"
-                    placeholder="Inscricao estadual"
-                    {...register("stateRegistration")}
-                  />
-                </div>
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="stateRegistration">Inscricao Estadual</Label>
+                    <Input
+                      id="stateRegistration"
+                      placeholder="Inscricao estadual"
+                      {...register("stateRegistration")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="rgIssuer">Orgao Expedidor</Label>
+                    <Input
+                      id="rgIssuer"
+                      placeholder="SSP, DETRAN, etc."
+                      {...register("rgIssuer")}
+                    />
+                  </div>
+                </>
+              )}
+
+              {personType === "PF" && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="rgIssuer">Orgao Expedidor</Label>
+                    <Input
+                      id="rgIssuer"
+                      placeholder="SSP, DETRAN, etc."
+                      {...register("rgIssuer")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="birthDate">Data de Nascimento</Label>
+                    <Input
+                      id="birthDate"
+                      type="date"
+                      {...register("birthDate")}
+                    />
+                  </div>
+                </>
               )}
 
               <div className="space-y-2">
@@ -465,6 +506,25 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
                   placeholder="00000-0"
                   {...register("bankAccount")}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bankPixType">Tipo da Chave PIX</Label>
+                <Select
+                  value={watch("bankPixType") || ""}
+                  onValueChange={(value) => setValue("bankPixType", value)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CPF">CPF</SelectItem>
+                    <SelectItem value="CNPJ">CNPJ</SelectItem>
+                    <SelectItem value="EMAIL">EMAIL</SelectItem>
+                    <SelectItem value="TELEFONE">TELEFONE</SelectItem>
+                    <SelectItem value="ALEATORIA">ALEATORIA</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">

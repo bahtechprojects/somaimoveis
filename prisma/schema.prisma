@@ -38,6 +38,8 @@ model Owner {
   cpfCnpj      String   @unique
   personType   String   @default("PF") // PF ou PJ
   stateRegistration String? // Inscricao Estadual (PJ)
+  birthDate    DateTime? // Data de nascimento (PF)
+  rgIssuer     String?   // Orgao expedidor do RG
   // Endereco
   street       String?
   number       String?
@@ -51,6 +53,7 @@ model Owner {
   bankAgency   String?
   bankAccount  String?
   bankPix      String?
+  bankPixType  String?   // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
   // Portal de acesso
   portalToken  String?  @unique
   portalActive Boolean  @default(false)
@@ -79,6 +82,8 @@ model Tenant {
   cpfCnpj      String   @unique
   personType   String   @default("PF") // PF ou PJ
   stateRegistration String? // Inscricao Estadual (PJ)
+  birthDate    DateTime? // Data de nascimento (PF)
+  rgIssuer     String?   // Orgao expedidor do RG
   // Endereco (anterior)
   street       String?
   number       String?
@@ -100,6 +105,7 @@ model Tenant {
 
   contracts Contract[]
   payments  Payment[]
+  entries   TenantEntry[]
 
   @@map("tenants")
 }
@@ -186,10 +192,15 @@ model Contract {
   startDate      DateTime @default(now())
   endDate        DateTime @default(now())
   paymentDay     Int      @default(10) // Dia do vencimento
+  // Taxa de intermediacao
+  intermediationFee Float? // % taxa de intermediacao
   // Garantia
   guaranteeType  String?  // FIADOR, CAUCAO, SEGURO_FIANCA, TITULO_CAPITALIZACAO, SEM_GARANTIA
   guaranteeValue Float?
   guaranteeNotes String?
+  // Fiador
+  guarantorId    String?
+  guarantor      Guarantor? @relation(fields: [guarantorId], references: [id])
   // Reajuste
   adjustmentIndex String? @default("IGPM") // IGPM, IPCA, INPC
   adjustmentMonth Int?    // Mes do reajuste
@@ -252,6 +263,70 @@ model Payment {
   @@index([tenantId])
   @@index([ownerId])
   @@map("payments")
+}
+
+// ==========================================
+// FIADORES
+// ==========================================
+
+model Guarantor {
+  id           String   @id @default(cuid())
+  name         String
+  cpfCnpj      String   @unique
+  personType   String   @default("PF") // PF ou PJ
+  email        String?
+  phone        String?
+  rgNumber     String?
+  rgIssuer     String?  // Orgao expedidor
+  birthDate    DateTime?
+  // Endereco
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+  zipCode      String?
+  // Profissional
+  occupation   String?
+  monthlyIncome Float?
+  // Meta
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  contracts Contract[]
+
+  @@map("guarantors")
+}
+
+// ==========================================
+// LANCAMENTOS (DEBITOS/CREDITOS)
+// ==========================================
+
+model TenantEntry {
+  id          String   @id @default(cuid())
+  type        String   // DEBITO, CREDITO
+  category    String   // ALUGUEL, CONDOMINIO, IPTU, AGUA, LUZ, GAS, MULTA, REPARO, DESCONTO, ACORDO, OUTROS
+  description String
+  value       Float
+  dueDate     DateTime?
+  paidAt      DateTime?
+  status      String   @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
+  // Vinculacao
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contractId  String?
+  propertyId  String?
+  // Meta
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([type])
+  @@index([status])
+  @@map("tenant_entries")
 }
 
 // ==========================================
