@@ -476,7 +476,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="paymentDay">Dia Vencimento Boleto</Label>
+                <Label htmlFor="paymentDay">Dia Pagamento Locatario</Label>
                 <Input
                   id="paymentDay"
                   type="number"

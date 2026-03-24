@@ -396,7 +396,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="paymentDay">Dia do Vencimento do Boleto</Label>
+                <Label htmlFor="paymentDay">Dia Pagamento Locatario</Label>
                 <Input
                   id="paymentDay"
                   type="number"
