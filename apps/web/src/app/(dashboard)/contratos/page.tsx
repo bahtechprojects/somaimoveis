@@ -45,6 +45,7 @@ import {
   ClipboardList,
   CheckCircle2,
   Files,
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContractForm } from "@/components/forms/contract-form";
@@ -312,6 +313,29 @@ function ContratosContent() {
                   <Button variant="default" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setImportContractPdfOpen(true)}>
                     <FileSearch className="h-3.5 w-3.5" />
                     Importar Contratos PDF
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-8 text-xs"
+                    onClick={async () => {
+                      try {
+                        const res = await fetch("/api/documents/download-all?entityType=CONTRACT");
+                        if (!res.ok) throw new Error("Erro");
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "contratos-pdfs.zip";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch {
+                        alert("Erro ao baixar PDFs");
+                      }
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Baixar Todos PDFs
                   </Button>
                 </div>
                 {/* Mobile: import dropdown */}

@@ -657,16 +657,25 @@ export default function ContratoDetalhePage() {
               <CardContent className="p-6">
                 <SectionTitle icon={FileText} title="Documento" />
                 {contract.documentUrl ? (
-                  <a
-                    href={contract.documentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Visualizar PDF
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
+                  <div className="flex items-center gap-4">
+                    <a
+                      href={contract.documentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+                    >
+                      <FileText className="h-4 w-4" />
+                      Visualizar PDF
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                    <a
+                      href={contract.documentUrl}
+                      download={`${contract.code}.pdf`}
+                      className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-primary hover:underline"
+                    >
+                      Baixar PDF
+                    </a>
+                  </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">Nenhum documento anexado.</p>
                 )}
