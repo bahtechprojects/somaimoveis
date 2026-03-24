@@ -9,8 +9,10 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const search = searchParams.get("search");
 
+  const tenantId = searchParams.get("tenantId");
   const where: Record<string, unknown> = {};
   if (status && status !== "all") where.status = status;
+  if (tenantId) where.tenantId = tenantId;
   if (search) {
     where.OR = [
       { code: { contains: search } },

@@ -201,6 +201,7 @@ export default function ContratoDetalhePage() {
   const [formOpen, setFormOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [relatedDocs, setRelatedDocs] = useState<{ id: string; code: string; type: string; status: string; startDate: string; documentUrl?: string }[]>([]);
 
   async function fetchContract() {
     setLoading(true);
@@ -214,6 +215,16 @@ export default function ContratoDetalhePage() {
       if (response.ok) {
         const data = await response.json();
         setContract(data);
+        // Fetch related docs (same tenant, different type)
+        if (data.tenantId) {
+          fetch(`/api/contracts?tenantId=${data.tenantId}`)
+            .then(r => r.json())
+            .then(res => {
+              const items = Array.isArray(res) ? res : res.data || [];
+              setRelatedDocs(items.filter((c: any) => c.id !== data.id && c.type !== "LOCACAO"));
+            })
+            .catch(() => {});
+        }
       }
     } catch (error) {
       console.error("Erro ao buscar contrato:", error);
@@ -682,6 +693,41 @@ export default function ContratoDetalhePage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Documentos Relacionados (Vistorias, Procurações, etc.) */}
+            {relatedDocs.length > 0 && (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
+                  <SectionTitle icon={FileText} title="Documentos Vinculados" />
+                  <div className="space-y-2">
+                    {relatedDocs.map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                        <div className="flex items-center gap-3">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">{doc.code}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {doc.type === "VISTORIA" ? "Vistoria" : doc.type === "PROCURACAO" ? "Procuracao" : doc.type === "ADMINISTRACAO" ? "Administracao" : doc.type === "ADITIVO" ? "Aditivo" : doc.type}
+                              {doc.startDate ? ` - ${formatDate(doc.startDate)}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {doc.documentUrl && (
+                            <a href={doc.documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                              <ExternalLink className="h-3 w-3" /> PDF
+                            </a>
+                          )}
+                          <Link href={`/contratos/${doc.id}`} className="text-xs text-primary hover:underline">
+                            Ver detalhes
+                          </Link>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Observacoes */}
             {contract.notes && (

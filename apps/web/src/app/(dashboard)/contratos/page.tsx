@@ -153,8 +153,11 @@ function ContratosContent() {
     }
   }, [searchParams, router]);
 
+  // Only show LOCACAO contracts in main list (VIS/PROC/ADM are nested inside)
+  const mainContracts = contracts.filter((c) => c.type === "LOCACAO" || c.code.startsWith("CTR-"));
+
   // Client-side filtering by status tab
-  const filteredByStatus = contracts.filter((contract) => {
+  const filteredByStatus = mainContracts.filter((contract) => {
     if (activeTab === "todos") return true;
     if (activeTab === "ativos") return contract.status === "ATIVO";
     if (activeTab === "encerrados") return contract.status === "ENCERRADO";
@@ -173,10 +176,10 @@ function ContratosContent() {
     );
   });
 
-  // Stats
-  const totalContracts = contracts.length;
-  const activeContracts = contracts.filter((c) => c.status === "ATIVO").length;
-  const totalMonthlyValue = contracts
+  // Stats (only LOCACAO contracts)
+  const totalContracts = mainContracts.length;
+  const activeContracts = mainContracts.filter((c) => c.status === "ATIVO").length;
+  const totalMonthlyValue = mainContracts
     .filter((c) => c.status === "ATIVO")
     .reduce((sum, c) => sum + c.rentalValue, 0);
   const now = new Date();
