@@ -45,6 +45,7 @@ const tenantSchema = z.object({
   state: z.string().optional(),
   zipCode: z.string().optional(),
   stateRegistration: z.string().optional(),
+  paymentDay: z.coerce.number().min(1).max(31).default(10),
   notes: z.string().optional(),
 });
 
@@ -82,6 +83,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
       birthDate: "",
       occupation: "",
       monthlyIncome: undefined,
+      paymentDay: 10,
       street: "",
       number: "",
       complement: "",
@@ -141,6 +143,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
           birthDate: tenant.birthDate || "",
           occupation: tenant.occupation || "",
           monthlyIncome: tenant.monthlyIncome ?? undefined,
+          paymentDay: tenant.paymentDay ?? 10,
           street: tenant.street || "",
           number: tenant.number || "",
           complement: tenant.complement || "",
@@ -159,7 +162,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
           } else {
             reset({
               name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
-              rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined,
+              rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined, paymentDay: 10,
               street: "", number: "", complement: "", neighborhood: "",
               city: "", state: "", zipCode: "", stateRegistration: "", notes: "",
             });
@@ -167,7 +170,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
         } catch {
           reset({
             name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
-            rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined,
+            rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined, paymentDay: 10,
             street: "", number: "", complement: "", neighborhood: "",
             city: "", state: "", zipCode: "", stateRegistration: "", notes: "",
           });
@@ -389,6 +392,18 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
                   step="0.01"
                   placeholder="0,00"
                   {...register("monthlyIncome")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paymentDay">Dia de Pagamento</Label>
+                <Input
+                  id="paymentDay"
+                  type="number"
+                  min={1}
+                  max={31}
+                  placeholder="10"
+                  {...register("paymentDay")}
                 />
               </div>
 

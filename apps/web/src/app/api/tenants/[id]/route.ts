@@ -64,6 +64,7 @@ export async function PUT(
       state: body.state || null,
       zipCode: body.zipCode || null,
       notes: body.notes || null,
+      paymentDay: body.paymentDay ? parseInt(body.paymentDay) : undefined,
     };
     // Remove undefined keys (only update provided fields)
     Object.keys(data).forEach(k => { if (data[k] === undefined) delete data[k]; });

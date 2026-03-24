@@ -54,6 +54,8 @@ model Owner {
   bankAccount  String?
   bankPix      String?
   bankPixType  String?   // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
+  // Pagamento
+  paymentDay   Int      @default(10) // Dia do pagamento ao proprietario
   // Portal de acesso
   portalToken  String?  @unique
   portalActive Boolean  @default(false)
@@ -97,6 +99,8 @@ model Tenant {
   // Profissional
   occupation   String?
   monthlyIncome Float?
+  // Pagamento
+  paymentDay   Int      @default(10) // Dia do vencimento padrao
   // Meta
   notes        String?
   active       Boolean  @default(true)
