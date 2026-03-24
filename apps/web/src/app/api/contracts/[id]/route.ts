@@ -14,7 +14,7 @@ export async function GET(
       where: { id },
       include: {
         property: { select: { id: true, title: true } },
-        owner: { select: { id: true, name: true } },
+        owner: { select: { id: true, name: true, paymentDay: true } },
         tenant: { select: { id: true, name: true, paymentDay: true } },
         guarantor: { select: { id: true, name: true } },
         payments: { select: { id: true, code: true, value: true, status: true, dueDate: true } },

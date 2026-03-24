@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
       bankPixType: body.bankPixType || null,
       birthDate: body.birthDate ? new Date(body.birthDate) : null,
       rgIssuer: body.rgIssuer || null,
+      paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 10,
       notes: body.notes || null,
     },
   });

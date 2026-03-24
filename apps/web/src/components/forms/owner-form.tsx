@@ -47,6 +47,7 @@ const ownerSchema = z.object({
   bankAccount: z.string().optional(),
   bankPixType: z.string().optional(),
   bankPix: z.string().optional(),
+  paymentDay: z.coerce.number().min(1).max(31).default(10),
   notes: z.string().optional(),
 });
 
@@ -94,6 +95,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
       bankAccount: "",
       bankPixType: "",
       bankPix: "",
+      paymentDay: 10,
       notes: "",
     },
   });
@@ -158,6 +160,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
           bankAccount: owner.bankAccount || "",
           bankPixType: owner.bankPixType || "",
           bankPix: owner.bankPix || "",
+          paymentDay: owner.paymentDay ?? 10,
           notes: owner.notes || "",
         });
       } else {
@@ -173,7 +176,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
               street: "", number: "", complement: "", neighborhood: "",
               city: "", state: "", zipCode: "", stateRegistration: "",
               rgIssuer: "", birthDate: "",
-              bankName: "", bankAgency: "", bankAccount: "", bankPixType: "", bankPix: "", notes: "",
+              bankName: "", bankAgency: "", bankAccount: "", bankPixType: "", bankPix: "", paymentDay: 10, notes: "",
             });
           }
         } catch {
@@ -181,7 +184,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
             name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
             street: "", number: "", complement: "", neighborhood: "",
             city: "", state: "", zipCode: "", stateRegistration: "",
-            bankName: "", bankAgency: "", bankAccount: "", bankPix: "", notes: "",
+            bankName: "", bankAgency: "", bankAccount: "", bankPix: "", paymentDay: 10, notes: "",
           });
         }
       }
@@ -533,6 +536,26 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
                   id="bankPix"
                   placeholder="CPF, email, telefone ou chave aleatoria"
                   {...register("bankPix")}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Pagamento */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground border-b pb-2">
+              Pagamento
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="paymentDay">Dia Pagamento Proprietario</Label>
+                <Input
+                  id="paymentDay"
+                  type="number"
+                  min={1}
+                  max={31}
+                  placeholder="10"
+                  {...register("paymentDay")}
                 />
               </div>
             </div>

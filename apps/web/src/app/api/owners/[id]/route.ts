@@ -61,6 +61,7 @@ export async function PUT(
       bankAccount: body.bankAccount || null,
       bankPix: body.bankPix || null,
       bankPixType: body.bankPixType || null,
+      paymentDay: body.paymentDay ? parseInt(body.paymentDay) : undefined,
       notes: body.notes || null,
     };
     // Remove undefined keys
