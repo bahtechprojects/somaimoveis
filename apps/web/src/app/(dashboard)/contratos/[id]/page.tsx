@@ -78,7 +78,7 @@ interface Contract {
   ownerId: string;
   owner: { id: string; name: string; email?: string };
   tenantId: string;
-  tenant: { id: string; name: string; email?: string };
+  tenant: { id: string; name: string; email?: string; paymentDay?: number };
   rentalValue: number;
   adminFeePercent: number;
   paymentDay: number;
@@ -451,7 +451,7 @@ export default function ContratoDetalhePage() {
                   />
                   <InfoRow label="Data Inicio" value={formatDate(contract.startDate)} />
                   <InfoRow label="Data Termino" value={formatDate(contract.endDate)} />
-                  <InfoRow label="Dia Pagamento Locatario" value={`Dia ${contract.paymentDay}`} />
+                  <InfoRow label="Dia Pagamento Locatario" value={`Dia ${contract.tenant?.paymentDay || contract.paymentDay}`} />
                   <InfoRow label="Dia Pagamento Proprietario" value="Dia 10" />
                   <InfoRow
                     label="Indice de Reajuste"
