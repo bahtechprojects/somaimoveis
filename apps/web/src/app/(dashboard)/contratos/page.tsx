@@ -298,18 +298,6 @@ function ContratosContent() {
                   />
                 </div>
                 <div className="hidden sm:flex items-center gap-2">
-                  <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setImportOpen(true)}>
-                    <FileSpreadsheet className="h-3.5 w-3.5" />
-                    Importar Planilha
-                  </Button>
-                  <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setUploadOpen(true)}>
-                    <Upload className="h-3.5 w-3.5" />
-                    Importar PDF
-                  </Button>
-                  <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setBatchUploadOpen(true)}>
-                    <Files className="h-3.5 w-3.5" />
-                    Importar Lote
-                  </Button>
                   <Button variant="default" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setImportContractPdfOpen(true)}>
                     <FileSearch className="h-3.5 w-3.5" />
                     Importar Contratos PDF
