@@ -451,7 +451,8 @@ export default function ContratoDetalhePage() {
                   />
                   <InfoRow label="Data Inicio" value={formatDate(contract.startDate)} />
                   <InfoRow label="Data Termino" value={formatDate(contract.endDate)} />
-                  <InfoRow label="Dia de Pagamento" value={`Dia ${contract.paymentDay}`} />
+                  <InfoRow label="Dia Vencimento Boleto" value={`Dia ${contract.paymentDay}`} />
+                  <InfoRow label="Dia Pagamento Proprietario" value="Dia 10" />
                   <InfoRow
                     label="Indice de Reajuste"
                     value={contract.adjustmentIndex || "Nao definido"}
