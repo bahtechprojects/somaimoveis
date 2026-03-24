@@ -6,25 +6,25 @@ export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
   const { searchParams } = new URL(request.url);
-  const tenantId = searchParams.get("tenantId");
+  const ownerId = searchParams.get("ownerId");
   const type = searchParams.get("type");
   const status = searchParams.get("status");
   const contractId = searchParams.get("contractId");
 
   const where: Record<string, unknown> = {};
-  if (tenantId) where.tenantId = tenantId;
+  if (ownerId) where.ownerId = ownerId;
   if (type) where.type = type;
   if (status && status !== "all") where.status = status;
   if (contractId) where.contractId = contractId;
 
   const includeRelations = {
-    tenant: { select: { id: true, name: true } },
+    owner: { select: { id: true, name: true } },
   };
 
   const pageParam = searchParams.get("page");
   if (!pageParam) {
     // Legacy: return all as array
-    const entries = await prisma.tenantEntry.findMany({
+    const entries = await prisma.ownerEntry.findMany({
       where,
       include: includeRelations,
       orderBy: { createdAt: "desc" },
@@ -38,14 +38,14 @@ export async function GET(request: NextRequest) {
   const skip = (page - 1) * limit;
 
   const [entries, total] = await Promise.all([
-    prisma.tenantEntry.findMany({
+    prisma.ownerEntry.findMany({
       where,
       include: includeRelations,
       orderBy: { createdAt: "desc" },
       skip,
       take: limit,
     }),
-    prisma.tenantEntry.count({ where }),
+    prisma.ownerEntry.count({ where }),
   ]);
 
   return NextResponse.json({
@@ -58,10 +58,10 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
   const body = await request.json();
-  const { type, category, description, value, tenantId } = body;
-  if (!type || !category || !description || !value || !tenantId) {
+  const { type, category, description, value, ownerId } = body;
+  if (!type || !category || !description || !value || !ownerId) {
     return NextResponse.json(
-      { error: "Campos obrigatórios: type, category, description, value, tenantId" },
+      { error: "Campos obrigatórios: type, category, description, value, ownerId" },
       { status: 400 }
     );
   }
@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
   }
 
   const validCategories = [
-    "ALUGUEL", "CONDOMINIO", "IPTU", "AGUA", "LUZ", "GAS",
-    "MULTA", "REPARO", "DESCONTO", "ACORDO", "OUTROS",
+    "REPASSE", "REPARO", "TAXA_BANCARIA", "IPTU", "CONDOMINIO",
+    "INTERMEDIACAO", "DESCONTO", "ACORDO", "OUTROS",
   ];
   if (!validCategories.includes(category)) {
     return NextResponse.json(
@@ -86,95 +86,89 @@ export async function POST(request: NextRequest) {
   }
 
   const installments = parseInt(body.installments) || 1;
-  const isRecurring = body.isRecurring === true;
-  const baseDueDate = body.dueDate ? new Date(body.dueDate) : null;
-  const recurringDay = body.recurringDay
-    ? parseInt(body.recurringDay)
-    : baseDueDate
-      ? baseDueDate.getDate()
-      : null;
 
-  const includeRelations = {
-    tenant: { select: { id: true, name: true } },
-  };
-
-  // Installments: create N entries with split value and incremented due dates
   if (installments > 1) {
-    const installmentValue = parseFloat(value) / installments;
-    const entries = [];
+    // Create multiple installment entries
+    const totalValue = parseFloat(value);
+    const installmentValue = Math.round((totalValue / installments) * 100) / 100;
+    const baseDueDate = body.dueDate ? new Date(body.dueDate) : new Date();
 
     // Create first entry
-    const firstEntry = await prisma.tenantEntry.create({
+    const firstDueDate = new Date(baseDueDate);
+    const firstEntry = await prisma.ownerEntry.create({
       data: {
         type,
         category,
         description,
-        value: Math.round(installmentValue * 100) / 100,
-        tenantId,
-        dueDate: baseDueDate,
+        value: installmentValue,
+        ownerId,
+        dueDate: firstDueDate,
         contractId: body.contractId || null,
         propertyId: body.propertyId || null,
         status: body.status || "PENDENTE",
         notes: body.notes || null,
         installmentNumber: 1,
         installmentTotal: installments,
-        parentEntryId: null,
-        isRecurring,
-        recurringDay: isRecurring ? recurringDay : null,
+        isRecurring: body.isRecurring || false,
+        recurringDay: body.recurringDay ? parseInt(body.recurringDay) : null,
       },
-      include: includeRelations,
+      include: {
+        owner: { select: { id: true, name: true } },
+      },
     });
-    entries.push(firstEntry);
 
-    // Create subsequent entries
-    for (let i = 2; i <= installments; i++) {
-      const entryDueDate = baseDueDate ? new Date(baseDueDate) : null;
-      if (entryDueDate) {
-        entryDueDate.setMonth(entryDueDate.getMonth() + (i - 1));
-      }
-      const entry = await prisma.tenantEntry.create({
-        data: {
-          type,
-          category,
-          description,
-          value: Math.round(installmentValue * 100) / 100,
-          tenantId,
-          dueDate: entryDueDate,
-          contractId: body.contractId || null,
-          propertyId: body.propertyId || null,
-          status: body.status || "PENDENTE",
-          notes: body.notes || null,
-          installmentNumber: i,
-          installmentTotal: installments,
-          parentEntryId: firstEntry.id,
-          isRecurring,
-          recurringDay: isRecurring ? recurringDay : null,
-        },
-        include: includeRelations,
-      });
-      entries.push(entry);
-    }
+    // Create remaining entries linked to parent
+    const remaining = await Promise.all(
+      Array.from({ length: installments - 1 }, (_, idx) => {
+        const dueDate = new Date(baseDueDate);
+        dueDate.setMonth(dueDate.getMonth() + idx + 1);
+        return prisma.ownerEntry.create({
+          data: {
+            type,
+            category,
+            description,
+            value: installmentValue,
+            ownerId,
+            dueDate,
+            contractId: body.contractId || null,
+            propertyId: body.propertyId || null,
+            status: body.status || "PENDENTE",
+            notes: body.notes || null,
+            installmentNumber: idx + 2,
+            installmentTotal: installments,
+            parentEntryId: firstEntry.id,
+            isRecurring: body.isRecurring || false,
+            recurringDay: body.recurringDay ? parseInt(body.recurringDay) : null,
+          },
+          include: {
+            owner: { select: { id: true, name: true } },
+          },
+        });
+      })
+    );
 
-    return NextResponse.json(entries, { status: 201 });
+    return NextResponse.json([firstEntry, ...remaining], { status: 201 });
   }
 
-  // Single entry (with optional recurring)
-  const entry = await prisma.tenantEntry.create({
+  // Single entry
+  const entry = await prisma.ownerEntry.create({
     data: {
       type,
       category,
       description,
       value: parseFloat(value),
-      tenantId,
-      dueDate: baseDueDate,
+      ownerId,
+      dueDate: body.dueDate ? new Date(body.dueDate) : null,
       contractId: body.contractId || null,
       propertyId: body.propertyId || null,
       status: body.status || "PENDENTE",
       notes: body.notes || null,
-      isRecurring,
-      recurringDay: isRecurring ? recurringDay : null,
+      isRecurring: body.isRecurring || false,
+      recurringDay: body.recurringDay ? parseInt(body.recurringDay) : null,
     },
-    include: includeRelations,
+    include: {
+      owner: { select: { id: true, name: true } },
+    },
   });
   return NextResponse.json(entry, { status: 201 });
 }

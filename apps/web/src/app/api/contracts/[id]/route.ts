@@ -49,6 +49,9 @@ export async function PUT(
     if (data.paymentDay !== undefined) data.paymentDay = parseInt(data.paymentDay as string);
     if (data.guaranteeValue !== undefined) data.guaranteeValue = data.guaranteeValue ? parseFloat(data.guaranteeValue as string) : null;
     if (data.adjustmentMonth !== undefined) data.adjustmentMonth = data.adjustmentMonth ? parseInt(data.adjustmentMonth as string) : null;
+    if (data.intermediationInstallments !== undefined) data.intermediationInstallments = data.intermediationInstallments ? parseInt(data.intermediationInstallments as string) : 1;
+    if (data.lastAdjustmentPercent !== undefined) data.lastAdjustmentPercent = data.lastAdjustmentPercent ? parseFloat(data.lastAdjustmentPercent as string) : null;
+    if (data.lastAdjustmentDate !== undefined) data.lastAdjustmentDate = data.lastAdjustmentDate ? new Date(data.lastAdjustmentDate as string) : null;
 
     // guarantorId only when guaranteeType is FIADOR, else null
     if (data.guaranteeType !== undefined && data.guaranteeType !== "FIADOR") {

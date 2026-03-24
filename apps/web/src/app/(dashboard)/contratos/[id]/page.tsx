@@ -27,6 +27,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
   ArrowLeft,
   Pencil,
   Trash2,
@@ -87,8 +97,12 @@ interface Contract {
   guaranteeType: string | null;
   guaranteeValue: number | null;
   guaranteeNotes: string | null;
+  intermediationFee: number | null;
+  intermediationInstallments: number | null;
   adjustmentIndex: string | null;
   adjustmentMonth: number | null;
+  lastAdjustmentPercent: number | null;
+  lastAdjustmentDate: string | null;
   documentUrl: string | null;
   notes: string | null;
   createdAt: string;
@@ -202,6 +216,9 @@ export default function ContratoDetalhePage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [relatedDocs, setRelatedDocs] = useState<{ id: string; code: string; type: string; status: string; startDate: string; documentUrl?: string }[]>([]);
+  const [reajusteDialogOpen, setReajusteDialogOpen] = useState(false);
+  const [reajustePercent, setReajustePercent] = useState("");
+  const [reajusteLoading, setReajusteLoading] = useState(false);
 
   async function fetchContract() {
     setLoading(true);
@@ -263,6 +280,40 @@ export default function ContratoDetalhePage() {
 
   function handleFormSuccess() {
     fetchContract();
+  }
+
+  async function handleApplyReajuste() {
+    if (!contract || !reajustePercent) return;
+    setReajusteLoading(true);
+    try {
+      const percent = parseFloat(reajustePercent);
+      if (isNaN(percent) || percent <= 0) {
+        alert("Informe um percentual valido.");
+        return;
+      }
+      const newRentalValue = contract.rentalValue * (1 + percent / 100);
+      const response = await fetch(`/api/contracts/${contract.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rentalValue: Math.round(newRentalValue * 100) / 100,
+          lastAdjustmentPercent: percent,
+          lastAdjustmentDate: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || "Erro ao aplicar reajuste");
+        return;
+      }
+      setReajusteDialogOpen(false);
+      setReajustePercent("");
+      fetchContract();
+    } catch (error) {
+      alert("Erro ao aplicar reajuste");
+    } finally {
+      setReajusteLoading(false);
+    }
   }
 
   // ---------- Loading state ----------
@@ -363,6 +414,15 @@ export default function ContratoDetalhePage() {
             </div>
 
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setReajusteDialogOpen(true)}
+              >
+                <TrendingUp className="h-3.5 w-3.5" />
+                Aplicar Reajuste
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -476,6 +536,35 @@ export default function ContratoDetalhePage() {
                         : "Nao definido"
                     }
                   />
+                  <InfoRow
+                    label="Taxa Intermediacao"
+                    value={
+                      contract.intermediationFee != null
+                        ? `${contract.intermediationFee}%`
+                        : "-"
+                    }
+                  />
+                  <InfoRow
+                    label="Parcelas Intermediacao"
+                    value={contract.intermediationInstallments ?? "-"}
+                  />
+                  {(contract.lastAdjustmentPercent != null || contract.lastAdjustmentDate) && (
+                    <InfoRow
+                      label="Ultimo Reajuste"
+                      value={
+                        <span>
+                          {contract.lastAdjustmentPercent != null
+                            ? `${contract.lastAdjustmentPercent}%`
+                            : "-"}
+                          {contract.lastAdjustmentDate && (
+                            <span className="text-muted-foreground ml-2">
+                              em {formatDate(contract.lastAdjustmentDate)}
+                            </span>
+                          )}
+                        </span>
+                      }
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -766,6 +855,57 @@ export default function ContratoDetalhePage() {
         contract={contract}
         onSuccess={handleFormSuccess}
       />
+
+      {/* Reajuste Dialog */}
+      <Dialog open={reajusteDialogOpen} onOpenChange={setReajusteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Aplicar Reajuste</DialogTitle>
+            <DialogDescription>
+              Valor atual do aluguel: {formatCurrency(contract.rentalValue)}.
+              Informe o percentual de reajuste a ser aplicado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="reajustePercent">Percentual (%)</Label>
+              <Input
+                id="reajustePercent"
+                type="number"
+                step="0.01"
+                placeholder="Ex: 5.5"
+                value={reajustePercent}
+                onChange={(e) => setReajustePercent(e.target.value)}
+              />
+            </div>
+            {reajustePercent && !isNaN(parseFloat(reajustePercent)) && parseFloat(reajustePercent) > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Novo valor:{" "}
+                <span className="font-medium text-foreground">
+                  {formatCurrency(
+                    contract.rentalValue * (1 + parseFloat(reajustePercent) / 100)
+                  )}
+                </span>
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReajusteDialogOpen(false);
+                setReajustePercent("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleApplyReajuste} disabled={reajusteLoading}>
+              {reajusteLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Aplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

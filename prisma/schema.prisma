@@ -65,9 +65,11 @@ model Owner {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  properties Property[]
-  contracts  Contract[]
-  payments   Payment[]
+  properties      Property[]
+  propertyShares  PropertyOwner[]
+  contracts       Contract[]
+  payments        Payment[]
+  entries         OwnerEntry[]
 
   @@map("owners")
 }
@@ -153,6 +155,7 @@ model Property {
   updatedAt     DateTime @updatedAt
 
   photos             PropertyPhoto[]
+  ownerShares        PropertyOwner[]
   contracts          Contract[]
   maintenanceRecords MaintenanceRecord[]
 
@@ -171,6 +174,22 @@ model PropertyPhoto {
   createdAt  DateTime @default(now())
 
   @@map("property_photos")
+}
+
+// Split de proprietarios (multiplos donos de um imovel)
+model PropertyOwner {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  ownerId    String
+  owner      Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  percentage Float    // Ex: 25.0 = 25%
+  createdAt  DateTime @default(now())
+
+  @@unique([propertyId, ownerId])
+  @@index([propertyId])
+  @@index([ownerId])
+  @@map("property_owners")
 }
 
 // ==========================================
@@ -198,6 +217,7 @@ model Contract {
   paymentDay     Int      @default(5) // Dia do vencimento do boleto do inquilino
   // Taxa de intermediacao
   intermediationFee Float? // % taxa de intermediacao
+  intermediationInstallments Int? @default(1) // Numero de parcelas da intermediacao
   // Garantia
   guaranteeType  String?  // FIADOR, CAUCAO, SEGURO_FIANCA, TITULO_CAPITALIZACAO, SEM_GARANTIA
   guaranteeValue Float?
@@ -208,6 +228,8 @@ model Contract {
   // Reajuste
   adjustmentIndex String? @default("IGPM") // IGPM, IPCA, INPC
   adjustmentMonth Int?    // Mes do reajuste
+  lastAdjustmentDate    DateTime? // Ultima data de reajuste aplicado
+  lastAdjustmentPercent Float?    // Ultimo % de reajuste aplicado
   // Documento
   documentUrl    String?  // PDF do contrato
   // Meta
@@ -317,6 +339,13 @@ model TenantEntry {
   dueDate     DateTime?
   paidAt      DateTime?
   status      String   @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
+  // Parcelamento
+  installmentNumber Int?  // Parcela X de Y
+  installmentTotal  Int?  // Total de parcelas
+  parentEntryId     String? // ID do lancamento original (para parcelas)
+  // Recorrente
+  isRecurring       Boolean @default(false)
+  recurringDay      Int?    // Dia do mes para recorrencia
   // Vinculacao
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
@@ -331,6 +360,42 @@ model TenantEntry {
   @@index([type])
   @@index([status])
   @@map("tenant_entries")
+}
+
+// ==========================================
+// LANCAMENTOS DO PROPRIETARIO
+// ==========================================
+
+model OwnerEntry {
+  id          String   @id @default(cuid())
+  type        String   // DEBITO, CREDITO
+  category    String   // REPASSE, REPARO, TAXA_BANCARIA, IPTU, CONDOMINIO, INTERMEDIACAO, DESCONTO, ACORDO, OUTROS
+  description String
+  value       Float
+  dueDate     DateTime?
+  paidAt      DateTime?
+  status      String   @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
+  // Parcelamento
+  installmentNumber Int?
+  installmentTotal  Int?
+  parentEntryId     String?
+  // Recorrente
+  isRecurring       Boolean @default(false)
+  recurringDay      Int?
+  // Vinculacao
+  ownerId     String
+  owner       Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  contractId  String?
+  propertyId  String?
+  // Meta
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([type])
+  @@index([status])
+  @@map("owner_entries")
 }
 
 // ==========================================

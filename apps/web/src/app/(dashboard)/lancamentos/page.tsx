@@ -45,6 +45,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
 import {
   Plus,
   Search,
@@ -56,6 +57,7 @@ import {
   Clock,
   CheckCircle2,
   XCircle,
+  Repeat,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -70,6 +72,11 @@ interface TenantEntry {
   status: "PENDENTE" | "PAGO" | "CANCELADO";
   notes: string | null;
   createdAt: string;
+  installmentNumber: number | null;
+  installmentTotal: number | null;
+  parentEntryId: string | null;
+  isRecurring: boolean;
+  recurringDay: number | null;
   tenant: {
     id: string;
     name: string;
@@ -159,6 +166,8 @@ function LancamentosContent() {
   const [formValue, setFormValue] = useState("");
   const [formDueDate, setFormDueDate] = useState("");
   const [formNotes, setFormNotes] = useState("");
+  const [formInstallments, setFormInstallments] = useState("1");
+  const [formIsRecurring, setFormIsRecurring] = useState(false);
 
   async function fetchEntries() {
     setLoading(true);
@@ -232,6 +241,8 @@ function LancamentosContent() {
     setFormValue("");
     setFormDueDate("");
     setFormNotes("");
+    setFormInstallments("1");
+    setFormIsRecurring(false);
   }
 
   function handleNewEntry() {
@@ -256,6 +267,8 @@ function LancamentosContent() {
           value: parseFloat(formValue),
           dueDate: formDueDate,
           notes: formNotes || null,
+          installments: parseInt(formInstallments) || 1,
+          isRecurring: formIsRecurring,
         }),
       });
       if (!response.ok) {
@@ -452,6 +465,14 @@ function LancamentosContent() {
                               {status.label}
                             </Badge>
                             <span className="text-xs text-muted-foreground">Venc: {formatDate(entry.dueDate)}</span>
+                            {entry.installmentTotal && entry.installmentTotal > 1 && (
+                              <Badge variant="outline" className="text-[10px] h-5 border bg-blue-50 text-blue-700 border-blue-200">
+                                {entry.installmentNumber}/{entry.installmentTotal}
+                              </Badge>
+                            )}
+                            {entry.isRecurring && (
+                              <span title="Recorrente"><Repeat className="h-3.5 w-3.5 text-purple-500" /></span>
+                            )}
                           </div>
                           <span className={cn("font-semibold text-sm", isDebito ? "text-red-600" : "text-emerald-600")}>
                             {isDebito ? "- " : "+ "}{formatCurrency(entry.value)}
@@ -472,6 +493,7 @@ function LancamentosContent() {
                         <TableHead className="text-xs">Tipo</TableHead>
                         <TableHead className="text-xs">Categoria</TableHead>
                         <TableHead className="text-xs">Descricao</TableHead>
+                        <TableHead className="text-xs">Parcela</TableHead>
                         <TableHead className="text-xs text-right">Valor (R$)</TableHead>
                         <TableHead className="text-xs">Status</TableHead>
                         <TableHead className="text-xs w-10"></TableHead>
@@ -508,6 +530,20 @@ function LancamentosContent() {
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
                               {entry.description || "-"}
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              <div className="flex items-center gap-1.5">
+                                {entry.installmentTotal && entry.installmentTotal > 1 ? (
+                                  <Badge variant="outline" className="text-xs border bg-blue-50 text-blue-700 border-blue-200">
+                                    {entry.installmentNumber}/{entry.installmentTotal}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                                {entry.isRecurring && (
+                                  <span title="Recorrente"><Repeat className="h-3.5 w-3.5 text-purple-500" /></span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className={cn("text-xs font-semibold text-right", isDebito ? "text-red-600" : "text-emerald-600")}>
                               {isDebito ? "- " : "+ "}{formatCurrency(entry.value)}
@@ -636,6 +672,34 @@ function LancamentosContent() {
                   onChange={(e) => setFormDueDate(e.target.value)}
                   required
                 />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="installments">Numero de Parcelas</Label>
+                <Input
+                  id="installments"
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={formInstallments}
+                  onChange={(e) => setFormInstallments(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="isRecurring">Recorrente</Label>
+                <div className="flex items-center h-10">
+                  <Switch
+                    id="isRecurring"
+                    checked={formIsRecurring}
+                    onCheckedChange={setFormIsRecurring}
+                  />
+                  <span className="ml-2 text-sm text-muted-foreground">
+                    {formIsRecurring ? "Sim" : "Nao"}
+                  </span>
+                </div>
               </div>
             </div>
 

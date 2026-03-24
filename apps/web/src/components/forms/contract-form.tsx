@@ -34,6 +34,7 @@ const contractSchema = z.object({
   rentalValue: z.coerce.number().min(0).optional(),
   adminFeePercent: z.coerce.number().min(0),
   intermediationFee: z.coerce.number().min(0).optional(),
+  intermediationInstallments: z.coerce.number().int().min(1).default(1),
   paymentDay: z.coerce.number().int().min(1).max(31),
   startDate: z.string().min(1, "Data de inicio e obrigatoria"),
   endDate: z.string().min(1, "Data de termino e obrigatoria"),
@@ -43,6 +44,7 @@ const contractSchema = z.object({
   guarantorId: z.string().optional(),
   adjustmentIndex: z.string().optional(),
   adjustmentMonth: z.coerce.number().int().min(1).max(12).optional(),
+  lastAdjustmentPercent: z.coerce.number().optional(),
   notes: z.string().optional(),
 });
 
@@ -56,6 +58,7 @@ type ContractFormData = {
   rentalValue: number;
   adminFeePercent: number;
   intermediationFee?: number;
+  intermediationInstallments: number;
   paymentDay: number;
   startDate: string;
   endDate: string;
@@ -65,6 +68,7 @@ type ContractFormData = {
   guarantorId?: string;
   adjustmentIndex?: string;
   adjustmentMonth?: number;
+  lastAdjustmentPercent?: number;
   notes?: string;
 };
 
@@ -109,6 +113,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       rentalValue: undefined,
       adminFeePercent: 10,
       intermediationFee: undefined,
+      intermediationInstallments: 1,
       paymentDay: 5,
       startDate: "",
       endDate: "",
@@ -118,6 +123,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       guarantorId: "",
       adjustmentIndex: "IGPM",
       adjustmentMonth: undefined,
+      lastAdjustmentPercent: undefined,
       notes: "",
     },
   });
@@ -203,6 +209,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           rentalValue: contract.rentalValue ?? undefined,
           adminFeePercent: contract.adminFeePercent ?? 10,
           intermediationFee: contract.intermediationFee ?? undefined,
+          intermediationInstallments: contract.intermediationInstallments ?? 1,
           paymentDay: contract.paymentDay ?? 5,
           startDate: contract.startDate
             ? new Date(contract.startDate).toISOString().split("T")[0]
@@ -216,6 +223,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           guarantorId: contract.guarantorId || "",
           adjustmentIndex: contract.adjustmentIndex || "IGPM",
           adjustmentMonth: contract.adjustmentMonth ?? undefined,
+          lastAdjustmentPercent: contract.lastAdjustmentPercent ?? undefined,
           notes: contract.notes || "",
         });
       } else {
@@ -229,6 +237,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           rentalValue: undefined,
           adminFeePercent: 10,
           intermediationFee: undefined,
+          intermediationInstallments: 1,
           paymentDay: 5,
           startDate: "",
           endDate: "",
@@ -238,6 +247,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           guarantorId: "",
           adjustmentIndex: "IGPM",
           adjustmentMonth: undefined,
+          lastAdjustmentPercent: undefined,
           notes: "",
         });
       }
@@ -255,6 +265,8 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         startDate: new Date(data.startDate).toISOString(),
         endDate: new Date(data.endDate).toISOString(),
         intermediationFee: data.intermediationFee || null,
+        intermediationInstallments: data.intermediationInstallments || 1,
+        lastAdjustmentPercent: data.lastAdjustmentPercent || null,
         guaranteeType: data.guaranteeType || null,
         guaranteeValue: data.guaranteeValue || null,
         guaranteeNotes: data.guaranteeNotes || null,
@@ -476,6 +488,17 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="intermediationInstallments">Parcelas Intermediacao</Label>
+                <Input
+                  id="intermediationInstallments"
+                  type="number"
+                  min="1"
+                  placeholder="1"
+                  {...register("intermediationInstallments")}
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="paymentDay">Dia Pagamento Locatario</Label>
                 <Input
                   id="paymentDay"
@@ -624,6 +647,17 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                   max="12"
                   placeholder="Ex: 1 (Janeiro)"
                   {...register("adjustmentMonth")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="lastAdjustmentPercent">Ultimo Reajuste (%)</Label>
+                <Input
+                  id="lastAdjustmentPercent"
+                  type="number"
+                  step="0.01"
+                  placeholder="Ex: 5.5"
+                  {...register("lastAdjustmentPercent")}
                 />
               </div>
             </div>

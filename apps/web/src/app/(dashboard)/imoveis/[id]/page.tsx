@@ -43,11 +43,30 @@ import {
   Sofa,
   DollarSign,
   User,
+  Users,
   FileText,
   CalendarDays,
   ExternalLink,
   ImageOff,
+  Plus,
+  X,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PhotoUpload } from "@/components/forms/photo-upload";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +102,31 @@ interface Contract {
   rentalValue: number;
   startDate: string;
   endDate: string;
+}
+
+interface PropertyOwnerRecord {
+  id: string;
+  propertyId: string;
+  ownerId: string;
+  percentage: number;
+  owner: {
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+  };
+}
+
+interface PropertyOwnersResponse {
+  propertyId: string;
+  primaryOwnerId: string;
+  owners: PropertyOwnerRecord[];
+}
+
+interface OwnerOption {
+  id: string;
+  name: string;
+  email: string | null;
 }
 
 interface Property {
@@ -201,6 +245,16 @@ export default function PropertyDetailPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Owners state
+  const [ownersData, setOwnersData] = useState<PropertyOwnersResponse | null>(null);
+  const [ownersLoading, setOwnersLoading] = useState(false);
+  const [allOwners, setAllOwners] = useState<OwnerOption[]>([]);
+  const [addOwnerOpen, setAddOwnerOpen] = useState(false);
+  const [selectedOwnerId, setSelectedOwnerId] = useState("");
+  const [ownerPercentage, setOwnerPercentage] = useState("");
+  const [addingOwner, setAddingOwner] = useState(false);
+  const [removingOwnerId, setRemovingOwnerId] = useState<string | null>(null);
+
   const fetchProperty = useCallback(async () => {
     setLoading(true);
     setNotFound(false);
@@ -221,11 +275,43 @@ export default function PropertyDetailPage() {
     }
   }, [id]);
 
+  const fetchOwners = useCallback(async () => {
+    setOwnersLoading(true);
+    try {
+      const response = await fetch(`/api/properties/${id}/owners`);
+      if (response.ok) {
+        const data = await response.json();
+        setOwnersData(data);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar proprietarios:", error);
+    } finally {
+      setOwnersLoading(false);
+    }
+  }, [id]);
+
+  const fetchAllOwners = useCallback(async () => {
+    try {
+      const response = await fetch("/api/owners");
+      if (response.ok) {
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : data.data || [];
+        setAllOwners(
+          list.map((o: any) => ({ id: o.id, name: o.name, email: o.email }))
+        );
+      }
+    } catch (error) {
+      console.error("Erro ao carregar lista de proprietarios:", error);
+    }
+  }, []);
+
   useEffect(() => {
     if (id) {
       fetchProperty();
+      fetchOwners();
+      fetchAllOwners();
     }
-  }, [id, fetchProperty]);
+  }, [id, fetchProperty, fetchOwners, fetchAllOwners]);
 
   async function handleDeleteConfirm() {
     if (!property) return;
@@ -249,6 +335,54 @@ export default function PropertyDetailPage() {
 
   function handleFormSuccess() {
     fetchProperty();
+  }
+
+  async function handleAddOwner() {
+    if (!selectedOwnerId || !ownerPercentage) return;
+    const pct = parseFloat(ownerPercentage);
+    if (isNaN(pct) || pct <= 0 || pct > 100) {
+      alert("Percentual deve ser entre 0 e 100");
+      return;
+    }
+    setAddingOwner(true);
+    try {
+      const response = await fetch(`/api/properties/${id}/owners`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerId: selectedOwnerId, percentage: pct }),
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Erro ao adicionar proprietario");
+      }
+      setAddOwnerOpen(false);
+      setSelectedOwnerId("");
+      setOwnerPercentage("");
+      fetchOwners();
+    } catch (error: any) {
+      alert(error.message || "Erro ao adicionar proprietario");
+    } finally {
+      setAddingOwner(false);
+    }
+  }
+
+  async function handleRemoveOwner(ownerId: string) {
+    if (!confirm("Tem certeza que deseja remover este proprietario?")) return;
+    setRemovingOwnerId(ownerId);
+    try {
+      const response = await fetch(`/api/properties/${id}/owners/${ownerId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Erro ao remover proprietario");
+      }
+      fetchOwners();
+    } catch (error: any) {
+      alert(error.message || "Erro ao remover proprietario");
+    } finally {
+      setRemovingOwnerId(null);
+    }
   }
 
   // --- Loading State ---
@@ -582,6 +716,210 @@ export default function PropertyDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Proprietarios (Split Ownership) */}
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Proprietarios
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setAddOwnerOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {ownersLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : !ownersData || ownersData.owners.length === 0 ? (
+              <div className="space-y-4">
+                {/* Show primary owner even if no PropertyOwner records */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary text-sm font-bold">
+                      P
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">{property.owner.name}</p>
+                      {property.owner.email && (
+                        <p className="text-xs text-muted-foreground">{property.owner.email}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary" className="text-xs">Principal</Badge>
+                    <span className="text-sm font-medium text-muted-foreground">100%</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  Adicione mais proprietarios para dividir a propriedade.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Primary owner row */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary/10 text-primary text-sm font-bold">
+                      P
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold">{property.owner.name}</p>
+                      {property.owner.email && (
+                        <p className="text-xs text-muted-foreground">{property.owner.email}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="secondary" className="text-xs">Principal</Badge>
+                  </div>
+                </div>
+
+                {/* Additional owners */}
+                {ownersData.owners.map((po) => {
+                  const isPrimary = po.ownerId === ownersData.primaryOwnerId;
+                  return (
+                    <div
+                      key={po.id}
+                      className="flex items-center justify-between p-3 rounded-lg border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center h-8 w-8 rounded-full bg-muted text-muted-foreground text-sm font-bold">
+                          {po.owner.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold">{po.owner.name}</p>
+                          {po.owner.email && (
+                            <p className="text-xs text-muted-foreground">{po.owner.email}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium">{po.percentage}%</span>
+                        {isPrimary && (
+                          <Badge variant="secondary" className="text-xs">Principal</Badge>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleRemoveOwner(po.ownerId)}
+                          disabled={removingOwnerId === po.ownerId}
+                        >
+                          {removingOwnerId === po.ownerId ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <X className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Total percentage */}
+                <Separator />
+                <div className="flex items-center justify-between px-3">
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+                    Total
+                  </p>
+                  {(() => {
+                    const total = ownersData.owners.reduce(
+                      (sum, o) => sum + o.percentage,
+                      0
+                    );
+                    const isComplete = Math.abs(total - 100) < 0.01;
+                    return (
+                      <span
+                        className={cn(
+                          "text-sm font-bold",
+                          isComplete ? "text-emerald-600" : "text-amber-600"
+                        )}
+                      >
+                        {total.toFixed(1)}%
+                        {!isComplete && (
+                          <span className="text-xs font-normal ml-1">
+                            (faltam {(100 - total).toFixed(1)}%)
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Add Owner Dialog */}
+        <Dialog open={addOwnerOpen} onOpenChange={setAddOwnerOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adicionar Proprietario</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="owner-select">Proprietario</Label>
+                <Select value={selectedOwnerId} onValueChange={setSelectedOwnerId}>
+                  <SelectTrigger id="owner-select">
+                    <SelectValue placeholder="Selecione um proprietario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allOwners
+                      .filter(
+                        (o) =>
+                          !ownersData?.owners.some((po) => po.ownerId === o.id)
+                      )
+                      .map((o) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.name} {o.email ? `(${o.email})` : ""}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="percentage-input">Percentual (%)</Label>
+                <Input
+                  id="percentage-input"
+                  type="number"
+                  min="0.01"
+                  max="100"
+                  step="0.01"
+                  placeholder="Ex: 25"
+                  value={ownerPercentage}
+                  onChange={(e) => setOwnerPercentage(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setAddOwnerOpen(false)}
+                disabled={addingOwner}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleAddOwner}
+                disabled={addingOwner || !selectedOwnerId || !ownerPercentage}
+              >
+                {addingOwner && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Adicionar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Notes */}
         {property.notes && (
