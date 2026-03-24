@@ -100,7 +100,7 @@ model Tenant {
   occupation   String?
   monthlyIncome Float?
   // Pagamento
-  paymentDay   Int      @default(10) // Dia do vencimento padrao
+  paymentDay   Int      @default(5) // Dia do vencimento do boleto (padrao 5, max 8)
   // Meta
   notes        String?
   active       Boolean  @default(true)
@@ -195,7 +195,7 @@ model Contract {
   // Datas
   startDate      DateTime @default(now())
   endDate        DateTime @default(now())
-  paymentDay     Int      @default(10) // Dia do vencimento
+  paymentDay     Int      @default(5) // Dia do vencimento do boleto do inquilino
   // Taxa de intermediacao
   intermediationFee Float? // % taxa de intermediacao
   // Garantia

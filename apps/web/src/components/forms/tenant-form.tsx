@@ -45,7 +45,7 @@ const tenantSchema = z.object({
   state: z.string().optional(),
   zipCode: z.string().optional(),
   stateRegistration: z.string().optional(),
-  paymentDay: z.coerce.number().min(1).max(31).default(10),
+  paymentDay: z.coerce.number().min(1).max(31).default(5),
   notes: z.string().optional(),
 });
 
@@ -83,7 +83,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
       birthDate: "",
       occupation: "",
       monthlyIncome: undefined,
-      paymentDay: 10,
+      paymentDay: 5,
       street: "",
       number: "",
       complement: "",
@@ -162,7 +162,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
           } else {
             reset({
               name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
-              rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined, paymentDay: 10,
+              rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined, paymentDay: 5,
               street: "", number: "", complement: "", neighborhood: "",
               city: "", state: "", zipCode: "", stateRegistration: "", notes: "",
             });
@@ -170,7 +170,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
         } catch {
           reset({
             name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
-            rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined, paymentDay: 10,
+            rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined, paymentDay: 5,
             street: "", number: "", complement: "", neighborhood: "",
             city: "", state: "", zipCode: "", stateRegistration: "", notes: "",
           });
@@ -396,13 +396,13 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="paymentDay">Dia de Pagamento</Label>
+                <Label htmlFor="paymentDay">Dia do Vencimento do Boleto</Label>
                 <Input
                   id="paymentDay"
                   type="number"
                   min={1}
-                  max={31}
-                  placeholder="10"
+                  max={8}
+                  placeholder="5"
                   {...register("paymentDay")}
                 />
               </div>

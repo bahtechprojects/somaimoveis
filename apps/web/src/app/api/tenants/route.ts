@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       birthDate: body.birthDate ? new Date(body.birthDate) : null,
       occupation: body.occupation || null,
       monthlyIncome: body.monthlyIncome ? parseFloat(body.monthlyIncome) : null,
-      paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 10,
+      paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 5,
       notes: body.notes || null,
     },
   });

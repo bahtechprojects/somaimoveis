@@ -109,7 +109,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       rentalValue: undefined,
       adminFeePercent: 10,
       intermediationFee: undefined,
-      paymentDay: 10,
+      paymentDay: 5,
       startDate: "",
       endDate: "",
       guaranteeType: "",
@@ -203,7 +203,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           rentalValue: contract.rentalValue ?? undefined,
           adminFeePercent: contract.adminFeePercent ?? 10,
           intermediationFee: contract.intermediationFee ?? undefined,
-          paymentDay: contract.paymentDay ?? 10,
+          paymentDay: contract.paymentDay ?? 5,
           startDate: contract.startDate
             ? new Date(contract.startDate).toISOString().split("T")[0]
             : "",
@@ -229,7 +229,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           rentalValue: undefined,
           adminFeePercent: 10,
           intermediationFee: undefined,
-          paymentDay: 10,
+          paymentDay: 5,
           startDate: "",
           endDate: "",
           guaranteeType: "",
@@ -476,7 +476,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="paymentDay">Dia de Pagamento</Label>
+                <Label htmlFor="paymentDay">Dia Vencimento Boleto</Label>
                 <Input
                   id="paymentDay"
                   type="number"
