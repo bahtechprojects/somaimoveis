@@ -4,12 +4,16 @@ import { requireAuth, isAuthError } from "@/lib/api-auth";
 
 function truncateName(name: string): string {
   let n = name;
-  // Remove "Alteração do LOCATÁRIO..." preamble - extract the actual new tenant name
-  const altMatch = n.match(/(?:será|sera|será\s*a?\s*)\s*(?:SANTA CRUZ DO SUL\s*[-–]\s*)?(.+)/i);
+  // If name starts with "Alteração do LOCATÁRIO..." it's a contract amendment text, not a real name
   if (n.toLowerCase().startsWith("alteração do locat") || n.toLowerCase().startsWith("alteracao do locat")) {
-    // Try to extract the new entity name after "será" or use as-is but truncated
-    if (altMatch) {
-      n = altMatch[1];
+    // Try to extract the new entity name after "será"
+    const seraMatch = n.match(/(?:será|sera)[^A-Z]*([A-ZÀÁÂÃÉÊÍÓÔÕÚÇ][A-ZÀÁÂÃÉÊÍÓÔÕÚÇa-zàáâãéêíóôõúç\s\-–&.]+(?:LTDA|ME|EPP|EIRELI|S\.?A\.?|S\/A)?)/);
+    if (seraMatch) {
+      n = seraMatch[1].trim();
+    } else {
+      // Fallback: just use "Aditivo - CPF"
+      const cpfMatch = n.match(/\d{3}\.?\d{3}\.?\d{3}[-.]?\d{2}/);
+      n = cpfMatch ? `Aditivo - ${cpfMatch[0]}` : n.substring(0, 80);
     }
   }
   return n
