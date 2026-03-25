@@ -27,19 +27,27 @@ export async function GET(
     }
 
     const relativePath = segments.join("/");
-    const filePath = path.join(process.cwd(), "public", "uploads", relativePath);
 
-    // Verify the resolved path is still inside public/uploads
-    const uploadsDir = path.resolve(process.cwd(), "public", "uploads");
-    const resolvedPath = path.resolve(filePath);
-    if (!resolvedPath.startsWith(uploadsDir)) {
-      return NextResponse.json({ error: "Invalid path" }, { status: 400 });
+    // Try multiple possible paths (standalone vs dev)
+    const possiblePaths = [
+      path.join(process.cwd(), "public", "uploads", relativePath),
+      path.join("/app", "public", "uploads", relativePath),
+      path.join("/app/public/uploads", relativePath),
+    ];
+
+    let resolvedPath: string | null = null;
+    for (const p of possiblePaths) {
+      try {
+        await stat(p);
+        resolvedPath = p;
+        break;
+      } catch {
+        continue;
+      }
     }
 
-    // Check file exists
-    try {
-      await stat(resolvedPath);
-    } catch {
+    if (!resolvedPath) {
+      console.error("[Files] Not found in any path:", possiblePaths[0]);
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 

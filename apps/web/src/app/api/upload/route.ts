@@ -25,8 +25,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Arquivo deve ter no máximo 25MB" }, { status: 400 });
     }
 
-    // Create uploads directory
-    const uploadsDir = path.join(process.cwd(), "public", "uploads", "contracts");
+    // Create uploads directory (use /app/public/uploads for Docker volume mount)
+    const baseDir = process.env.NODE_ENV === "production" ? "/app/public/uploads" : path.join(process.cwd(), "public", "uploads");
+    const uploadsDir = path.join(baseDir, "contracts");
     await mkdir(uploadsDir, { recursive: true });
 
     // Generate unique filename
