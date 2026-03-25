@@ -5,7 +5,7 @@ import { isSicrediConfigured, sicrediAuth } from "@/lib/sicredi-client";
 export async function GET() {
   return NextResponse.json({
     configured: isSicrediConfigured(),
-    sandbox: process.env.SICREDI_API_URL?.includes("sandbox") ?? false,
+    sandbox: process.env.SICREDI_SANDBOX === "true" ?? false,
     cooperativa: process.env.SICREDI_COOPERATIVA ?? null,
     posto: process.env.SICREDI_POSTO ?? null,
     beneficiario: process.env.SICREDI_BENEFICIARIO ?? null,
@@ -34,7 +34,7 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       token: token.substring(0, 20) + "...",
-      mode: process.env.SICREDI_API_URL?.includes("sandbox") ? "sandbox" : "production",
+      mode: process.env.SICREDI_SANDBOX === "true" ? "sandbox" : "production",
     });
   } catch (error) {
     console.error("Erro ao testar Sicredi:", error);
@@ -42,7 +42,7 @@ export async function POST() {
       {
         success: false,
         error: error instanceof Error ? error.message : "Erro ao autenticar no Sicredi",
-        mode: process.env.SICREDI_API_URL?.includes("sandbox") ? "sandbox" : "production",
+        mode: process.env.SICREDI_SANDBOX === "true" ? "sandbox" : "production",
       },
       { status: 500 }
     );
