@@ -108,6 +108,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   const [searchProperty, setSearchProperty] = useState("");
   const [searchOwner, setSearchOwner] = useState("");
   const [searchTenant, setSearchTenant] = useState("");
+  const [coOwners, setCoOwners] = useState<{ownerId: string; percentage: number}[]>([]);
   const isEditing = !!contract;
 
   const {
@@ -244,6 +245,15 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           penaltyPercent: contract.penaltyPercent ?? 3,
           notes: contract.notes || "",
         });
+        // Load co-owners if property exists
+        if (contract.propertyId) {
+          fetch(`/api/properties/${contract.propertyId}/owners`).then(r => r.json()).then(data => {
+            const ownersList = data.owners || [];
+            setCoOwners(ownersList.filter((o: any) => o.ownerId !== contract.ownerId).map((o: any) => ({ ownerId: o.ownerId, percentage: o.percentage })));
+          }).catch(() => setCoOwners([]));
+        } else {
+          setCoOwners([]);
+        }
         // Set selected guarantors from contract data
         if (contract.guarantors && Array.isArray(contract.guarantors)) {
           setSelectedGuarantorIds(
@@ -332,6 +342,19 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           }
         }
         setPdfFiles([]);
+      }
+
+      // Save co-owners if any
+      if (coOwners.length > 0 && result.propertyId) {
+        for (const co of coOwners) {
+          if (co.ownerId && co.percentage > 0) {
+            await fetch(`/api/properties/${result.propertyId}/owners`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ownerId: co.ownerId, percentage: co.percentage }),
+            }).catch(() => {});
+          }
+        }
       }
 
       onOpenChange(false);
@@ -474,6 +497,63 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 </div>
                 {errors.ownerId && (
                   <p className="text-xs text-destructive">{errors.ownerId.message}</p>
+                )}
+              </div>
+
+              {/* Co-proprietários */}
+              <div className="space-y-2 sm:col-span-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Co-proprietários (divisão do repasse)</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs"
+                    onClick={() => setCoOwners(prev => [...prev, { ownerId: "", percentage: 0 }])}
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Co-proprietário
+                  </Button>
+                </div>
+                {coOwners.map((co, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <Select
+                      value={co.ownerId}
+                      onValueChange={(val) => setCoOwners(prev => prev.map((c, i) => i === idx ? { ...c, ownerId: val } : c))}
+                    >
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {owners.filter(o => o.id !== selectedOwnerId && !coOwners.some((c, ci) => ci !== idx && c.ownerId === o.id)).map((o) => (
+                          <SelectItem key={o.id} value={o.id}>{o.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={100}
+                      className="w-20"
+                      placeholder="%"
+                      value={co.percentage || ""}
+                      onChange={(e) => setCoOwners(prev => prev.map((c, i) => i === idx ? { ...c, percentage: Number(e.target.value) } : c))}
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 text-destructive"
+                      onClick={() => setCoOwners(prev => prev.filter((_, i) => i !== idx))}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+                {coOwners.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Total: {coOwners.reduce((s, c) => s + (c.percentage || 0), 0)}% para co-proprietários
+                  </p>
                 )}
               </div>
 
