@@ -47,7 +47,7 @@ export async function PUT(
       email: body.email || null,
       phone: body.phone || null,
       stateRegistration: body.stateRegistration || null,
-      birthDate: body.birthDate ? new Date(body.birthDate) : null,
+      birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
       rgIssuer: body.rgIssuer || null,
       street: body.street || null,
       number: body.number || null,

@@ -44,8 +44,14 @@ export async function PUT(
     if (data.rentalValue !== undefined) data.rentalValue = parseFloat(data.rentalValue as string);
     if (data.adminFeePercent !== undefined) data.adminFeePercent = parseFloat(data.adminFeePercent as string);
     if (data.intermediationFee !== undefined) data.intermediationFee = data.intermediationFee ? parseFloat(data.intermediationFee as string) : null;
-    if (data.startDate !== undefined) data.startDate = new Date(data.startDate as string);
-    if (data.endDate !== undefined) data.endDate = new Date(data.endDate as string);
+    if (data.startDate !== undefined) {
+      const sd = data.startDate as string;
+      data.startDate = new Date(sd.includes("T") ? sd : sd + "T12:00:00");
+    }
+    if (data.endDate !== undefined) {
+      const ed = data.endDate as string;
+      data.endDate = new Date(ed.includes("T") ? ed : ed + "T12:00:00");
+    }
     if (data.paymentDay !== undefined) data.paymentDay = parseInt(data.paymentDay as string);
     if (data.guaranteeValue !== undefined) data.guaranteeValue = data.guaranteeValue ? parseFloat(data.guaranteeValue as string) : null;
     if (data.adjustmentMonth !== undefined) data.adjustmentMonth = data.adjustmentMonth ? parseInt(data.adjustmentMonth as string) : null;

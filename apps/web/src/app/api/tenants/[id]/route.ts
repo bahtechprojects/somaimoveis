@@ -55,7 +55,7 @@ export async function PUT(
       rgIssuer: body.rgIssuer || null,
       occupation: body.profession || body.occupation || null,
       monthlyIncome: body.monthlyIncome ? parseFloat(body.monthlyIncome) : null,
-      birthDate: body.birthDate ? new Date(body.birthDate) : null,
+      birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
       street: body.street || null,
       number: body.number || null,
       complement: body.complement || null,

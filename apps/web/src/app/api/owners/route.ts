@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       bankAccount: body.bankAccount || null,
       bankPix: body.bankPix || null,
       bankPixType: body.bankPixType || null,
-      birthDate: body.birthDate ? new Date(body.birthDate) : null,
+      birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
       rgIssuer: body.rgIssuer || null,
       paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 10,
       notes: body.notes || null,

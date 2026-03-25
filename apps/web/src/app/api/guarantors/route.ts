@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       phone: body.phone || null,
       rgNumber: body.rgNumber || null,
       rgIssuer: body.rgIssuer || null,
-      birthDate: body.birthDate ? new Date(body.birthDate) : null,
+      birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
       street: body.street || null,
       number: body.number || null,
       complement: body.complement || null,

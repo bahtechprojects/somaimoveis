@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     data: {
       code, contractId, tenantId, ownerId,
       value: parseFloat(value),
-      dueDate: new Date(dueDate),
+      dueDate: new Date(dueDate.includes("T") ? dueDate : dueDate + "T12:00:00"),
       status: body.status || "PENDENTE",
       description: body.description || null,
       paymentMethod: body.paymentMethod || null,

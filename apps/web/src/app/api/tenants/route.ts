@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       zipCode: body.zipCode || null,
       rgNumber: body.rgNumber || null,
       rgIssuer: body.rgIssuer || null,
-      birthDate: body.birthDate ? new Date(body.birthDate) : null,
+      birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
       occupation: body.occupation || null,
       monthlyIncome: body.monthlyIncome ? parseFloat(body.monthlyIncome) : null,
       paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 5,
