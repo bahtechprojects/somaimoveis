@@ -6,6 +6,9 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Upload, X, FileText, Plus, Trash2 } from "lucide-react";
 import { GuarantorForm } from "@/components/forms/guarantor-form";
+import { OwnerForm } from "@/components/forms/owner-form";
+import { TenantForm } from "@/components/forms/tenant-form";
+import { PropertyForm } from "@/components/forms/property-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -94,6 +97,12 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   const [selectedGuarantorIds, setSelectedGuarantorIds] = useState<string[]>([]);
   const [guarantorFormOpen, setGuarantorFormOpen] = useState(false);
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
+  const [showNewProperty, setShowNewProperty] = useState(false);
+  const [showNewOwner, setShowNewOwner] = useState(false);
+  const [showNewTenant, setShowNewTenant] = useState(false);
+  const [searchProperty, setSearchProperty] = useState("");
+  const [searchOwner, setSearchOwner] = useState("");
+  const [searchTenant, setSearchTenant] = useState("");
   const isEditing = !!contract;
 
   const {
@@ -397,21 +406,29 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="propertyId">Imovel *</Label>
-                <Select
-                  value={selectedPropertyId}
-                  onValueChange={(value) => setValue("propertyId", value)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione o imovel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.map((property) => (
-                      <SelectItem key={property.id} value={property.id}>
-                        {property.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={selectedPropertyId}
+                    onValueChange={(value) => setValue("propertyId", value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o imovel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <div className="px-2 pb-2">
+                        <Input placeholder="Buscar imovel..." value={searchProperty} onChange={e => setSearchProperty(e.target.value)} className="h-8 text-xs" />
+                      </div>
+                      {properties.filter(p => !searchProperty || (p.title || "").toLowerCase().includes(searchProperty.toLowerCase())).map((property) => (
+                        <SelectItem key={property.id} value={property.id}>
+                          {property.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" size="icon" variant="outline" onClick={() => setShowNewProperty(true)} title="Cadastrar imovel">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
                 {errors.propertyId && (
                   <p className="text-xs text-destructive">{errors.propertyId.message}</p>
                 )}
@@ -419,21 +436,29 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
 
               <div className="space-y-2">
                 <Label htmlFor="ownerId">Proprietario *</Label>
-                <Select
-                  value={selectedOwnerId}
-                  onValueChange={(value) => setValue("ownerId", value)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione o proprietario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {owners.map((owner) => (
-                      <SelectItem key={owner.id} value={owner.id}>
-                        {owner.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={selectedOwnerId}
+                    onValueChange={(value) => setValue("ownerId", value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o proprietario" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <div className="px-2 pb-2">
+                        <Input placeholder="Buscar proprietario..." value={searchOwner} onChange={e => setSearchOwner(e.target.value)} className="h-8 text-xs" />
+                      </div>
+                      {owners.filter(o => !searchOwner || (o.name || "").toLowerCase().includes(searchOwner.toLowerCase())).map((owner) => (
+                        <SelectItem key={owner.id} value={owner.id}>
+                          {owner.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" size="icon" variant="outline" onClick={() => setShowNewOwner(true)} title="Cadastrar proprietario">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
                 {errors.ownerId && (
                   <p className="text-xs text-destructive">{errors.ownerId.message}</p>
                 )}
@@ -441,21 +466,29 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
 
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="tenantId">Locatario *</Label>
-                <Select
-                  value={selectedTenantId}
-                  onValueChange={(value) => setValue("tenantId", value)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione o locatario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tenants.map((tenant) => (
-                      <SelectItem key={tenant.id} value={tenant.id}>
-                        {tenant.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={selectedTenantId}
+                    onValueChange={(value) => setValue("tenantId", value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o locatario" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <div className="px-2 pb-2">
+                        <Input placeholder="Buscar locatario..." value={searchTenant} onChange={e => setSearchTenant(e.target.value)} className="h-8 text-xs" />
+                      </div>
+                      {tenants.filter(t => !searchTenant || (t.name || "").toLowerCase().includes(searchTenant.toLowerCase())).map((tenant) => (
+                        <SelectItem key={tenant.id} value={tenant.id}>
+                          {tenant.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" size="icon" variant="outline" onClick={() => setShowNewTenant(true)} title="Cadastrar locatario">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
                 {errors.tenantId && (
                   <p className="text-xs text-destructive">{errors.tenantId.message}</p>
                 )}
@@ -806,6 +839,48 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           }
         }}
       />
+      {showNewProperty && (
+        <PropertyForm
+          open={showNewProperty}
+          onOpenChange={setShowNewProperty}
+          onSuccess={() => {
+            setShowNewProperty(false);
+            fetch("/api/properties").then(r => r.json()).then(data => {
+              const list = Array.isArray(data) ? data : data.data || [];
+              setProperties(list);
+              if (list.length > 0) setValue("propertyId", list[list.length - 1].id);
+            });
+          }}
+        />
+      )}
+      {showNewOwner && (
+        <OwnerForm
+          open={showNewOwner}
+          onOpenChange={setShowNewOwner}
+          onSuccess={() => {
+            setShowNewOwner(false);
+            fetch("/api/owners").then(r => r.json()).then(data => {
+              const list = Array.isArray(data) ? data : data.data || [];
+              setOwners(list);
+              if (list.length > 0) setValue("ownerId", list[list.length - 1].id);
+            });
+          }}
+        />
+      )}
+      {showNewTenant && (
+        <TenantForm
+          open={showNewTenant}
+          onOpenChange={setShowNewTenant}
+          onSuccess={() => {
+            setShowNewTenant(false);
+            fetch("/api/tenants").then(r => r.json()).then(data => {
+              const list = Array.isArray(data) ? data : data.data || [];
+              setTenants(list);
+              if (list.length > 0) setValue("tenantId", list[list.length - 1].id);
+            });
+          }}
+        />
+      )}
     </Dialog>
   );
 }
