@@ -300,8 +300,8 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
 
       const payload = {
         ...data,
-        startDate: new Date(data.startDate).toISOString(),
-        endDate: new Date(data.endDate).toISOString(),
+        startDate: data.startDate,
+        endDate: data.endDate,
         intermediationFee: data.intermediationFee || null,
         intermediationInstallments: data.intermediationInstallments || 1,
         lastAdjustmentPercent: data.lastAdjustmentPercent || null,
@@ -445,7 +445,22 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 <div className="flex gap-2">
                   <Select
                     value={selectedPropertyId}
-                    onValueChange={(value) => setValue("propertyId", value)}
+                    onValueChange={(value) => {
+                      setValue("propertyId", value);
+                      // Auto-load co-owners from property
+                      if (value) {
+                        fetch(`/api/properties/${value}/owners`).then(r => r.json()).then(data => {
+                          const ownersList = data.owners || [];
+                          if (ownersList.length > 0) {
+                            // Set primary owner if not set
+                            const primaryId = data.primaryOwnerId;
+                            if (primaryId && !selectedOwnerId) setValue("ownerId", primaryId);
+                            // Set co-owners (exclude primary)
+                            setCoOwners(ownersList.filter((o: any) => o.ownerId !== primaryId).map((o: any) => ({ ownerId: o.ownerId, percentage: o.percentage })));
+                          }
+                        }).catch(() => {});
+                      }
+                    }}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Selecione o imovel" />

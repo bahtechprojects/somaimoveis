@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes);
     await writeFile(filePath, buffer);
 
-    const url = `/uploads/contracts/${filename}`;
+    const url = `/api/files/contracts/${filename}`;
 
     // If contractId provided, update the contract
     if (contractId) {
