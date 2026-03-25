@@ -105,9 +105,6 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   const [showNewProperty, setShowNewProperty] = useState(false);
   const [showNewOwner, setShowNewOwner] = useState(false);
   const [showNewTenant, setShowNewTenant] = useState(false);
-  const [searchProperty, setSearchProperty] = useState("");
-  const [searchOwner, setSearchOwner] = useState("");
-  const [searchTenant, setSearchTenant] = useState("");
   const [coOwners, setCoOwners] = useState<{ownerId: string; percentage: number}[]>([]);
   const isEditing = !!contract;
 
@@ -476,11 +473,8 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Selecione o imovel" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <div className="px-2 pb-2">
-                        <Input placeholder="Buscar imovel..." value={searchProperty} onChange={e => setSearchProperty(e.target.value)} className="h-8 text-xs" />
-                      </div>
-                      {properties.filter(p => !searchProperty || (p.title || "").toLowerCase().includes(searchProperty.toLowerCase())).map((property) => (
+                    <SelectContent className="max-h-[300px]">
+                      {properties.map((property) => (
                         <SelectItem key={property.id} value={property.id}>
                           {property.title}
                         </SelectItem>
@@ -506,11 +500,8 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Selecione o proprietario" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <div className="px-2 pb-2">
-                        <Input placeholder="Buscar proprietario..." value={searchOwner} onChange={e => setSearchOwner(e.target.value)} className="h-8 text-xs" />
-                      </div>
-                      {owners.filter(o => !searchOwner || (o.name || "").toLowerCase().includes(searchOwner.toLowerCase())).map((owner) => (
+                    <SelectContent className="max-h-[300px]">
+                      {owners.map((owner) => (
                         <SelectItem key={owner.id} value={owner.id}>
                           {owner.name}
                         </SelectItem>
@@ -593,11 +584,8 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Selecione o locatario" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <div className="px-2 pb-2">
-                        <Input placeholder="Buscar locatario..." value={searchTenant} onChange={e => setSearchTenant(e.target.value)} className="h-8 text-xs" />
-                      </div>
-                      {tenants.filter(t => !searchTenant || (t.name || "").toLowerCase().includes(searchTenant.toLowerCase())).map((tenant) => (
+                    <SelectContent className="max-h-[300px]">
+                      {tenants.map((tenant) => (
                         <SelectItem key={tenant.id} value={tenant.id}>
                           {tenant.name}
                         </SelectItem>

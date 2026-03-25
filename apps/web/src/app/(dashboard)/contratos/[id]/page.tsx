@@ -956,14 +956,27 @@ export default function ContratoDetalhePage() {
                             </p>
                           </div>
                         </div>
-                        <a
-                          href={doc.url}
-                          download={doc.name}
-                          className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0 ml-2"
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                          Baixar
-                        </a>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <a
+                            href={doc.url}
+                            download={doc.name}
+                            className="flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            Baixar
+                          </a>
+                          <button
+                            onClick={async () => {
+                              if (!confirm("Excluir este documento?")) return;
+                              await fetch(`/api/documents/${doc.id}`, { method: "DELETE" });
+                              fetchContractDocs();
+                              toast.success("Documento excluído");
+                            }}
+                            className="flex items-center gap-1 text-xs text-destructive hover:underline"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
