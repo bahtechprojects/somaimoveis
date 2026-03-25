@@ -74,47 +74,52 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  // Extract guarantorIds for many-to-many
-  const guarantorIds: string[] = body.guaranteeType === "FIADOR" && Array.isArray(body.guarantorIds)
-    ? body.guarantorIds
-    : [];
+  try {
+    // Extract guarantorIds for many-to-many
+    const guarantorIds: string[] = body.guaranteeType === "FIADOR" && Array.isArray(body.guarantorIds)
+      ? body.guarantorIds
+      : [];
 
-  const contract = await prisma.contract.create({
-    data: {
-      code,
-      ownerId,
-      propertyId: body.propertyId || null,
-      tenantId: body.tenantId || null,
-      rentalValue: rentalValue ? parseFloat(rentalValue) : 0,
-      startDate: new Date(startDate + "T12:00:00"),
-      endDate: new Date(endDate + "T12:00:00"),
-      type: body.type || "LOCACAO",
-      status: body.status || "ATIVO",
-      adminFeePercent: body.adminFeePercent ? parseFloat(body.adminFeePercent) : 10,
-      intermediationFee: body.intermediationFee ? parseFloat(body.intermediationFee) : null,
-      paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 10,
-      guaranteeType: body.guaranteeType || null,
-      guaranteeValue: body.guaranteeValue ? parseFloat(body.guaranteeValue) : null,
-      guaranteeNotes: body.guaranteeNotes || null,
-      intermediationInstallments: body.intermediationInstallments ? parseInt(body.intermediationInstallments) : 1,
-      renewalMonths: body.renewalMonths ? parseInt(body.renewalMonths) : 12,
-      penaltyPercent: body.penaltyPercent ? parseFloat(body.penaltyPercent) : 3,
-      adjustmentIndex: body.adjustmentIndex || "IGPM",
-      adjustmentMonth: body.adjustmentMonth ? parseInt(body.adjustmentMonth) : null,
-      documentUrl: body.documentUrl || null,
-      notes: body.notes || null,
-      guarantors: guarantorIds.length > 0 ? {
-        create: guarantorIds.map((gId: string) => ({ guarantorId: gId })),
-      } : undefined,
-    },
-    include: {
-      property: { select: { id: true, title: true } },
-      owner: { select: { id: true, name: true } },
-      tenant: { select: { id: true, name: true } },
-      guarantors: {
-        select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
+    const contract = await prisma.contract.create({
+      data: {
+        code,
+        ownerId,
+        propertyId: body.propertyId || null,
+        tenantId: body.tenantId || null,
+        rentalValue: rentalValue ? parseFloat(String(rentalValue)) : 0,
+        startDate: new Date(String(startDate).includes("T") ? startDate : startDate + "T12:00:00"),
+        endDate: new Date(String(endDate).includes("T") ? endDate : endDate + "T12:00:00"),
+        type: body.type || "LOCACAO",
+        status: body.status || "ATIVO",
+        adminFeePercent: body.adminFeePercent ? parseFloat(String(body.adminFeePercent)) : 10,
+        intermediationFee: body.intermediationFee ? parseFloat(String(body.intermediationFee)) : null,
+        paymentDay: body.paymentDay ? parseInt(String(body.paymentDay)) : 10,
+        guaranteeType: body.guaranteeType || null,
+        guaranteeValue: body.guaranteeValue ? parseFloat(String(body.guaranteeValue)) : null,
+        guaranteeNotes: body.guaranteeNotes || null,
+        intermediationInstallments: body.intermediationInstallments ? parseInt(String(body.intermediationInstallments)) : 1,
+        renewalMonths: body.renewalMonths ? parseInt(String(body.renewalMonths)) : 12,
+        penaltyPercent: body.penaltyPercent ? parseFloat(String(body.penaltyPercent)) : 3,
+        adjustmentIndex: body.adjustmentIndex || "IGPM",
+        adjustmentMonth: body.adjustmentMonth ? parseInt(String(body.adjustmentMonth)) : null,
+        documentUrl: body.documentUrl || null,
+        notes: body.notes || null,
+        guarantors: guarantorIds.length > 0 ? {
+          create: guarantorIds.map((gId: string) => ({ guarantorId: gId })),
+        } : undefined,
       },
-    },
-  });
-  return NextResponse.json(contract, { status: 201 });
+      include: {
+        property: { select: { id: true, title: true } },
+        owner: { select: { id: true, name: true } },
+        tenant: { select: { id: true, name: true } },
+        guarantors: {
+          select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
+        },
+      },
+    });
+    return NextResponse.json(contract, { status: 201 });
+  } catch (error: any) {
+    console.error("[Contract POST] Erro:", error);
+    return NextResponse.json({ error: error.message || "Erro ao criar contrato" }, { status: 500 });
+  }
 }
