@@ -59,6 +59,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Sicredi test (GET only) and webhook are public
+  if (pathname.startsWith("/api/sicredi/test") || pathname.startsWith("/api/webhook/sicredi")) {
+    return NextResponse.next();
+  }
+
   // Protected portal API routes: verify portal JWT Bearer token
   // Note: individual route handlers also verify auth as defense-in-depth
   if (pathname.startsWith("/api/portal")) {
