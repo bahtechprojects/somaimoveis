@@ -5,7 +5,7 @@ import { isSicrediConfigured, sicrediAuth } from "@/lib/sicredi-client";
 export async function GET() {
   return NextResponse.json({
     configured: isSicrediConfigured(),
-    sandbox: process.env.SICREDI_SANDBOX === "true" ?? false,
+    sandbox: process.env.SICREDI_SANDBOX === "true",
     cooperativa: process.env.SICREDI_COOPERATIVA ?? null,
     posto: process.env.SICREDI_POSTO ?? null,
     beneficiario: process.env.SICREDI_BENEFICIARIO ?? null,

@@ -55,6 +55,9 @@ import {
   FileWarning,
   MessageCircle,
   ChevronRight,
+  Landmark,
+  Globe,
+  Wifi,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -306,6 +309,70 @@ export default function ConfiguracoesPage() {
   const [processResult, setProcessResult] = useState<ProcessResult | null>(null);
   const [newReminderDay, setNewReminderDay] = useState("");
 
+  // Sicredi integration state
+  const [sicrediStatus, setSicrediStatus] = useState<{
+    configured: boolean;
+    cooperativa?: string;
+    posto?: string;
+    beneficiario?: string;
+    sandbox?: boolean;
+  } | null>(null);
+  const [sicrediLoading, setSicrediLoading] = useState(true);
+  const [sicrediTesting, setSicrediTesting] = useState(false);
+  const [sicrediTestResult, setSicrediTestResult] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+
+  // Fetch Sicredi status on mount
+  const fetchSicrediStatus = useCallback(async () => {
+    setSicrediLoading(true);
+    try {
+      const response = await fetch("/api/sicredi/test");
+      const data = await response.json();
+      setSicrediStatus({
+        configured: data.configured ?? false,
+        cooperativa: data.cooperativa,
+        posto: data.posto,
+        beneficiario: data.beneficiario,
+        sandbox: data.sandbox,
+      });
+    } catch {
+      setSicrediStatus({ configured: false });
+    } finally {
+      setSicrediLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSicrediStatus();
+  }, [fetchSicrediStatus]);
+
+  // Test Sicredi connection
+  async function handleTestSicredi() {
+    setSicrediTesting(true);
+    setSicrediTestResult(null);
+    try {
+      const response = await fetch("/api/sicredi/test", { method: "POST" });
+      const data = await response.json();
+      if (response.ok) {
+        setSicrediTestResult({ success: true, message: "Conexao OK! Token obtido." });
+      } else {
+        setSicrediTestResult({
+          success: false,
+          message: data.error || "Erro ao testar conexao",
+        });
+      }
+    } catch (error: any) {
+      setSicrediTestResult({
+        success: false,
+        message: error?.message || "Erro de rede ao testar conexao",
+      });
+    } finally {
+      setSicrediTesting(false);
+    }
+  }
+
   // Fetch billing rules on mount
   const fetchBillingRules = useCallback(async () => {
     setLoadingRules(true);
@@ -487,6 +554,10 @@ export default function ConfiguracoesPage() {
             <TabsTrigger value="sistema" className="gap-1.5 text-sm px-4">
               <Settings className="h-4 w-4" />
               Sistema
+            </TabsTrigger>
+            <TabsTrigger value="integracoes" className="gap-1.5 text-sm px-4">
+              <Landmark className="h-4 w-4" />
+              Integracoes
             </TabsTrigger>
           </TabsList>
 
@@ -1433,6 +1504,184 @@ export default function ConfiguracoesPage() {
                       disponivel em breve.
                     </p>
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* ── Tab: Integracoes ──────────────────────────────────────────── */}
+          <TabsContent value="integracoes">
+            <div className="grid gap-6 max-w-2xl">
+              {/* Sicredi Card */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
+                        <Landmark className="h-5 w-5 text-green-700" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">
+                          Integracao Bancaria - Sicredi
+                        </CardTitle>
+                        <CardDescription>
+                          Emissao e gestao de boletos via API Sicredi
+                        </CardDescription>
+                      </div>
+                    </div>
+                    {!sicrediLoading && (
+                      <Badge
+                        variant="outline"
+                        className={
+                          sicrediStatus?.configured
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-red-50 text-red-700 border-red-200"
+                        }
+                      >
+                        {sicrediStatus?.configured
+                          ? "Configurado"
+                          : "Nao configurado"}
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {sicrediLoading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-sm text-muted-foreground">
+                        Verificando configuracao...
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Connection details */}
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-muted-foreground">
+                              Cooperativa
+                            </Label>
+                            <p className="text-sm font-medium">
+                              {sicrediStatus?.cooperativa || "—"}
+                            </p>
+                          </div>
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-muted-foreground">
+                              Posto
+                            </Label>
+                            <p className="text-sm font-medium">
+                              {sicrediStatus?.posto || "—"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-muted-foreground">
+                              Beneficiario
+                            </Label>
+                            <p className="text-sm font-medium">
+                              {sicrediStatus?.beneficiario || "—"}
+                            </p>
+                          </div>
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-muted-foreground">
+                              Modo Sandbox
+                            </Label>
+                            <Badge
+                              variant="outline"
+                              className={
+                                sicrediStatus?.sandbox
+                                  ? "bg-amber-50 text-amber-700 border-amber-200 w-fit"
+                                  : "bg-emerald-50 text-emerald-700 border-emerald-200 w-fit"
+                              }
+                            >
+                              {sicrediStatus?.sandbox ? "Sim (Teste)" : "Nao (Producao)"}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* Test connection */}
+                      <div className="flex items-center gap-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={handleTestSicredi}
+                          disabled={sicrediTesting}
+                        >
+                          {sicrediTesting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Wifi className="h-4 w-4" />
+                          )}
+                          {sicrediTesting ? "Testando..." : "Testar Conexao"}
+                        </Button>
+                        {sicrediTestResult && (
+                          <div
+                            className={`flex items-center gap-1.5 text-sm ${
+                              sicrediTestResult.success
+                                ? "text-emerald-600"
+                                : "text-red-600"
+                            }`}
+                          >
+                            {sicrediTestResult.success ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <X className="h-4 w-4" />
+                            )}
+                            {sicrediTestResult.message}
+                          </div>
+                        )}
+                      </div>
+
+                      <Separator />
+
+                      {/* Webhook info */}
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Globe className="h-4 w-4 text-muted-foreground" />
+                          <p className="text-sm font-medium">Webhook</p>
+                        </div>
+                        <div className="grid gap-3">
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-muted-foreground">
+                              URL do Webhook
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <code className="text-xs bg-muted px-2 py-1 rounded font-mono break-all">
+                                https://sommaimob.bahflash.tech/api/webhook/sicredi
+                              </code>
+                            </div>
+                          </div>
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-muted-foreground">
+                              Status
+                            </Label>
+                            <Badge
+                              variant="outline"
+                              className={
+                                sicrediStatus?.configured
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200 w-fit"
+                                  : "bg-amber-50 text-amber-700 border-amber-200 w-fit"
+                              }
+                            >
+                              {sicrediStatus?.configured
+                                ? "Ativo"
+                                : "Pendente configuracao"}
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            Configure este URL no portal Sicredi para receber
+                            notificacoes de pagamento
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>

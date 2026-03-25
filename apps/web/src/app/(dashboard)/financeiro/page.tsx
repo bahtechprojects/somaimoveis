@@ -45,6 +45,7 @@ import {
   DollarSign,
   ArrowDownRight,
   CalendarPlus,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PaymentForm } from "@/components/forms/payment-form";
@@ -69,6 +70,9 @@ interface Payment {
   splitOwnerValue: number | null;
   splitAdminValue: number | null;
   notes: string | null;
+  nossoNumero?: string;
+  linhaDigitavel?: string;
+  boletoStatus?: string;
   contract: {
     id: string;
     code: string;
@@ -130,6 +134,7 @@ function FinanceiroContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [boletoLoading, setBoletoLoading] = useState<Record<string, boolean>>({});
 
   async function fetchPayments() {
     setLoading(true);
@@ -263,6 +268,53 @@ function FinanceiroContent() {
     fetchPayments();
   }
 
+  const handleEmitBoleto = async (paymentId: string) => {
+    setBoletoLoading(prev => ({ ...prev, [paymentId]: true }));
+    try {
+      const res = await fetch(`/api/payments/${paymentId}/boleto`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao emitir boleto");
+      alert("Boleto emitido com sucesso!");
+      fetchPayments();
+    } catch (err: any) {
+      alert(err.message || "Erro ao emitir boleto");
+    } finally {
+      setBoletoLoading(prev => ({ ...prev, [paymentId]: false }));
+    }
+  };
+
+  const handleDownloadBoleto = async (paymentId: string, code: string) => {
+    try {
+      const res = await fetch(`/api/payments/${paymentId}/boleto`);
+      if (!res.ok) throw new Error("Erro ao baixar boleto");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `boleto-${code}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || "Erro ao baixar boleto");
+    }
+  };
+
+  const handleEmitBoletosBatch = async () => {
+    if (!confirm("Emitir boletos para todos os pagamentos pendentes?")) return;
+    try {
+      const res = await fetch("/api/payments/boleto/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      alert(`${data.emitidos} boleto(s) emitido(s), ${data.erros?.length || 0} erro(s)`);
+      fetchPayments();
+    } catch (err: any) {
+      alert(err.message || "Erro ao emitir boletos");
+    }
+  };
+
   return (
     <div className="flex flex-col">
       <Header title="Financeiro" subtitle="Controle de pagamentos e receitas" />
@@ -370,6 +422,11 @@ function FinanceiroContent() {
                   <span className="hidden sm:inline">Gerar Cobrancas</span>
                   <span className="sm:hidden">Gerar</span>
                 </Button>
+                <Button size="sm" variant="outline" className="gap-1.5 h-10 sm:h-8 text-xs" onClick={handleEmitBoletosBatch}>
+                  <Receipt className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Emitir Boletos</span>
+                  <span className="sm:hidden">Boletos</span>
+                </Button>
                 <Button size="sm" className="gap-1.5 h-10 sm:h-8 text-xs" onClick={handleNewPayment}>
                   <Plus className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Nova Cobranca</span>
@@ -436,6 +493,20 @@ function FinanceiroContent() {
                                 <CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Marcar como Pago
                               </DropdownMenuItem>
                             )}
+                            {!payment.nossoNumero && (payment.status === "PENDENTE" || payment.status === "ATRASADO") && (
+                              <DropdownMenuItem
+                                disabled={boletoLoading[payment.id]}
+                                onClick={(e) => { e.stopPropagation(); handleEmitBoleto(payment.id); }}
+                              >
+                                <Receipt className="h-3.5 w-3.5 mr-2" />
+                                {boletoLoading[payment.id] ? "Emitindo..." : "Emitir Boleto"}
+                              </DropdownMenuItem>
+                            )}
+                            {payment.nossoNumero && (
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownloadBoleto(payment.id, payment.code); }}>
+                                <Receipt className="h-3.5 w-3.5 mr-2" /> Baixar Boleto
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(payment)}>
                               <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
                             </DropdownMenuItem>
@@ -448,6 +519,12 @@ function FinanceiroContent() {
                             <StatusIcon className="h-3 w-3" />
                             {status.label}
                           </Badge>
+                          {payment.boletoStatus && (
+                            <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-blue-50 text-blue-700 border-blue-200">
+                              <Receipt className="h-3 w-3" />
+                              {payment.boletoStatus}
+                            </Badge>
+                          )}
                           <span className="text-xs text-muted-foreground">Venc: {formatDate(payment.dueDate)}</span>
                         </div>
                         <span className="font-semibold text-sm">{formatCurrency(payment.value)}</span>
@@ -506,10 +583,18 @@ function FinanceiroContent() {
                           {payment.paidAt ? formatDate(payment.paidAt) : "-"}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={cn("text-xs border gap-1", status.className)}>
-                            <StatusIcon className="h-3 w-3" />
-                            {status.label}
-                          </Badge>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className={cn("text-xs border gap-1", status.className)}>
+                              <StatusIcon className="h-3 w-3" />
+                              {status.label}
+                            </Badge>
+                            {payment.boletoStatus && (
+                              <Badge variant="outline" className="text-xs border gap-1 bg-blue-50 text-blue-700 border-blue-200">
+                                <Receipt className="h-3 w-3" />
+                                {payment.boletoStatus}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs">
                           {payment.paymentMethod ? (methodLabels[payment.paymentMethod] || payment.paymentMethod) : "-"}
@@ -530,6 +615,21 @@ function FinanceiroContent() {
                                 <DropdownMenuItem onClick={() => handleMarkAsPaid(payment)}>
                                   <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
                                   Marcar como Pago
+                                </DropdownMenuItem>
+                              )}
+                              {!payment.nossoNumero && (payment.status === "PENDENTE" || payment.status === "ATRASADO") && (
+                                <DropdownMenuItem
+                                  disabled={boletoLoading[payment.id]}
+                                  onClick={(e) => { e.stopPropagation(); handleEmitBoleto(payment.id); }}
+                                >
+                                  <Receipt className="h-3.5 w-3.5 mr-2" />
+                                  {boletoLoading[payment.id] ? "Emitindo..." : "Emitir Boleto"}
+                                </DropdownMenuItem>
+                              )}
+                              {payment.nossoNumero && (
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownloadBoleto(payment.id, payment.code); }}>
+                                  <Receipt className="h-3.5 w-3.5 mr-2" />
+                                  Baixar Boleto
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
