@@ -42,13 +42,31 @@ export async function POST(request: NextRequest) {
 
     const url = `/api/files/contracts/${filename}`;
 
-    // If contractId provided, update the contract
-    if (contractId) {
-      const { prisma } = await import("@/lib/prisma");
-      await prisma.contract.update({
-        where: { id: contractId },
-        data: { documentUrl: url },
+    const { prisma } = await import("@/lib/prisma");
+    const entityType = (formData.get("entityType") as string) || "CONTRACT";
+    const entityId = (formData.get("entityId") as string) || contractId;
+
+    // Create Document record in database
+    if (entityId) {
+      await prisma.document.create({
+        data: {
+          name: file.name,
+          url,
+          mimeType: file.type,
+          size: file.size,
+          category: "CONTRATO",
+          entityType,
+          entityId,
+        },
       });
+
+      // Also update contract.documentUrl for backwards compatibility
+      if (contractId) {
+        await prisma.contract.update({
+          where: { id: contractId },
+          data: { documentUrl: url },
+        }).catch(() => {});
+      }
     }
 
     return NextResponse.json({ url, filename }, { status: 201 });
