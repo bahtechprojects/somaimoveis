@@ -25,7 +25,9 @@ export async function GET(request: NextRequest) {
     property: { select: { id: true, title: true } },
     owner: { select: { id: true, name: true } },
     tenant: { select: { id: true, name: true } },
-    guarantor: { select: { id: true, name: true } },
+    guarantors: {
+      select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
+    },
   };
 
   const pageParam = searchParams.get("page");
@@ -72,6 +74,11 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+  // Extract guarantorIds for many-to-many
+  const guarantorIds: string[] = body.guaranteeType === "FIADOR" && Array.isArray(body.guarantorIds)
+    ? body.guarantorIds
+    : [];
+
   const contract = await prisma.contract.create({
     data: {
       code,
@@ -89,17 +96,21 @@ export async function POST(request: NextRequest) {
       guaranteeType: body.guaranteeType || null,
       guaranteeValue: body.guaranteeValue ? parseFloat(body.guaranteeValue) : null,
       guaranteeNotes: body.guaranteeNotes || null,
-      guarantorId: body.guaranteeType === "FIADOR" && body.guarantorId ? body.guarantorId : null,
       adjustmentIndex: body.adjustmentIndex || "IGPM",
       adjustmentMonth: body.adjustmentMonth ? parseInt(body.adjustmentMonth) : null,
       documentUrl: body.documentUrl || null,
       notes: body.notes || null,
+      guarantors: guarantorIds.length > 0 ? {
+        create: guarantorIds.map((gId: string) => ({ guarantorId: gId })),
+      } : undefined,
     },
     include: {
       property: { select: { id: true, title: true } },
       owner: { select: { id: true, name: true } },
       tenant: { select: { id: true, name: true } },
-      guarantor: { select: { id: true, name: true } },
+      guarantors: {
+        select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
+      },
     },
   });
   return NextResponse.json(contract, { status: 201 });

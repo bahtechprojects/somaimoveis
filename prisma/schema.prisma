@@ -54,6 +54,14 @@ model Owner {
   bankAccount  String?
   bankPix      String?
   bankPixType  String?   // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
+  // Terceiro Recebedor (quando o repasse vai para outra pessoa)
+  thirdPartyName     String?  // Nome do terceiro recebedor
+  thirdPartyDocument String?  // CPF/CNPJ do terceiro
+  thirdPartyBank     String?  // Banco
+  thirdPartyAgency   String?  // Agencia
+  thirdPartyAccount  String?  // Conta
+  thirdPartyPixKeyType String? // Tipo chave PIX (CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA)
+  thirdPartyPix      String?  // Chave PIX
   // Pagamento
   paymentDay   Int      @default(10) // Dia do pagamento ao proprietario
   // Portal de acesso
@@ -222,9 +230,8 @@ model Contract {
   guaranteeType  String?  // FIADOR, CAUCAO, SEGURO_FIANCA, TITULO_CAPITALIZACAO, SEM_GARANTIA
   guaranteeValue Float?
   guaranteeNotes String?
-  // Fiador
-  guarantorId    String?
-  guarantor      Guarantor? @relation(fields: [guarantorId], references: [id])
+  // Fiadores (many-to-many via join table)
+  guarantors     ContractGuarantor[]
   // Reajuste
   adjustmentIndex String? @default("IGPM") // IGPM, IPCA, INPC
   adjustmentMonth Int?    // Mes do reajuste
@@ -313,6 +320,8 @@ model Guarantor {
   rgNumber     String?
   rgIssuer     String?  // Orgao expedidor
   birthDate    DateTime?
+  maritalStatus String? // Estado civil: SOLTEIRO, CASADO, DIVORCIADO, VIUVO, UNIAO_ESTAVEL
+  profession   String?  // Profissao
   // Endereco
   street       String?
   number       String?
@@ -321,6 +330,8 @@ model Guarantor {
   city         String?
   state        String?
   zipCode      String?
+  // Imovel
+  propertyRegistration String? // Numero da matricula do imovel
   // Profissional
   occupation   String?
   monthlyIncome Float?
@@ -329,9 +340,23 @@ model Guarantor {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  contracts Contract[]
+  contracts ContractGuarantor[]
 
   @@map("guarantors")
+}
+
+model ContractGuarantor {
+  id          String   @id @default(cuid())
+  contractId  String
+  guarantorId String
+  contract    Contract   @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  guarantor   Guarantor  @relation(fields: [guarantorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([contractId, guarantorId])
+  @@index([contractId])
+  @@index([guarantorId])
+  @@map("contract_guarantors")
 }
 
 // ==========================================

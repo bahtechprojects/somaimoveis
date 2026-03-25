@@ -16,7 +16,9 @@ export async function GET(
         property: { select: { id: true, title: true } },
         owner: { select: { id: true, name: true, paymentDay: true } },
         tenant: { select: { id: true, name: true, paymentDay: true } },
-        guarantor: { select: { id: true, name: true } },
+        guarantors: {
+          select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
+        },
         payments: { select: { id: true, code: true, value: true, status: true, dueDate: true } },
       },
     });
@@ -59,9 +61,23 @@ export async function PUT(
     if (data.lastAdjustmentPercent !== undefined) data.lastAdjustmentPercent = data.lastAdjustmentPercent ? parseFloat(data.lastAdjustmentPercent as string) : null;
     if (data.lastAdjustmentDate !== undefined) data.lastAdjustmentDate = data.lastAdjustmentDate ? new Date(data.lastAdjustmentDate as string) : null;
 
-    // guarantorId only when guaranteeType is FIADOR, else null
-    if (data.guaranteeType !== undefined && data.guaranteeType !== "FIADOR") {
-      data.guarantorId = null;
+    // Handle many-to-many guarantors
+    const guarantorIds: string[] | undefined = data.guarantorIds as string[] | undefined;
+    delete data.guarantorIds;
+    // Remove legacy guarantorId if present
+    delete data.guarantorId;
+
+    const guarantorsUpdate = data.guaranteeType === "FIADOR" && Array.isArray(guarantorIds)
+      ? {
+          deleteMany: {},
+          create: guarantorIds.map((gId: string) => ({ guarantorId: gId })),
+        }
+      : data.guaranteeType !== "FIADOR"
+        ? { deleteMany: {} }
+        : undefined;
+
+    if (guarantorsUpdate) {
+      data.guarantors = guarantorsUpdate;
     }
 
     const contract = await prisma.contract.update({
@@ -71,7 +87,9 @@ export async function PUT(
         property: { select: { id: true, title: true } },
         owner: { select: { id: true, name: true } },
         tenant: { select: { id: true, name: true } },
-        guarantor: { select: { id: true, name: true } },
+        guarantors: {
+          select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
+        },
       },
     });
     return NextResponse.json(contract);

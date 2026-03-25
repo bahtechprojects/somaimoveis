@@ -19,7 +19,9 @@ export async function GET(request: NextRequest) {
 
   const includeRelations = {
     contracts: {
-      select: { id: true, code: true, status: true },
+      select: {
+        contract: { select: { id: true, code: true, status: true } },
+      },
     },
   };
 
@@ -87,6 +89,8 @@ export async function POST(request: NextRequest) {
       rgNumber: body.rgNumber || null,
       rgIssuer: body.rgIssuer || null,
       birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
+      maritalStatus: body.maritalStatus || null,
+      profession: body.profession || null,
       street: body.street || null,
       number: body.number || null,
       complement: body.complement || null,
@@ -94,6 +98,7 @@ export async function POST(request: NextRequest) {
       city: body.city || null,
       state: body.state || null,
       zipCode: body.zipCode || null,
+      propertyRegistration: body.propertyRegistration || null,
       occupation: body.occupation || null,
       monthlyIncome: body.monthlyIncome ? parseFloat(body.monthlyIncome) : null,
       notes: body.notes || null,

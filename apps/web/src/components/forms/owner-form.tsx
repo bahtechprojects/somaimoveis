@@ -47,6 +47,13 @@ const ownerSchema = z.object({
   bankAccount: z.string().optional(),
   bankPixType: z.string().optional(),
   bankPix: z.string().optional(),
+  thirdPartyName: z.string().optional(),
+  thirdPartyDocument: z.string().optional(),
+  thirdPartyBank: z.string().optional(),
+  thirdPartyAgency: z.string().optional(),
+  thirdPartyAccount: z.string().optional(),
+  thirdPartyPixKeyType: z.string().optional(),
+  thirdPartyPix: z.string().optional(),
   paymentDay: z.coerce.number().min(1).max(31).default(10),
   notes: z.string().optional(),
 });
@@ -95,6 +102,13 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
       bankAccount: "",
       bankPixType: "",
       bankPix: "",
+      thirdPartyName: "",
+      thirdPartyDocument: "",
+      thirdPartyBank: "",
+      thirdPartyAgency: "",
+      thirdPartyAccount: "",
+      thirdPartyPixKeyType: "",
+      thirdPartyPix: "",
       paymentDay: 10,
       notes: "",
     },
@@ -160,6 +174,13 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
           bankAccount: owner.bankAccount || "",
           bankPixType: owner.bankPixType || "",
           bankPix: owner.bankPix || "",
+          thirdPartyName: owner.thirdPartyName || "",
+          thirdPartyDocument: owner.thirdPartyDocument || "",
+          thirdPartyBank: owner.thirdPartyBank || "",
+          thirdPartyAgency: owner.thirdPartyAgency || "",
+          thirdPartyAccount: owner.thirdPartyAccount || "",
+          thirdPartyPixKeyType: owner.thirdPartyPixKeyType || "",
+          thirdPartyPix: owner.thirdPartyPix || "",
           paymentDay: owner.paymentDay ?? 10,
           notes: owner.notes || "",
         });
@@ -176,7 +197,10 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
               street: "", number: "", complement: "", neighborhood: "",
               city: "", state: "", zipCode: "", stateRegistration: "",
               rgIssuer: "", birthDate: "",
-              bankName: "", bankAgency: "", bankAccount: "", bankPixType: "", bankPix: "", paymentDay: 10, notes: "",
+              bankName: "", bankAgency: "", bankAccount: "", bankPixType: "", bankPix: "",
+              thirdPartyName: "", thirdPartyDocument: "", thirdPartyBank: "",
+              thirdPartyAgency: "", thirdPartyAccount: "", thirdPartyPixKeyType: "", thirdPartyPix: "",
+              paymentDay: 10, notes: "",
             });
           }
         } catch {
@@ -184,7 +208,10 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
             name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
             street: "", number: "", complement: "", neighborhood: "",
             city: "", state: "", zipCode: "", stateRegistration: "",
-            bankName: "", bankAgency: "", bankAccount: "", bankPix: "", paymentDay: 10, notes: "",
+            bankName: "", bankAgency: "", bankAccount: "", bankPix: "",
+            thirdPartyName: "", thirdPartyDocument: "", thirdPartyBank: "",
+            thirdPartyAgency: "", thirdPartyAccount: "", thirdPartyPixKeyType: "", thirdPartyPix: "",
+            paymentDay: 10, notes: "",
           });
         }
       }
@@ -536,6 +563,90 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
                   id="bankPix"
                   placeholder="CPF, email, telefone ou chave aleatoria"
                   {...register("bankPix")}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Terceiro Recebedor */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground border-b pb-2">
+              Terceiro Recebedor
+            </h3>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Preencha apenas se o repasse vai para outra pessoa
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="thirdPartyName">Nome do Terceiro</Label>
+                <Input
+                  id="thirdPartyName"
+                  placeholder="Nome completo do recebedor"
+                  {...register("thirdPartyName")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="thirdPartyDocument">CPF/CNPJ do Terceiro</Label>
+                <Input
+                  id="thirdPartyDocument"
+                  placeholder="000.000.000-00"
+                  {...register("thirdPartyDocument")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="thirdPartyBank">Banco</Label>
+                <Input
+                  id="thirdPartyBank"
+                  placeholder="Nome do banco"
+                  {...register("thirdPartyBank")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="thirdPartyAgency">Agencia</Label>
+                <Input
+                  id="thirdPartyAgency"
+                  placeholder="0000"
+                  {...register("thirdPartyAgency")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="thirdPartyAccount">Conta</Label>
+                <Input
+                  id="thirdPartyAccount"
+                  placeholder="00000-0"
+                  {...register("thirdPartyAccount")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="thirdPartyPixKeyType">Tipo da Chave PIX</Label>
+                <Select
+                  value={watch("thirdPartyPixKeyType") || ""}
+                  onValueChange={(value) => setValue("thirdPartyPixKeyType", value)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="CPF">CPF</SelectItem>
+                    <SelectItem value="CNPJ">CNPJ</SelectItem>
+                    <SelectItem value="EMAIL">EMAIL</SelectItem>
+                    <SelectItem value="TELEFONE">TELEFONE</SelectItem>
+                    <SelectItem value="ALEATORIA">ALEATORIA</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="thirdPartyPix">Chave PIX</Label>
+                <Input
+                  id="thirdPartyPix"
+                  placeholder="CPF, email, telefone ou chave aleatoria"
+                  {...register("thirdPartyPix")}
                 />
               </div>
             </div>

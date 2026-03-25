@@ -61,6 +61,13 @@ export async function PUT(
       bankAccount: body.bankAccount || null,
       bankPix: body.bankPix || null,
       bankPixType: body.bankPixType || null,
+      thirdPartyName: body.thirdPartyName || null,
+      thirdPartyDocument: body.thirdPartyDocument || null,
+      thirdPartyBank: body.thirdPartyBank || null,
+      thirdPartyAgency: body.thirdPartyAgency || null,
+      thirdPartyAccount: body.thirdPartyAccount || null,
+      thirdPartyPixKeyType: body.thirdPartyPixKeyType || null,
+      thirdPartyPix: body.thirdPartyPix || null,
       paymentDay: body.paymentDay ? parseInt(body.paymentDay) : undefined,
       notes: body.notes || null,
     };

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Upload, X, FileText } from "lucide-react";
+import { Loader2, Upload, X, FileText, Plus, Trash2 } from "lucide-react";
+import { GuarantorForm } from "@/components/forms/guarantor-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -41,7 +42,6 @@ const contractSchema = z.object({
   guaranteeType: z.string().optional(),
   guaranteeValue: z.coerce.number().optional(),
   guaranteeNotes: z.string().optional(),
-  guarantorId: z.string().optional(),
   adjustmentIndex: z.string().optional(),
   adjustmentMonth: z.coerce.number().int().min(1).max(12).optional(),
   lastAdjustmentPercent: z.coerce.number().optional(),
@@ -65,7 +65,6 @@ type ContractFormData = {
   guaranteeType?: string;
   guaranteeValue?: number;
   guaranteeNotes?: string;
-  guarantorId?: string;
   adjustmentIndex?: string;
   adjustmentMonth?: number;
   lastAdjustmentPercent?: number;
@@ -83,6 +82,7 @@ interface SelectOption {
   id: string;
   name?: string;
   title?: string;
+  cpfCnpj?: string;
 }
 
 export function ContractForm({ open, onOpenChange, contract, onSuccess }: ContractFormProps) {
@@ -90,7 +90,9 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   const [owners, setOwners] = useState<SelectOption[]>([]);
   const [tenants, setTenants] = useState<SelectOption[]>([]);
   const [properties, setProperties] = useState<SelectOption[]>([]);
-  const [guarantors, setGuarantors] = useState<SelectOption[]>([]);
+  const [guarantorsList, setGuarantorsList] = useState<SelectOption[]>([]);
+  const [selectedGuarantorIds, setSelectedGuarantorIds] = useState<string[]>([]);
+  const [guarantorFormOpen, setGuarantorFormOpen] = useState(false);
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const isEditing = !!contract;
 
@@ -121,7 +123,6 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       guaranteeType: "",
       guaranteeValue: undefined,
       guaranteeNotes: "",
-      guarantorId: "",
       adjustmentIndex: "IGPM",
       adjustmentMonth: undefined,
       lastAdjustmentPercent: undefined,
@@ -135,7 +136,6 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   const selectedOwnerId = watch("ownerId");
   const selectedTenantId = watch("tenantId");
   const selectedGuaranteeType = watch("guaranteeType");
-  const selectedGuarantorId = watch("guarantorId");
   const selectedAdjustmentIndex = watch("adjustmentIndex");
 
   // Fetch related data on dialog open
@@ -163,7 +163,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         }
         if (guarantorsRes.ok) {
           const data = await guarantorsRes.json();
-          setGuarantors(data.map((g: any) => ({ id: g.id, name: g.name })));
+          setGuarantorsList(data.map((g: any) => ({ id: g.id, name: g.name, cpfCnpj: g.cpfCnpj })));
         }
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
@@ -221,12 +221,19 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           guaranteeType: contract.guaranteeType || "",
           guaranteeValue: contract.guaranteeValue ?? undefined,
           guaranteeNotes: contract.guaranteeNotes || "",
-          guarantorId: contract.guarantorId || "",
           adjustmentIndex: contract.adjustmentIndex || "IGPM",
           adjustmentMonth: contract.adjustmentMonth ?? undefined,
           lastAdjustmentPercent: contract.lastAdjustmentPercent ?? undefined,
           notes: contract.notes || "",
         });
+        // Set selected guarantors from contract data
+        if (contract.guarantors && Array.isArray(contract.guarantors)) {
+          setSelectedGuarantorIds(
+            contract.guarantors.map((g: any) => g.guarantor?.id || g.guarantorId).filter(Boolean)
+          );
+        } else {
+          setSelectedGuarantorIds([]);
+        }
       } else {
         reset({
           code: "",
@@ -245,12 +252,12 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           guaranteeType: "",
           guaranteeValue: undefined,
           guaranteeNotes: "",
-          guarantorId: "",
           adjustmentIndex: "IGPM",
           adjustmentMonth: undefined,
           lastAdjustmentPercent: undefined,
           notes: "",
         });
+        setSelectedGuarantorIds([]);
       }
     }
   }, [open, contract, reset]);
@@ -271,7 +278,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         guaranteeType: data.guaranteeType || null,
         guaranteeValue: data.guaranteeValue || null,
         guaranteeNotes: data.guaranteeNotes || null,
-        guarantorId: (data.guaranteeType === "FIADOR" && data.guarantorId) ? data.guarantorId : null,
+        guarantorIds: data.guaranteeType === "FIADOR" ? selectedGuarantorIds : [],
         adjustmentIndex: data.adjustmentIndex || null,
         adjustmentMonth: data.adjustmentMonth || null,
         notes: data.notes || null,
@@ -358,13 +365,6 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="LOCACAO">Locacao</SelectItem>
-                    <SelectItem value="ADMINISTRACAO">Administracao</SelectItem>
-                    <SelectItem value="VISTORIA">Vistoria</SelectItem>
-                    <SelectItem value="VENDA">Venda</SelectItem>
-                    <SelectItem value="TEMPORADA">Temporada</SelectItem>
-                    <SelectItem value="PROCURACAO">Procuracao</SelectItem>
-                    <SelectItem value="ADITIVO">Aditivo</SelectItem>
-                    <SelectItem value="INTERMEDIACAO">Intermediacao</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -608,26 +608,69 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               {selectedGuaranteeType === "FIADOR" && (
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="guarantorId">Fiador</Label>
-                  <Select
-                    value={selectedGuarantorId || ""}
-                    onValueChange={(value) => setValue("guarantorId", value)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione o fiador" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {guarantors.map((guarantor) => (
-                        <SelectItem key={guarantor.id} value={guarantor.id}>
-                          {guarantor.name}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="__new__" disabled>
-                        Cadastrar novo fiador (em breve)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-3 sm:col-span-2">
+                  <Label>Fiadores</Label>
+                  <div className="flex gap-2">
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        if (value && !selectedGuarantorIds.includes(value)) {
+                          setSelectedGuarantorIds(prev => [...prev, value]);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Adicionar fiador" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {guarantorsList
+                          .filter(g => !selectedGuarantorIds.includes(g.id))
+                          .map((guarantor) => (
+                            <SelectItem key={guarantor.id} value={guarantor.id}>
+                              {guarantor.name} {guarantor.cpfCnpj ? `(${guarantor.cpfCnpj})` : ""}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setGuarantorFormOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Cadastrar Fiador
+                    </Button>
+                  </div>
+
+                  {selectedGuarantorIds.length > 0 && (
+                    <div className="space-y-1.5">
+                      {selectedGuarantorIds.map((gId) => {
+                        const g = guarantorsList.find(x => x.id === gId);
+                        return (
+                          <div key={gId} className="flex items-center gap-2 bg-muted/50 rounded px-3 py-1.5 text-sm">
+                            <span className="flex-1 truncate">
+                              {g?.name || "Fiador"} {g?.cpfCnpj ? `- ${g.cpfCnpj}` : ""}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedGuarantorIds(prev => prev.filter(id => id !== gId))}
+                              className="text-muted-foreground hover:text-destructive shrink-0"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {selectedGuarantorIds.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhum fiador selecionado. Use o seletor acima ou cadastre um novo.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -752,6 +795,17 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <GuarantorForm
+        open={guarantorFormOpen}
+        onOpenChange={setGuarantorFormOpen}
+        onSuccess={(newGuarantor) => {
+          if (newGuarantor?.id) {
+            setGuarantorsList(prev => [...prev, { id: newGuarantor.id, name: newGuarantor.name, cpfCnpj: newGuarantor.cpfCnpj }]);
+            setSelectedGuarantorIds(prev => [...prev, newGuarantor.id]);
+          }
+        }}
+      />
     </Dialog>
   );
 }
