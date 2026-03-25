@@ -878,10 +878,12 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           onOpenChange={setShowNewProperty}
           onSuccess={() => {
             setShowNewProperty(false);
+            const prevIds = new Set(properties.map(p => p.id));
             fetch("/api/properties").then(r => r.json()).then(data => {
               const list = Array.isArray(data) ? data : data.data || [];
               setProperties(list);
-              if (list.length > 0) setValue("propertyId", list[list.length - 1].id);
+              const newItem = list.find((p: any) => !prevIds.has(p.id));
+              if (newItem) setValue("propertyId", newItem.id);
             });
           }}
         />
@@ -892,10 +894,12 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           onOpenChange={setShowNewOwner}
           onSuccess={() => {
             setShowNewOwner(false);
+            const prevIds = new Set(owners.map(o => o.id));
             fetch("/api/owners").then(r => r.json()).then(data => {
               const list = Array.isArray(data) ? data : data.data || [];
               setOwners(list);
-              if (list.length > 0) setValue("ownerId", list[list.length - 1].id);
+              const newItem = list.find((o: any) => !prevIds.has(o.id));
+              if (newItem) setValue("ownerId", newItem.id);
             });
           }}
         />
@@ -906,10 +910,12 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           onOpenChange={setShowNewTenant}
           onSuccess={() => {
             setShowNewTenant(false);
+            const prevIds = new Set(tenants.map(t => t.id));
             fetch("/api/tenants").then(r => r.json()).then(data => {
               const list = Array.isArray(data) ? data : data.data || [];
               setTenants(list);
-              if (list.length > 0) setValue("tenantId", list[list.length - 1].id);
+              const newItem = list.find((t: any) => !prevIds.has(t.id));
+              if (newItem) setValue("tenantId", newItem.id);
             });
           }}
         />
