@@ -312,14 +312,14 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         body: JSON.stringify(payload),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Erro ao salvar contrato");
+        throw new Error(result.error || "Erro ao salvar contrato");
       }
 
       // Upload PDFs if any
       if (pdfFiles.length > 0) {
-        const result = await response.json();
         const contractId = result.id || contract?.id;
         if (contractId) {
           for (const file of pdfFiles) {
