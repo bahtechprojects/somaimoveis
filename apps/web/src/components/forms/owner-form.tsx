@@ -127,24 +127,24 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
   const { lookup: lookupCep, loading: cepLoading, error: cepError, formatCep } = useCepLookup({ onResult: handleCepResult });
 
   const handleCnpjResult = useCallback((data: { name: string; email: string; phone: string; street: string; number: string; complement: string; neighborhood: string; city: string; state: string; zipCode: string }) => {
-    // Set both react-hook-form value AND DOM input value
-    const setField = (field: keyof OwnerFormData, value: string) => {
-      if (!value) return;
-      setValue(field, value, { shouldValidate: true, shouldDirty: true });
-      // Also update DOM directly for uncontrolled inputs
-      const el = document.getElementById(field) as HTMLInputElement;
-      if (el) el.value = value;
-    };
-    setField("name", data.name);
-    setField("email", data.email);
-    setField("phone", data.phone);
-    setField("street", data.street);
-    setField("number", data.number);
-    setField("complement", data.complement);
-    setField("neighborhood", data.neighborhood);
-    setField("city", data.city);
-    setField("state", data.state);
-    setField("zipCode", data.zipCode);
+    const fields: [keyof OwnerFormData, string][] = [
+      ["name", data.name], ["email", data.email], ["phone", data.phone],
+      ["street", data.street], ["number", data.number], ["complement", data.complement],
+      ["neighborhood", data.neighborhood], ["city", data.city], ["state", data.state],
+      ["zipCode", data.zipCode],
+    ];
+    // Set react-hook-form values
+    for (const [field, value] of fields) {
+      if (value) setValue(field, value, { shouldValidate: true, shouldDirty: true });
+    }
+    // Update DOM after React re-render
+    requestAnimationFrame(() => {
+      for (const [field, value] of fields) {
+        if (!value) continue;
+        const el = document.getElementById(field) as HTMLInputElement;
+        if (el) el.value = value;
+      }
+    });
   }, [setValue]);
 
   const { lookup: lookupCnpj, loading: cnpjLoading, error: cnpjError, formatCpfCnpj } = useCnpjLookup({ onResult: handleCnpjResult });
