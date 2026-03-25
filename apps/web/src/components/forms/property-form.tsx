@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Plus } from "lucide-react";
+import { OwnerForm } from "@/components/forms/owner-form";
 import { useCepLookup } from "@/hooks/use-cep-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,7 @@ interface Owner {
 export function PropertyForm({ open, onOpenChange, property, onSuccess }: PropertyFormProps) {
   const [loading, setLoading] = useState(false);
   const [owners, setOwners] = useState<Owner[]>([]);
+  const [showNewOwner, setShowNewOwner] = useState(false);
   const isEditing = !!property;
 
   const {
@@ -236,7 +238,7 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <><Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl sm:max-h-[90vh]" preventOutsideClose>
         <DialogHeader>
           <DialogTitle>
@@ -311,21 +313,26 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
 
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="ownerId">Proprietário *</Label>
-                <Select
-                  value={selectedOwnerId}
-                  onValueChange={(value) => setValue("ownerId", value)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione o proprietario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {owners.map((owner) => (
-                      <SelectItem key={owner.id} value={owner.id}>
-                        {owner.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={selectedOwnerId}
+                    onValueChange={(value) => setValue("ownerId", value)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o proprietário" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {owners.map((owner) => (
+                        <SelectItem key={owner.id} value={owner.id}>
+                          {owner.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" size="icon" variant="outline" onClick={() => setShowNewOwner(true)} title="Cadastrar proprietário">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
                 {errors.ownerId && (
                   <p className="text-xs text-destructive">{errors.ownerId.message}</p>
                 )}
@@ -599,5 +606,22 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
         </form>
       </DialogContent>
     </Dialog>
+    {showNewOwner && (
+      <OwnerForm
+        open={showNewOwner}
+        onOpenChange={setShowNewOwner}
+        onSuccess={() => {
+          setShowNewOwner(false);
+          const prevIds = new Set(owners.map(o => o.id));
+          fetch("/api/owners").then(r => r.json()).then(data => {
+            const list = Array.isArray(data) ? data : data.data || [];
+            setOwners(list);
+            const newItem = list.find((o: any) => !prevIds.has(o.id));
+            if (newItem) setValue("ownerId", newItem.id);
+          });
+        }}
+      />
+    )}
+    </>
   );
 }
