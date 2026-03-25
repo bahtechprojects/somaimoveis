@@ -263,6 +263,13 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           setSelectedGuarantorIds([]);
         }
       } else {
+        // Auto-generate next contract code
+        fetch("/api/contracts?page=1&limit=1").then(r => r.json()).then(data => {
+          const contracts = data.data || [];
+          const lastCode = contracts.length > 0 ? contracts[0].code : "CTR-0";
+          const lastNum = parseInt(lastCode.replace(/\D/g, "") || "0");
+          setValue("code", `CTR-${lastNum + 1}`);
+        }).catch(() => {});
         reset({
           code: "",
           type: "LOCACAO",

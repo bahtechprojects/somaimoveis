@@ -67,14 +67,29 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
   const body = await request.json();
-  const { code, ownerId, rentalValue, startDate, endDate } = body;
-  if (!code || !ownerId || !startDate || !endDate) {
+  const { ownerId, rentalValue, startDate, endDate } = body;
+  if (!ownerId || !startDate || !endDate) {
     return NextResponse.json(
-      { error: "Campos obrigatórios: code, ownerId, startDate, endDate" },
+      { error: "Campos obrigatórios: ownerId, startDate, endDate" },
       { status: 400 }
     );
   }
   try {
+    // Auto-generate code if not provided or if it already exists
+    let code = body.code;
+    if (!code) {
+      const lastContract = await prisma.contract.findFirst({ orderBy: { createdAt: "desc" } });
+      const lastNum = lastContract ? parseInt(lastContract.code.replace(/\D/g, "") || "0") : 0;
+      code = `CTR-${lastNum + 1}`;
+    }
+    // Check uniqueness, increment if needed
+    const exists = await prisma.contract.findUnique({ where: { code } });
+    if (exists) {
+      const allContracts = await prisma.contract.findMany({ select: { code: true }, orderBy: { createdAt: "desc" }, take: 1 });
+      const maxNum = allContracts.reduce((max, c) => Math.max(max, parseInt(c.code.replace(/\D/g, "") || "0")), 0);
+      code = `CTR-${maxNum + 1}`;
+    }
+
     // Extract guarantorIds for many-to-many
     const guarantorIds: string[] = body.guaranteeType === "FIADOR" && Array.isArray(body.guarantorIds)
       ? body.guarantorIds
