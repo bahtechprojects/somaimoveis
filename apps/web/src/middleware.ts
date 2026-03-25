@@ -64,6 +64,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // File serving is public (files are already uploaded by authenticated users)
+  if (pathname.startsWith("/api/files/")) {
+    return NextResponse.next();
+  }
+
   // Protected portal API routes: verify portal JWT Bearer token
   // Note: individual route handlers also verify auth as defense-in-depth
   if (pathname.startsWith("/api/portal")) {
