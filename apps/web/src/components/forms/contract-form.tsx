@@ -163,7 +163,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           fetch("/api/owners"),
           fetch("/api/tenants"),
           fetch("/api/properties"),
-          fetch("/api/guarantors"),
+          fetch(`/api/guarantors?available=true${contract?.id ? `&excludeContractId=${contract.id}` : ""}`),
         ]);
 
         if (ownersRes.ok) {

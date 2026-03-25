@@ -8,6 +8,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
 
+  const available = searchParams.get("available");
+  const excludeContractId = searchParams.get("excludeContractId");
+
   const where: Record<string, unknown> = {};
   if (search) {
     where.OR = [
@@ -15,6 +18,12 @@ export async function GET(request: NextRequest) {
       { cpfCnpj: { contains: search } },
       { email: { contains: search } },
     ];
+  }
+  // Filter only guarantors not linked to any active contract
+  if (available === "true") {
+    where.contracts = excludeContractId
+      ? { none: { contract: { status: "ATIVO", id: { not: excludeContractId } } } }
+      : { none: { contract: { status: "ATIVO" } } };
   }
 
   const includeRelations = {
