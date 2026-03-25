@@ -53,6 +53,9 @@ import {
   Calendar,
   Shield,
   Clock,
+  Download,
+  Paperclip,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContractForm } from "@/components/forms/contract-form";
@@ -75,6 +78,10 @@ interface Payment {
   description: string | null;
   splitOwnerValue: number | null;
   splitAdminValue: number | null;
+  irrfValue: number | null;
+  irrfRate: number | null;
+  grossToOwner: number | null;
+  netToOwner: number | null;
   notes: string | null;
 }
 
@@ -107,6 +114,16 @@ interface Contract {
   notes: string | null;
   createdAt: string;
   payments: Payment[];
+}
+
+interface ContractDocument {
+  id: string;
+  name: string;
+  url: string;
+  mimeType: string | null;
+  size: number | null;
+  category: string | null;
+  createdAt: string;
 }
 
 // ---------- Config maps ----------
@@ -219,6 +236,12 @@ export default function ContratoDetalhePage() {
   const [reajusteDialogOpen, setReajusteDialogOpen] = useState(false);
   const [reajustePercent, setReajustePercent] = useState("");
   const [reajusteLoading, setReajusteLoading] = useState(false);
+  const [renewDialogOpen, setRenewDialogOpen] = useState(false);
+  const [renewEndDate, setRenewEndDate] = useState("");
+  const [renewRentalValue, setRenewRentalValue] = useState("");
+  const [renewLoading, setRenewLoading] = useState(false);
+  const [contractDocs, setContractDocs] = useState<ContractDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
 
   async function fetchContract() {
     setLoading(true);
@@ -250,9 +273,25 @@ export default function ContratoDetalhePage() {
     }
   }
 
+  async function fetchContractDocs() {
+    setDocsLoading(true);
+    try {
+      const res = await fetch(`/api/documents?entityType=CONTRACT&entityId=${contractId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setContractDocs(Array.isArray(data) ? data : []);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setDocsLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (contractId) {
       fetchContract();
+      fetchContractDocs();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contractId]);
@@ -316,6 +355,57 @@ export default function ContratoDetalhePage() {
     }
   }
 
+  async function handleRenewContract() {
+    if (!contract) return;
+    setRenewLoading(true);
+    try {
+      // Calculate renewalMonths from endDate if provided
+      let renewalMonths: number | undefined;
+      if (renewEndDate) {
+        const oldEnd = new Date(contract.endDate);
+        const newEnd = new Date(renewEndDate);
+        if (newEnd <= oldEnd) {
+          alert("A nova data de termino deve ser posterior a data de termino atual.");
+          return;
+        }
+        // Calculate months difference from old endDate + 1 day to new endDate
+        const newStart = new Date(oldEnd);
+        newStart.setDate(newStart.getDate() + 1);
+        renewalMonths = (newEnd.getFullYear() - newStart.getFullYear()) * 12 + (newEnd.getMonth() - newStart.getMonth());
+        if (renewalMonths < 1) renewalMonths = 1;
+      }
+
+      const payload: Record<string, unknown> = {};
+      if (renewalMonths != null) payload.renewalMonths = renewalMonths;
+      if (renewRentalValue && !isNaN(parseFloat(renewRentalValue))) {
+        payload.rentalValue = parseFloat(renewRentalValue);
+      }
+
+      const response = await fetch(`/api/contracts/${contract.id}/renew`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || "Erro ao renovar contrato");
+        return;
+      }
+
+      const newContract = await response.json();
+      setRenewDialogOpen(false);
+      setRenewEndDate("");
+      setRenewRentalValue("");
+      // Navigate to the new contract
+      router.push(`/contratos/${newContract.id}`);
+    } catch (error) {
+      alert("Erro ao renovar contrato");
+    } finally {
+      setRenewLoading(false);
+    }
+  }
+
   // ---------- Loading state ----------
 
   if (loading) {
@@ -360,6 +450,10 @@ export default function ContratoDetalhePage() {
 
   const adminValue = (contract.rentalValue * contract.adminFeePercent) / 100;
   const ownerNetValue = contract.rentalValue - adminValue;
+
+  // IRRF: check the latest payment for IRRF data
+  const latestPaymentWithIrrf = contract.payments.find((p) => p.irrfValue && p.irrfValue > 0);
+  const hasIrrf = !!latestPaymentWithIrrf;
 
   const totalReceived = contract.payments
     .filter((p) => p.status === "PAGO" || p.status === "PARCIAL")
@@ -414,6 +508,17 @@ export default function ContratoDetalhePage() {
             </div>
 
             <div className="flex items-center gap-2">
+              {(contract.status === "ATIVO" || contract.status === "PENDENTE_RENOVACAO") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => setRenewDialogOpen(true)}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Renovar Contrato
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -577,7 +682,42 @@ export default function ContratoDetalhePage() {
                   <InfoRow label="Valor Aluguel" value={formatCurrency(contract.rentalValue)} />
                   <InfoRow label="Taxa Administrativa" value={`${contract.adminFeePercent}%`} />
                   <InfoRow label="Valor Administrativo" value={formatCurrency(adminValue)} />
-                  <InfoRow label="Valor Liquido Proprietario" value={formatCurrency(ownerNetValue)} />
+                  <InfoRow label="Bruto ao Proprietario" value={formatCurrency(ownerNetValue)} />
+                  {hasIrrf && latestPaymentWithIrrf ? (
+                    <>
+                      <InfoRow
+                        label="IRRF Retido"
+                        value={
+                          <span className="text-amber-600 font-semibold">
+                            {formatCurrency(latestPaymentWithIrrf.irrfValue!)}
+                            <span className="text-xs font-normal text-muted-foreground ml-1">
+                              ({((latestPaymentWithIrrf.irrfRate || 0) * 100).toFixed(1)}%)
+                            </span>
+                          </span>
+                        }
+                      />
+                      <InfoRow
+                        label="Liquido ao Proprietario"
+                        value={
+                          <span className="text-emerald-600 font-semibold">
+                            {formatCurrency(latestPaymentWithIrrf.netToOwner ?? ownerNetValue)}
+                          </span>
+                        }
+                      />
+                    </>
+                  ) : (
+                    <InfoRow
+                      label="Liquido ao Proprietario"
+                      value={
+                        <span className="text-emerald-600 font-semibold">
+                          {formatCurrency(ownerNetValue)}
+                          <span className="text-xs font-normal text-muted-foreground ml-1">
+                            (isento IRRF)
+                          </span>
+                        </span>
+                      }
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -783,6 +923,56 @@ export default function ContratoDetalhePage() {
               </CardContent>
             </Card>
 
+            {/* Documentos Anexados (API) */}
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-6">
+                <SectionTitle icon={Paperclip} title="Documentos" />
+                {docsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : contractDocs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Nenhum documento anexado.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {contractDocs.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{doc.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(doc.createdAt)}
+                              {doc.size != null && (
+                                <span className="ml-2">
+                                  {doc.size < 1024
+                                    ? `${doc.size} B`
+                                    : doc.size < 1048576
+                                    ? `${(doc.size / 1024).toFixed(0)} KB`
+                                    : `${(doc.size / 1048576).toFixed(1)} MB`}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <a
+                          href={doc.url}
+                          download={doc.name}
+                          className="flex items-center gap-1 text-xs text-primary hover:underline shrink-0 ml-2"
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Baixar
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Documentos Relacionados (Vistorias, Procurações, etc.) */}
             {relatedDocs.length > 0 && (
               <Card className="border-0 shadow-sm">
@@ -902,6 +1092,63 @@ export default function ContratoDetalhePage() {
             <Button onClick={handleApplyReajuste} disabled={reajusteLoading}>
               {reajusteLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               Aplicar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Renewal Dialog */}
+      <Dialog open={renewDialogOpen} onOpenChange={setRenewDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Renovar Contrato</DialogTitle>
+            <DialogDescription>
+              O contrato atual ({contract.code}) sera encerrado e um novo contrato sera criado
+              com inicio em {formatDate(new Date(new Date(contract.endDate).getTime() + 86400000).toISOString())}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="renewEndDate">Nova Data de Termino</Label>
+              <Input
+                id="renewEndDate"
+                type="date"
+                value={renewEndDate}
+                onChange={(e) => setRenewEndDate(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Se nao informado, sera calculado com base no periodo padrao de renovacao (12 meses).
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="renewRentalValue">Novo Valor do Aluguel (opcional)</Label>
+              <Input
+                id="renewRentalValue"
+                type="number"
+                step="0.01"
+                placeholder={`Atual: ${formatCurrency(contract.rentalValue)}`}
+                value={renewRentalValue}
+                onChange={(e) => setRenewRentalValue(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Deixe vazio para manter o valor atual.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRenewDialogOpen(false);
+                setRenewEndDate("");
+                setRenewRentalValue("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleRenewContract} disabled={renewLoading}>
+              {renewLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Renovar
             </Button>
           </DialogFooter>
         </DialogContent>

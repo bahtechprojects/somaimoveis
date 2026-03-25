@@ -401,7 +401,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
                   id="paymentDay"
                   type="number"
                   min={1}
-                  max={8}
+                  max={31}
                   placeholder="5"
                   {...register("paymentDay")}
                 />

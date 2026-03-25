@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
+import { calculateIRRF } from "@/lib/fiscal";
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
@@ -37,7 +38,14 @@ export async function POST(request: NextRequest) {
         endDate: { gte: monthStart },
       },
       include: {
-        property: { select: { title: true } },
+        property: {
+          select: {
+            id: true,
+            title: true,
+            condoFee: true,
+            iptuValue: true,
+          },
+        },
         tenant: { select: { name: true } },
         owner: { select: { name: true } },
       },
@@ -98,13 +106,74 @@ export async function POST(request: NextRequest) {
 
         const dueDate = new Date(targetYear, targetMonth, paymentDay, 12, 0, 0);
 
-        // Calculate split values
+        // Calculate condominium and IPTU values
+        const condoFee = contract.property?.condoFee || 0;
+        const iptuMonthly = contract.property?.iptuValue
+          ? Math.round((contract.property.iptuValue / 12) * 100) / 100
+          : 0;
+
+        // Total value charged to tenant = rent + condo + IPTU
+        const totalValue = Math.round((contract.rentalValue + condoFee + iptuMonthly) * 100) / 100;
+
+        // Calculate split values (admin fee applies only to rental value)
         const adminFee = contract.adminFeePercent || 10;
-        const splitAdminValue = Math.round(contract.rentalValue * (adminFee / 100) * 100) / 100;
+        let splitAdminValue = Math.round(contract.rentalValue * (adminFee / 100) * 100) / 100;
+
+        // Calculate intermediation fee installment if applicable
+        let intermediationInstallmentValue = 0;
+        let intermediationNote = "";
+        if (
+          contract.intermediationFee != null &&
+          contract.intermediationFee > 0 &&
+          contract.intermediationInstallments != null &&
+          contract.intermediationInstallments > 1
+        ) {
+          // Determine which month of the contract this payment falls in (1-indexed)
+          const contractStartDate = new Date(contract.startDate);
+          const contractMonthNumber =
+            (targetYear - contractStartDate.getFullYear()) * 12 +
+            (targetMonth - contractStartDate.getMonth()) + 1;
+
+          if (contractMonthNumber >= 1 && contractMonthNumber <= contract.intermediationInstallments) {
+            // intermediationFee is a percentage of the rental value
+            const totalIntermediationValue = contract.rentalValue * (contract.intermediationFee / 100);
+            intermediationInstallmentValue = Math.round(
+              (totalIntermediationValue / contract.intermediationInstallments) * 100
+            ) / 100;
+            splitAdminValue = Math.round((splitAdminValue + intermediationInstallmentValue) * 100) / 100;
+            intermediationNote = `Intermediacao parcela ${contractMonthNumber}/${contract.intermediationInstallments}: R$ ${intermediationInstallmentValue.toFixed(2)}`;
+          }
+        }
+
         const splitOwnerValue = Math.round((contract.rentalValue - splitAdminValue) * 100) / 100;
+
+        // Calculate IRRF on owner's gross income (rental - admin fee)
+        const grossToOwner = splitOwnerValue;
+        const irrf = calculateIRRF(grossToOwner);
+        const irrfValue = irrf.irrfValue;
+        const irrfRate = irrf.rate;
+        const netToOwner = Math.round((grossToOwner - irrfValue) * 100) / 100;
 
         const code = `PAG-${String(nextNumber).padStart(3, "0")}`;
         nextNumber++;
+
+        // Build description with breakdown
+        const mLabel = `${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`;
+        const descParts = [`Aluguel ${mLabel} - ${contract.code}`];
+        if (condoFee > 0) descParts.push(`Condominio: R$ ${condoFee.toFixed(2)}`);
+        if (iptuMonthly > 0) descParts.push(`IPTU: R$ ${iptuMonthly.toFixed(2)}`);
+        if (intermediationNote) descParts.push(intermediationNote);
+
+        // Store structured breakdown in notes for programmatic access
+        const breakdown: Record<string, unknown> = {
+          aluguel: contract.rentalValue,
+          condominio: condoFee,
+          iptu: iptuMonthly,
+          total: totalValue,
+        };
+        if (intermediationInstallmentValue > 0) {
+          breakdown.intermediacao = intermediationInstallmentValue;
+        }
 
         await prisma.payment.create({
           data: {
@@ -112,14 +181,62 @@ export async function POST(request: NextRequest) {
             contractId: contract.id,
             tenantId: contract.tenantId!,
             ownerId: contract.ownerId,
-            value: contract.rentalValue,
+            value: totalValue,
             dueDate,
             status: "PENDENTE",
             splitAdminValue,
             splitOwnerValue,
-            description: `Aluguel ${String(targetMonth + 1).padStart(2, "0")}/${targetYear} - ${contract.code}`,
+            intermediationFee: intermediationInstallmentValue > 0 ? intermediationInstallmentValue : null,
+            grossToOwner,
+            irrfValue: irrfValue > 0 ? irrfValue : null,
+            irrfRate: irrfValue > 0 ? irrfRate : null,
+            netToOwner,
+            description: descParts.join(" | "),
+            notes: JSON.stringify(breakdown),
           },
         });
+
+        // Create owner entry records split by PropertyOwner percentages
+        if (contract.property?.id) {
+          const ownerShares = await prisma.propertyOwner.findMany({
+            where: { propertyId: contract.property.id },
+          });
+
+          if (ownerShares.length > 0) {
+            // Multiple owners: create split entries for each
+            for (const share of ownerShares) {
+              const ownerPortion = Math.round(splitOwnerValue * (share.percentage / 100) * 100) / 100;
+              await prisma.ownerEntry.create({
+                data: {
+                  type: "CREDITO",
+                  category: "REPASSE",
+                  description: `Repasse aluguel ${mLabel} - ${contract.code} (${share.percentage}%)`,
+                  value: ownerPortion,
+                  dueDate,
+                  status: "PENDENTE",
+                  ownerId: share.ownerId,
+                  contractId: contract.id,
+                  propertyId: contract.property.id,
+                },
+              });
+            }
+          } else {
+            // Single owner (no PropertyOwner records): create one entry
+            await prisma.ownerEntry.create({
+              data: {
+                type: "CREDITO",
+                category: "REPASSE",
+                description: `Repasse aluguel ${mLabel} - ${contract.code}`,
+                value: splitOwnerValue,
+                dueDate,
+                status: "PENDENTE",
+                ownerId: contract.ownerId,
+                contractId: contract.id,
+                propertyId: contract.property.id,
+              },
+            });
+          }
+        }
 
         generated++;
       } catch (err) {
@@ -182,7 +299,13 @@ export async function GET(request: NextRequest) {
         endDate: { gte: monthStart },
       },
       include: {
-        property: { select: { title: true } },
+        property: {
+          select: {
+            title: true,
+            condoFee: true,
+            iptuValue: true,
+          },
+        },
         tenant: { select: { name: true } },
         owner: { select: { name: true } },
       },
@@ -197,15 +320,26 @@ export async function GET(request: NextRequest) {
     });
     const existingContractIds = new Set(existingPayments.map((p) => p.contractId));
 
-    const preview = contracts.filter(c => c.tenantId).map((c) => ({
-      contractCode: c.code,
-      property: c.property?.title || "N/A",
-      tenant: c.tenant?.name || "N/A",
-      owner: c.owner.name,
-      value: c.rentalValue,
-      paymentDay: c.paymentDay,
-      alreadyExists: existingContractIds.has(c.id),
-    }));
+    const preview = contracts.filter(c => c.tenantId).map((c) => {
+      const condoFee = c.property?.condoFee || 0;
+      const iptuMonthly = c.property?.iptuValue
+        ? Math.round((c.property.iptuValue / 12) * 100) / 100
+        : 0;
+      const totalValue = Math.round((c.rentalValue + condoFee + iptuMonthly) * 100) / 100;
+
+      return {
+        contractCode: c.code,
+        property: c.property?.title || "N/A",
+        tenant: c.tenant?.name || "N/A",
+        owner: c.owner.name,
+        rentalValue: c.rentalValue,
+        condoFee,
+        iptuMonthly,
+        value: totalValue,
+        paymentDay: c.paymentDay,
+        alreadyExists: existingContractIds.has(c.id),
+      };
+    });
 
     return NextResponse.json({
       month: `${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`,

@@ -39,13 +39,21 @@ export async function POST(_request: NextRequest) {
         fineValue = payment.value * (rules.lateFeePercent / 100);
       }
 
+      // Calculate late fee (multa por atraso) - fixed 2% of value
+      const lateFee = Math.round(payment.value * 0.02 * 100) / 100;
+
       // Calculate interest (juros) - daily interest rate * days overdue * original value
+      // Default: 0.033% per day (1% per month / 30 days)
       let interestValue = 0;
-      if (rules.dailyInterestPercent > 0 && daysOverdue > 0) {
-        interestValue = payment.value * (rules.dailyInterestPercent / 100) * daysOverdue;
+      const dailyRate = rules.dailyInterestPercent > 0 ? rules.dailyInterestPercent : 0.033;
+      if (daysOverdue > 0) {
+        interestValue = payment.value * (dailyRate / 100) * daysOverdue;
       }
 
-      totalFinesApplied += fineValue + interestValue;
+      // Calculate total due: original value + late fee + interest
+      const totalDue = Math.round((payment.value + lateFee + interestValue) * 100) / 100;
+
+      totalFinesApplied += fineValue + interestValue + lateFee;
 
       // Update the payment record
       if (rules.autoMarkOverdue) {
@@ -55,6 +63,8 @@ export async function POST(_request: NextRequest) {
             status: "ATRASADO",
             fineValue: fineValue > 0 ? Math.round(fineValue * 100) / 100 : null,
             interestValue: interestValue > 0 ? Math.round(interestValue * 100) / 100 : null,
+            lateFee,
+            totalDue,
           },
         });
         markedOverdue++;

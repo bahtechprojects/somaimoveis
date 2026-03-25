@@ -46,6 +46,8 @@ import {
   ArrowDownRight,
   CalendarPlus,
   Receipt,
+  Building2,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PaymentForm } from "@/components/forms/payment-form";
@@ -112,6 +114,24 @@ function formatCurrency(value: number): string {
     style: "currency",
     currency: "BRL",
   }).format(value);
+}
+
+interface PaymentBreakdown {
+  aluguel: number;
+  condominio: number;
+  iptu: number;
+  total: number;
+}
+
+function parseBreakdown(notes: string | null): PaymentBreakdown | null {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    if (typeof parsed.aluguel === "number") return parsed as PaymentBreakdown;
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export default function FinanceiroPage() {
@@ -467,6 +487,7 @@ function FinanceiroContent() {
                     icon: Clock,
                   };
                   const StatusIcon = status.icon;
+                  const breakdown = parseBreakdown(payment.notes);
                   return (
                     <div key={payment.id} className="p-4 active:bg-muted/50 cursor-pointer" onClick={() => router.push(`/contratos/${payment.contractId}`)}>
                       <div className="flex items-start justify-between gap-3">
@@ -525,10 +546,29 @@ function FinanceiroContent() {
                               {payment.boletoStatus}
                             </Badge>
                           )}
+                          {breakdown && breakdown.condominio > 0 && (
+                            <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-orange-50 text-orange-700 border-orange-200">
+                              <Building2 className="h-3 w-3" />
+                              Cond.
+                            </Badge>
+                          )}
+                          {breakdown && breakdown.iptu > 0 && (
+                            <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-purple-50 text-purple-700 border-purple-200">
+                              <Landmark className="h-3 w-3" />
+                              IPTU
+                            </Badge>
+                          )}
                           <span className="text-xs text-muted-foreground">Venc: {formatDate(payment.dueDate)}</span>
                         </div>
                         <span className="font-semibold text-sm">{formatCurrency(payment.value)}</span>
                       </div>
+                      {breakdown && (breakdown.condominio > 0 || breakdown.iptu > 0) && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          Aluguel: {formatCurrency(breakdown.aluguel)}
+                          {breakdown.condominio > 0 ? ` + Cond: ${formatCurrency(breakdown.condominio)}` : ""}
+                          {breakdown.iptu > 0 ? ` + IPTU: ${formatCurrency(breakdown.iptu)}` : ""}
+                        </p>
+                      )}
                       {payment.paidAt && (
                         <p className="mt-1 text-[11px] text-muted-foreground">
                           Pago em {formatDate(payment.paidAt)}
@@ -549,6 +589,7 @@ function FinanceiroContent() {
                     <TableHead className="text-xs">Contrato</TableHead>
                     <TableHead className="text-xs">Locatario</TableHead>
                     <TableHead className="text-xs text-right">Valor</TableHead>
+                    <TableHead className="text-xs">Composicao</TableHead>
                     <TableHead className="text-xs">Vencimento</TableHead>
                     <TableHead className="text-xs">Pagamento</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
@@ -564,6 +605,7 @@ function FinanceiroContent() {
                       icon: Clock,
                     };
                     const StatusIcon = status.icon;
+                    const breakdown = parseBreakdown(payment.notes);
                     return (
                       <TableRow key={payment.id} className="cursor-pointer" onClick={() => router.push(`/contratos/${payment.contractId}`)}>
                         <TableCell className="font-mono text-xs">{payment.code}</TableCell>
@@ -575,6 +617,25 @@ function FinanceiroContent() {
                         </TableCell>
                         <TableCell className="text-xs font-semibold text-right">
                           {formatCurrency(payment.value)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {breakdown && breakdown.condominio > 0 && (
+                              <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-orange-50 text-orange-700 border-orange-200" title={`Condominio: ${formatCurrency(breakdown.condominio)}`}>
+                                <Building2 className="h-3 w-3" />
+                                Cond.
+                              </Badge>
+                            )}
+                            {breakdown && breakdown.iptu > 0 && (
+                              <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-purple-50 text-purple-700 border-purple-200" title={`IPTU mensal: ${formatCurrency(breakdown.iptu)}`}>
+                                <Landmark className="h-3 w-3" />
+                                IPTU
+                              </Badge>
+                            )}
+                            {(!breakdown || (breakdown.condominio === 0 && breakdown.iptu === 0)) && (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs">
                           {formatDate(payment.dueDate)}

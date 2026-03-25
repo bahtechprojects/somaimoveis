@@ -110,7 +110,7 @@ model Tenant {
   occupation   String?
   monthlyIncome Float?
   // Pagamento
-  paymentDay   Int      @default(5) // Dia do vencimento do boleto (padrao 5, max 8)
+  paymentDay   Int      @default(5) // Dia do vencimento do boleto (1-31)
   // Meta
   notes        String?
   active       Boolean  @default(true)
@@ -232,6 +232,9 @@ model Contract {
   guaranteeNotes String?
   // Fiadores (many-to-many via join table)
   guarantors     ContractGuarantor[]
+  // Renovacao
+  renewalMonths  Int?     @default(12)  // Periodo padrao de renovacao em meses
+  penaltyPercent Float?   @default(3)   // Multa por rescisao antecipada (em meses de aluguel)
   // Reajuste
   adjustmentIndex String? @default("IGPM") // IGPM, IPCA, INPC
   adjustmentMonth Int?    // Mes do reajuste
@@ -272,6 +275,8 @@ model Payment {
   paidValue     Float?
   fineValue     Float?    // Multa
   interestValue Float?    // Juros
+  lateFee       Float?    // Multa por atraso (2% do valor)
+  totalDue      Float?    // Total devido (valor + multa + juros)
   discountValue Float?    // Desconto
   intermediationFee Float? // Valor de intermediacao
   // Datas
@@ -285,6 +290,11 @@ model Payment {
   splitOwnerValue     Float?
   splitAdminValue     Float?
   externalPaymentId   String?
+  // IRRF (retencao de imposto de renda)
+  irrfValue           Float?    // Valor do IRRF retido
+  irrfRate            Float?    // Aliquota do IRRF aplicada
+  grossToOwner        Float?    // Valor bruto ao proprietario (aluguel - taxa adm)
+  netToOwner          Float?    // Valor liquido ao proprietario (grossToOwner - IRRF)
   // Boleto Sicredi
   nossoNumero       String?   // ID unico do boleto no Sicredi
   linhaDigitavel    String?   // Linha digitavel para pagamento
