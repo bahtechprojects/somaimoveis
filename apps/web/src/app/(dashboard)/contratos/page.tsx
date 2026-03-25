@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -81,7 +82,7 @@ interface Contract {
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   ATIVO: { label: "Ativo", className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  PENDENTE_RENOVACAO: { label: "Renovacao", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  PENDENTE_RENOVACAO: { label: "Renovação", className: "bg-amber-100 text-amber-700 border-amber-200" },
   ENCERRADO: { label: "Encerrado", className: "bg-muted text-muted-foreground" },
   CANCELADO: { label: "Cancelado", className: "bg-red-100 text-red-700 border-red-200" },
 };
@@ -213,12 +214,12 @@ function ContratosContent() {
       });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao excluir contrato");
+        toast.error(error.error || "Erro ao excluir contrato");
         return;
       }
       fetchContracts();
     } catch (error) {
-      alert("Erro ao excluir contrato");
+      toast.error("Erro ao excluir contrato");
     } finally {
       setDeleteDialogOpen(false);
       setContractToDelete(null);
@@ -231,7 +232,7 @@ function ContratosContent() {
 
   return (
     <div className="flex flex-col">
-      <Header title="Contratos" subtitle="Gerencie contratos de locacao e venda" />
+      <Header title="Contratos" subtitle="Gerencie contratos de locação e venda" />
 
       <div className="p-4 sm:p-6 space-y-4">
         {/* Stats */}
@@ -280,7 +281,7 @@ function ContratosContent() {
                   <TabsList className="h-9 sm:h-8">
                     <TabsTrigger value="todos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Todos</TabsTrigger>
                     <TabsTrigger value="ativos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Ativos</TabsTrigger>
-                    <TabsTrigger value="renovacao" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3 hidden sm:inline-flex">Renovacao</TabsTrigger>
+                    <TabsTrigger value="renovacao" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3 hidden sm:inline-flex">Renovação</TabsTrigger>
                     <TabsTrigger value="encerrados" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3 hidden sm:inline-flex">Encerrados</TabsTrigger>
                   </TabsList>
                 </Tabs>
@@ -321,7 +322,7 @@ function ContratosContent() {
                         a.click();
                         URL.revokeObjectURL(url);
                       } catch {
-                        alert("Erro ao baixar PDFs");
+                        toast.error("Erro ao baixar PDFs");
                       }
                     }}
                   >
@@ -428,9 +429,9 @@ function ContratosContent() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs">Codigo</TableHead>
-                    <TableHead className="text-xs">Imovel</TableHead>
-                    <TableHead className="text-xs">Locatario</TableHead>
+                    <TableHead className="text-xs">Código</TableHead>
+                    <TableHead className="text-xs">Imóvel</TableHead>
+                    <TableHead className="text-xs">Locatário</TableHead>
                     <TableHead className="text-xs">Valor Aluguel</TableHead>
                     <TableHead className="text-xs">Vigencia</TableHead>
                     <TableHead className="text-xs">Status</TableHead>

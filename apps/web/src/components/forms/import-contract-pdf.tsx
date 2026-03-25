@@ -372,13 +372,13 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
                             {r.data && r.status === "parsed" && (
                               <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-1 text-muted-foreground">
                                 {r.data.proprietarioNome && (
-                                  <p>Proprietario: <span className="text-foreground">{r.data.proprietarioNome}</span></p>
+                                  <p>Proprietário: <span className="text-foreground">{r.data.proprietarioNome}</span></p>
                                 )}
                                 {r.data.proprietarioCpfCnpj && (
                                   <p>Doc: <span className="text-foreground">{r.data.proprietarioCpfCnpj}</span></p>
                                 )}
                                 {r.data.locatarioNome && (
-                                  <p>Locatario: <span className="text-foreground">{r.data.locatarioNome}</span></p>
+                                  <p>Locatário: <span className="text-foreground">{r.data.locatarioNome}</span></p>
                                 )}
                                 {r.data.locatarioCpf && (
                                   <p>CPF: <span className="text-foreground">{r.data.locatarioCpf}</span></p>
@@ -399,7 +399,7 @@ export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContr
                                   <p>Garantia: <span className="text-foreground">{r.data.garantia}</span></p>
                                 )}
                                 {r.data.imovelDescricao && (
-                                  <p className="col-span-2">Imovel: <span className="text-foreground">{r.data.imovelDescricao.substring(0, 80)}</span></p>
+                                  <p className="col-span-2">Imóvel: <span className="text-foreground">{r.data.imovelDescricao.substring(0, 80)}</span></p>
                                 )}
                                 {r.data.notes && (
                                   <p className="col-span-2 text-muted-foreground italic">{r.data.notes}</p>

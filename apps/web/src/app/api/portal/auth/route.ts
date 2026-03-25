@@ -9,14 +9,14 @@ export async function POST(request: NextRequest) {
 
     if (!token) {
       return NextResponse.json(
-        { error: "Token de acesso e obrigatorio" },
+        { error: "Token de acesso é obrigatório" },
         { status: 400 }
       );
     }
 
     if (!email && !cpfCnpj) {
       return NextResponse.json(
-        { error: "Email ou CPF/CNPJ e obrigatorio" },
+        { error: "Email ou CPF/CNPJ é obrigatório" },
         { status: 400 }
       );
     }

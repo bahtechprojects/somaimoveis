@@ -118,8 +118,8 @@ const templateLabels: Record<string, string> = {
   payment_overdue: "Pagamento em Atraso",
   payment_received: "Pagamento Confirmado",
   contract_expiring: "Contrato Expirando",
-  owner_payment_received: "Repasse ao Proprietario",
-  owner_payment_overdue: "Atraso (Proprietario)",
+  owner_payment_received: "Repasse ao Proprietário",
+  owner_payment_overdue: "Atraso (Proprietário)",
 };
 
 // ==================================================
@@ -250,7 +250,7 @@ export default function NotificacoesPage() {
   return (
     <div className="flex flex-col">
       <Header
-        title="Notificacoes"
+        title="Notificações"
         subtitle="Gerenciamento de notificacoes e mensagens enviadas"
       />
 
@@ -268,7 +268,7 @@ export default function NotificacoesPage() {
                     {loading ? "..." : totalEnviadas}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Notificacoes entregues
+                    Notificações entregues
                   </p>
                 </div>
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
@@ -402,8 +402,8 @@ export default function NotificacoesPage() {
                 <Bell className="h-12 w-12 text-muted-foreground/30 mb-3" />
                 <p className="text-sm text-muted-foreground">
                   {search
-                    ? "Nenhuma notificacao encontrada para a busca."
-                    : "Nenhuma notificacao enviada ainda."}
+                    ? "Nenhuma notificação encontrada para a busca."
+                    : "Nenhuma notificação enviada ainda."}
                 </p>
                 <p className="text-xs text-muted-foreground/70 mt-1">
                   Clique em &quot;Enviar Cobrancas&quot; para processar os
@@ -563,10 +563,10 @@ export default function NotificacoesPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Bell className="h-5 w-5" />
-              Detalhes da Notificacao
+              Detalhes da Notificação
             </DialogTitle>
             <DialogDescription>
-              Informacoes completas sobre a notificacao enviada.
+              Informações completas sobre a notificação enviada.
             </DialogDescription>
           </DialogHeader>
 
@@ -720,7 +720,7 @@ export default function NotificacoesPage() {
                   {selectedNotification.tenantId && (
                     <div>
                       <span className="text-muted-foreground">
-                        Locatario:{" "}
+                        Locatário:{" "}
                       </span>
                       <span className="font-mono">
                         {selectedNotification.tenantId.substring(0, 12)}...
@@ -730,7 +730,7 @@ export default function NotificacoesPage() {
                   {selectedNotification.ownerId && (
                     <div>
                       <span className="text-muted-foreground">
-                        Proprietario:{" "}
+                        Proprietário:{" "}
                       </span>
                       <span className="font-mono">
                         {selectedNotification.ownerId.substring(0, 12)}...

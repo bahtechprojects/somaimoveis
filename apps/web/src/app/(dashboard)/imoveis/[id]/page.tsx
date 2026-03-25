@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/layout/header";
@@ -169,11 +170,11 @@ const statusConfig: Record<string, { label: string; className: string }> = {
     className: "bg-primary/10 text-primary border-primary/20",
   },
   DISPONIVEL: {
-    label: "Disponivel",
+    label: "Disponível",
     className: "bg-emerald-100 text-emerald-700 border-emerald-200",
   },
   MANUTENCAO: {
-    label: "Manutencao",
+    label: "Manutenção",
     className: "bg-amber-100 text-amber-700 border-amber-200",
   },
   INATIVO: {
@@ -195,7 +196,7 @@ const contractStatusConfig: Record<
     className: "bg-muted text-muted-foreground",
   },
   PENDENTE_RENOVACAO: {
-    label: "Pendente Renovacao",
+    label: "Pendente Renovação",
     className: "bg-amber-100 text-amber-700 border-amber-200",
   },
   CANCELADO: {
@@ -326,7 +327,7 @@ export default function PropertyDetailPage() {
       }
       router.push("/imoveis");
     } catch (error: any) {
-      alert(error.message || "Erro ao excluir imovel");
+      toast.error(error.message || "Erro ao excluir imovel");
     } finally {
       setDeleting(false);
       setDeleteDialogOpen(false);
@@ -341,7 +342,7 @@ export default function PropertyDetailPage() {
     if (!selectedOwnerId || !ownerPercentage) return;
     const pct = parseFloat(ownerPercentage);
     if (isNaN(pct) || pct <= 0 || pct > 100) {
-      alert("Percentual deve ser entre 0 e 100");
+      toast.error("Percentual deve ser entre 0 e 100");
       return;
     }
     setAddingOwner(true);
@@ -360,7 +361,7 @@ export default function PropertyDetailPage() {
       setOwnerPercentage("");
       fetchOwners();
     } catch (error: any) {
-      alert(error.message || "Erro ao adicionar proprietario");
+      toast.error(error.message || "Erro ao adicionar proprietario");
     } finally {
       setAddingOwner(false);
     }
@@ -379,7 +380,7 @@ export default function PropertyDetailPage() {
       }
       fetchOwners();
     } catch (error: any) {
-      alert(error.message || "Erro ao remover proprietario");
+      toast.error(error.message || "Erro ao remover proprietario");
     } finally {
       setRemovingOwnerId(null);
     }
@@ -389,7 +390,7 @@ export default function PropertyDetailPage() {
   if (loading) {
     return (
       <div className="flex flex-col">
-        <Header title="Detalhes do Imovel" />
+        <Header title="Detalhes do Imóvel" />
         <div className="flex items-center justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -401,10 +402,10 @@ export default function PropertyDetailPage() {
   if (notFound || !property) {
     return (
       <div className="flex flex-col">
-        <Header title="Imovel nao encontrado" />
+        <Header title="Imóvel não encontrado" />
         <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
           <Building2 className="h-16 w-16 mb-4 opacity-30" />
-          <p className="text-lg font-medium mb-1">Imovel nao encontrado</p>
+          <p className="text-lg font-medium mb-1">Imóvel não encontrado</p>
           <p className="text-sm mb-6">
             O imovel solicitado nao existe ou foi removido.
           </p>
@@ -435,7 +436,7 @@ export default function PropertyDetailPage() {
   return (
     <div className="flex flex-col">
       <Header
-        title="Detalhes do Imovel"
+        title="Detalhes do Imóvel"
         subtitle={property.title}
       />
 
@@ -503,12 +504,12 @@ export default function PropertyDetailPage() {
 
         {/* Info Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Detalhes do Imovel */}
+          {/* Detalhes do Imóvel */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
-                Detalhes do Imovel
+                Detalhes do Imóvel
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -568,12 +569,12 @@ export default function PropertyDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Endereco */}
+          {/* Endereço */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                Endereco
+                Endereço
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -681,7 +682,7 @@ export default function PropertyDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Proprietario */}
+          {/* Proprietário */}
           <Card className="border-0 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
@@ -865,11 +866,11 @@ export default function PropertyDetailPage() {
         <Dialog open={addOwnerOpen} onOpenChange={setAddOwnerOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Adicionar Proprietario</DialogTitle>
+              <DialogTitle>Adicionar Proprietário</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-2">
-                <Label htmlFor="owner-select">Proprietario</Label>
+                <Label htmlFor="owner-select">Proprietário</Label>
                 <Select value={selectedOwnerId} onValueChange={setSelectedOwnerId}>
                   <SelectTrigger id="owner-select">
                     <SelectValue placeholder="Selecione um proprietario" />
@@ -927,7 +928,7 @@ export default function PropertyDetailPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4 text-muted-foreground" />
-                Observacoes
+                Observações
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -968,8 +969,8 @@ export default function PropertyDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Codigo</TableHead>
-                    <TableHead>Locatario</TableHead>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Locatário</TableHead>
                     <TableHead>Valor</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Inicio</TableHead>
@@ -1052,7 +1053,7 @@ export default function PropertyDetailPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Imovel</AlertDialogTitle>
+            <AlertDialogTitle>Excluir Imóvel</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir o imovel{" "}
               <strong>{property.title}</strong>? Esta acao nao pode ser

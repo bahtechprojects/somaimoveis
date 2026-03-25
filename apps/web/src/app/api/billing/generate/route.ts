@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
               (totalIntermediationValue / contract.intermediationInstallments) * 100
             ) / 100;
             splitAdminValue = Math.round((splitAdminValue + intermediationInstallmentValue) * 100) / 100;
-            intermediationNote = `Intermediacao parcela ${contractMonthNumber}/${contract.intermediationInstallments}: R$ ${intermediationInstallmentValue.toFixed(2)}`;
+            intermediationNote = `Intermediação parcela ${contractMonthNumber}/${contract.intermediationInstallments}: R$ ${intermediationInstallmentValue.toFixed(2)}`;
           }
         }
 

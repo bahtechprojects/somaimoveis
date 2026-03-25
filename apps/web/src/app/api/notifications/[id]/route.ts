@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 
 // ==================================================
-// GET /api/notifications/[id] - Detalhe de uma notificacao
+// GET /api/notifications/[id] - Detalhe de uma notificação
 // ==================================================
 export async function GET(
   _request: NextRequest,
@@ -20,23 +20,23 @@ export async function GET(
 
     if (!notification) {
       return NextResponse.json(
-        { error: "Notificacao nao encontrada" },
+        { error: "Notificação não encontrada" },
         { status: 404 }
       );
     }
 
     return NextResponse.json(notification);
   } catch (error) {
-    console.error("Erro ao buscar notificacao:", error);
+    console.error("Erro ao buscar notificação:", error);
     return NextResponse.json(
-      { error: "Erro ao buscar notificacao" },
+      { error: "Erro ao buscar notificação" },
       { status: 500 }
     );
   }
 }
 
 // ==================================================
-// DELETE /api/notifications/[id] - Cancelar/excluir notificacao
+// DELETE /api/notifications/[id] - Cancelar/excluir notificação
 // ==================================================
 export async function DELETE(
   _request: NextRequest,
@@ -53,7 +53,7 @@ export async function DELETE(
 
     if (!notification) {
       return NextResponse.json(
-        { error: "Notificacao nao encontrada" },
+        { error: "Notificação não encontrada" },
         { status: 404 }
       );
     }
@@ -70,11 +70,11 @@ export async function DELETE(
     // Caso contrario, deletar o registro
     await prisma.notification.delete({ where: { id } });
 
-    return NextResponse.json({ message: "Notificacao excluida com sucesso" });
+    return NextResponse.json({ message: "Notificação excluída com sucesso" });
   } catch (error) {
-    console.error("Erro ao excluir notificacao:", error);
+    console.error("Erro ao excluir notificação:", error);
     return NextResponse.json(
-      { error: "Erro ao excluir notificacao" },
+      { error: "Erro ao excluir notificação" },
       { status: 500 }
     );
   }

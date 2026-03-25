@@ -87,7 +87,7 @@ export default function PortalLoginPage() {
               "Visualize todos os seus imoveis e contratos",
               "Acompanhe pagamentos em tempo real",
               "Acesse extratos financeiros detalhados",
-              "Transparencia total na gestao dos seus ativos",
+              "Transparência total na gestão dos seus ativos",
             ].map((item) => (
               <div
                 key={item}

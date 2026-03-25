@@ -20,19 +20,19 @@ import {
 
 const primaryItems: BottomNavItem[] = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard, exact: true },
-  { label: "Imoveis", href: "/imoveis", icon: Building2 },
+  { label: "Imóveis", href: "/imoveis", icon: Building2 },
   { label: "Financeiro", href: "/financeiro", icon: DollarSign },
   { label: "Contratos", href: "/contratos", icon: FileText },
 ];
 
 const moreItems: BottomNavItem[] = [
-  { label: "Proprietarios", href: "/proprietarios", icon: Users },
-  { label: "Locatarios", href: "/locatarios", icon: UserCheck },
-  { label: "Relatorios", href: "/relatorios", icon: BarChart3 },
+  { label: "Proprietários", href: "/proprietarios", icon: Users },
+  { label: "Locatários", href: "/locatarios", icon: UserCheck },
+  { label: "Relatórios", href: "/relatorios", icon: BarChart3 },
   { label: "Fiscal", href: "/fiscal", icon: Receipt },
-  { label: "Notificacoes", href: "/notificacoes", icon: Bell },
-  { label: "Usuarios", href: "/usuarios", icon: UsersRound },
-  { label: "Configuracoes", href: "/configuracoes", icon: Settings },
+  { label: "Notificações", href: "/notificacoes", icon: Bell },
+  { label: "Usuários", href: "/usuarios", icon: UsersRound },
+  { label: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 
 function DashboardBottomNav() {

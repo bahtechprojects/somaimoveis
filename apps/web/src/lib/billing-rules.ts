@@ -28,7 +28,7 @@ export const DEFAULT_RULES: BillingRules = {
     { daysAfterDue: 5, action: "sms_reminder", description: "Enviar SMS de cobranca" },
     { daysAfterDue: 10, action: "whatsapp_reminder", description: "Enviar cobranca por WhatsApp" },
     { daysAfterDue: 15, action: "phone_contact", description: "Contato telefonico" },
-    { daysAfterDue: 30, action: "formal_notice", description: "Enviar notificacao extrajudicial" },
+    { daysAfterDue: 30, action: "formal_notice", description: "Enviar notificação extrajudicial" },
     { daysAfterDue: 60, action: "legal_action", description: "Encaminhar para assessoria juridica" },
   ],
   autoMarkOverdue: true,

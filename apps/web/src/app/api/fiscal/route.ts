@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
     if (!year || !ownerId) {
       return NextResponse.json(
-        { error: "Parametros year e ownerId sao obrigatorios" },
+        { error: "Parametros year e ownerId são obrigatórios" },
         { status: 400 }
       );
     }

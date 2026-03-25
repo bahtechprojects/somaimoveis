@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,8 +28,8 @@ import {
 } from "@/components/ui/select";
 
 const tenantSchema = z.object({
-  name: z.string().min(1, "Nome e obrigatorio"),
-  cpfCnpj: z.string().min(1, "CPF/CNPJ e obrigatorio"),
+  name: z.string().min(1, "Nome é obrigatório"),
+  cpfCnpj: z.string().min(1, "CPF/CNPJ é obrigatório"),
   personType: z.string().default("PF"),
   email: z.string().email("Email invalido").or(z.literal("")).optional(),
   phone: z.string().optional(),
@@ -211,7 +212,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
-      alert(error.message || "Erro ao salvar locatario");
+      toast.error(error.message || "Erro ao salvar locatario");
     } finally {
       setLoading(false);
     }
@@ -222,7 +223,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
       <DialogContent className="sm:max-w-[680px] sm:max-h-[90vh]" preventOutsideClose>
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? "Editar Locatario" : "Novo Locatario"}
+            {isEditing ? "Editar Locatário" : "Novo Locatário"}
           </DialogTitle>
           <DialogDescription>
             {isEditing
@@ -251,7 +252,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cpfCnpj">CPF/CNPJ *</Label>
+                <Label htmlFor="personType">Tipo de Pessoa</Label>
                 <Select
                   value={personType}
                   onValueChange={(value) => setValue("personType", value)}
@@ -260,8 +261,8 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="PF">Pessoa Fisica</SelectItem>
-                    <SelectItem value="PJ">Pessoa Juridica</SelectItem>
+                    <SelectItem value="PF">Pessoa Física</SelectItem>
+                    <SelectItem value="PJ">Pessoa Jurídica</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -306,10 +307,10 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
 
               {personType === "PJ" && (
                 <div className="space-y-2">
-                  <Label htmlFor="stateRegistration">Inscricao Estadual</Label>
+                  <Label htmlFor="stateRegistration">Inscrição Estadual</Label>
                   <Input
                     id="stateRegistration"
-                    placeholder="Inscricao estadual"
+                    placeholder="Inscrição estadual"
                     {...register("stateRegistration")}
                   />
                 </div>
@@ -347,7 +348,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="rgIssuer">Orgao Expedidor</Label>
+                  <Label htmlFor="rgIssuer">Órgão Expedidor</Label>
                   <Input
                     id="rgIssuer"
                     placeholder="SSP/SP"
@@ -396,7 +397,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="paymentDay">Dia Pagamento Locatario</Label>
+                <Label htmlFor="paymentDay">Dia Pagamento Locatário</Label>
                 <Input
                   id="paymentDay"
                   type="number"
@@ -410,10 +411,10 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
             </div>
           </div>
 
-          {/* Endereco */}
+          {/* Endereço */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
-              Endereco
+              Endereço
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2 sm:col-span-2">
@@ -426,7 +427,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="number">Numero</Label>
+                <Label htmlFor="number">Número</Label>
                 <Input
                   id="number"
                   placeholder="123"
@@ -503,12 +504,12 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
             </div>
           </div>
 
-          {/* Observacoes */}
+          {/* Observações */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Observacoes</Label>
+            <Label htmlFor="notes">Observações</Label>
             <Input
               id="notes"
-              placeholder="Observacoes adicionais"
+              placeholder="Observações adicionais"
               {...register("notes")}
             />
           </div>

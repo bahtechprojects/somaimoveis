@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,17 +28,17 @@ import {
 } from "@/components/ui/select";
 
 const propertySchema = z.object({
-  title: z.string().min(1, "Titulo e obrigatorio"),
+  title: z.string().min(1, "Título é obrigatório"),
   description: z.string().optional(),
-  type: z.string().min(1, "Tipo e obrigatorio"),
+  type: z.string().min(1, "Tipo é obrigatório"),
   status: z.string().default("DISPONIVEL"),
-  street: z.string().min(1, "Rua e obrigatoria"),
-  number: z.string().min(1, "Numero e obrigatorio"),
+  street: z.string().min(1, "Rua é obrigatória"),
+  number: z.string().min(1, "Número é obrigatório"),
   complement: z.string().optional(),
-  neighborhood: z.string().min(1, "Bairro e obrigatorio"),
-  city: z.string().min(1, "Cidade e obrigatoria"),
-  state: z.string().min(1, "Estado e obrigatorio"),
-  zipCode: z.string().min(1, "CEP e obrigatorio"),
+  neighborhood: z.string().min(1, "Bairro é obrigatório"),
+  city: z.string().min(1, "Cidade é obrigatória"),
+  state: z.string().min(1, "Estado é obrigatório"),
+  zipCode: z.string().min(1, "CEP é obrigatório"),
   area: z.coerce.number().optional(),
   bedrooms: z.coerce.number().int().min(0).default(0),
   bathrooms: z.coerce.number().int().min(0).default(0),
@@ -47,7 +48,7 @@ const propertySchema = z.object({
   saleValue: z.coerce.number().optional(),
   condoFee: z.coerce.number().optional(),
   iptuValue: z.coerce.number().optional(),
-  ownerId: z.string().min(1, "Proprietario e obrigatorio"),
+  ownerId: z.string().min(1, "Proprietário é obrigatório"),
   notes: z.string().optional(),
 });
 
@@ -228,7 +229,7 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
-      alert(error.message || "Erro ao salvar imovel");
+      toast.error(error.message || "Erro ao salvar imovel");
     } finally {
       setLoading(false);
     }
@@ -239,7 +240,7 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
       <DialogContent className="sm:max-w-2xl sm:max-h-[90vh]" preventOutsideClose>
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? "Editar Imovel" : "Novo Imovel"}
+            {isEditing ? "Editar Imóvel" : "Novo Imóvel"}
           </DialogTitle>
           <DialogDescription>
             {isEditing
@@ -249,10 +250,10 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Informacoes Basicas */}
+          {/* Informações Básicas */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
-              Informacoes Basicas
+              Informações Básicas
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2 sm:col-span-2">
@@ -300,16 +301,16 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
                     <SelectValue placeholder="Selecione o status" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="DISPONIVEL">Disponivel</SelectItem>
+                    <SelectItem value="DISPONIVEL">Disponível</SelectItem>
                     <SelectItem value="ALUGADO">Alugado</SelectItem>
-                    <SelectItem value="MANUTENCAO">Manutencao</SelectItem>
+                    <SelectItem value="MANUTENCAO">Manutenção</SelectItem>
                     <SelectItem value="INATIVO">Inativo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="ownerId">Proprietario *</Label>
+                <Label htmlFor="ownerId">Proprietário *</Label>
                 <Select
                   value={selectedOwnerId}
                   onValueChange={(value) => setValue("ownerId", value)}
@@ -342,10 +343,10 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
             </div>
           </div>
 
-          {/* Endereco */}
+          {/* Endereço */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
-              Endereco
+              Endereço
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -383,7 +384,7 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="number">Numero *</Label>
+                <Label htmlFor="number">Número *</Label>
                 <Input
                   id="number"
                   placeholder="123"
@@ -513,7 +514,7 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
                   }
                 />
                 <Label htmlFor="furnished" className="cursor-pointer">
-                  Imovel mobiliado
+                  Imóvel mobiliado
                 </Label>
               </div>
             </div>
@@ -571,12 +572,12 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
             </div>
           </div>
 
-          {/* Observacoes */}
+          {/* Observações */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Observacoes</Label>
+            <Label htmlFor="notes">Observações</Label>
             <textarea
               id="notes"
-              placeholder="Observacoes adicionais sobre o imovel"
+              placeholder="Observações adicionais sobre o imóvel"
               className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               {...register("notes")}
             />

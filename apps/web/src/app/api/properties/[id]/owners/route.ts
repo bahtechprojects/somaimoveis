@@ -61,7 +61,7 @@ export async function POST(
 
     if (!ownerId || percentage == null) {
       return NextResponse.json(
-        { error: "Campos obrigatorios: ownerId, percentage" },
+        { error: "Campos obrigatórios: ownerId, percentage" },
         { status: 400 }
       );
     }

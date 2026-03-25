@@ -179,7 +179,7 @@ export default function FiscalPage() {
               INFORME DE RENDIMENTOS - {report.year}
             </h1>
             <p className="text-center text-sm text-muted-foreground">
-              Somma Imoveis - Gestao Imobiliaria
+              Somma Imoveis - Gestão Imobiliária
             </p>
           </div>
 
@@ -195,7 +195,7 @@ export default function FiscalPage() {
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
                     <span>{report.ownerCpfCnpj || "Sem CPF/CNPJ"}</span>
                     <Badge variant={report.personType === "PF" ? "default" : "secondary"}>
-                      {report.personType === "PF" ? "Pessoa Fisica" : "Pessoa Juridica"}
+                      {report.personType === "PF" ? "Pessoa Física" : "Pessoa Jurídica"}
                     </Badge>
                   </div>
                 </div>
@@ -223,7 +223,7 @@ export default function FiscalPage() {
             <Card>
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">Taxa Administracao</p>
+                  <p className="text-sm text-muted-foreground">Taxa Administração</p>
                   <TrendingDown className="h-5 w-5 text-orange-500" />
                 </div>
                 <p className="text-2xl font-bold mt-1">
@@ -265,7 +265,7 @@ export default function FiscalPage() {
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {report.personType === "PJ"
-                    ? "Pessoa Juridica - sem retencao"
+                    ? "Pessoa Jurídica - sem retenção"
                     : "Imposto retido na fonte"}
                 </p>
               </CardContent>
@@ -293,7 +293,7 @@ export default function FiscalPage() {
                         <TableHead className="text-right">Taxa Admin</TableHead>
                         <TableHead className="text-right">Liquido</TableHead>
                         {report.totals.maintenanceCost > 0 && (
-                          <TableHead className="text-right">Manutencao</TableHead>
+                          <TableHead className="text-right">Manutenção</TableHead>
                         )}
                         <TableHead className="text-right">Base Tributavel</TableHead>
                         {report.personType === "PF" && (
@@ -421,7 +421,7 @@ export default function FiscalPage() {
                   </div>
                   {report.totals.maintenanceCost > 0 && (
                     <div>
-                      <p className="text-sm text-muted-foreground">Total Manutencao</p>
+                      <p className="text-sm text-muted-foreground">Total Manutenção</p>
                       <p className="text-lg font-semibold text-orange-600">
                         -{formatCurrency(report.totals.maintenanceCost)}
                       </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,19 +30,19 @@ import {
 } from "@/components/ui/select";
 
 const contractSchema = z.object({
-  code: z.string().min(1, "Codigo e obrigatorio"),
+  code: z.string().min(1, "Código é obrigatório"),
   type: z.string().min(1),
   status: z.string().min(1),
   propertyId: z.string().optional(),
-  ownerId: z.string().min(1, "Proprietario e obrigatorio"),
+  ownerId: z.string().min(1, "Proprietário é obrigatório"),
   tenantId: z.string().optional(),
   rentalValue: z.coerce.number().min(0).optional(),
   adminFeePercent: z.coerce.number().min(0),
   intermediationFee: z.coerce.number().min(0).optional(),
   intermediationInstallments: z.coerce.number().int().min(1).default(1),
   paymentDay: z.coerce.number().int().min(1).max(31),
-  startDate: z.string().min(1, "Data de inicio e obrigatoria"),
-  endDate: z.string().min(1, "Data de termino e obrigatoria"),
+  startDate: z.string().min(1, "Data de início é obrigatória"),
+  endDate: z.string().min(1, "Data de término é obrigatória"),
   guaranteeType: z.string().optional(),
   guaranteeValue: z.coerce.number().optional(),
   guaranteeNotes: z.string().optional(),
@@ -336,7 +337,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
-      alert(error.message || "Erro ao salvar contrato");
+      toast.error(error.message || "Erro ao salvar contrato");
     } finally {
       setLoading(false);
     }
@@ -357,14 +358,14 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Informacoes */}
+          {/* Informações */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
-              Informacoes
+              Informações
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="code">Codigo *</Label>
+                <Label htmlFor="code">Código *</Label>
                 <Input
                   id="code"
                   placeholder="CTR-001"
@@ -385,7 +386,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                     <SelectValue placeholder="Selecione o tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="LOCACAO">Locacao</SelectItem>
+                    <SelectItem value="LOCACAO">Locação</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -402,7 +403,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                   <SelectContent>
                     <SelectItem value="ATIVO">Ativo</SelectItem>
                     <SelectItem value="ENCERRADO">Encerrado</SelectItem>
-                    <SelectItem value="PENDENTE_RENOVACAO">Pendente Renovacao</SelectItem>
+                    <SelectItem value="PENDENTE_RENOVACAO">Pendente Renovação</SelectItem>
                     <SelectItem value="CANCELADO">Cancelado</SelectItem>
                   </SelectContent>
                 </Select>
@@ -417,7 +418,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="propertyId">Imovel *</Label>
+                <Label htmlFor="propertyId">Imóvel *</Label>
                 <div className="flex gap-2">
                   <Select
                     value={selectedPropertyId}
@@ -447,7 +448,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="ownerId">Proprietario *</Label>
+                <Label htmlFor="ownerId">Proprietário *</Label>
                 <div className="flex gap-2">
                   <Select
                     value={selectedOwnerId}
@@ -477,7 +478,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="tenantId">Locatario *</Label>
+                <Label htmlFor="tenantId">Locatário *</Label>
                 <div className="flex gap-2">
                   <Select
                     value={selectedTenantId}
@@ -540,7 +541,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="intermediationFee">Taxa de Intermediacao (%)</Label>
+                <Label htmlFor="intermediationFee">Taxa de Intermediação (%)</Label>
                 <Input
                   id="intermediationFee"
                   type="number"
@@ -551,7 +552,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="intermediationInstallments">Parcelas Intermediacao</Label>
+                <Label htmlFor="intermediationInstallments">Parcelas Intermediação</Label>
                 <Input
                   id="intermediationInstallments"
                   type="number"
@@ -562,7 +563,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="paymentDay">Dia Pagamento Locatario</Label>
+                <Label htmlFor="paymentDay">Dia Pagamento Locatário</Label>
                 <Input
                   id="paymentDay"
                   type="number"
@@ -575,10 +576,10 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
             </div>
           </div>
 
-          {/* Periodo */}
+          {/* Período */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
-              Periodo
+              Período
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -605,7 +606,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="renewalMonths">Prazo Renovacao (meses)</Label>
+                <Label htmlFor="renewalMonths">Prazo Renovação (meses)</Label>
                 <Input
                   id="renewalMonths"
                   type="number"
@@ -664,7 +665,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               </div>
 
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="guaranteeNotes">Observacoes da Garantia</Label>
+                <Label htmlFor="guaranteeNotes">Observações da Garantia</Label>
                 <Input
                   id="guaranteeNotes"
                   placeholder="Detalhes sobre a garantia"
@@ -800,7 +801,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               onClick={() => document.getElementById("contract-pdf-input")?.click()}
             >
               <Upload className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-              <p className="text-sm text-muted-foreground">Clique para anexar PDFs (locacao, vistoria, procuracao, etc.)</p>
+              <p className="text-sm text-muted-foreground">Clique para anexar PDFs (locação, vistoria, procuração, etc.)</p>
               <input
                 id="contract-pdf-input"
                 type="file"
@@ -834,12 +835,12 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
             )}
           </div>
 
-          {/* Observacoes */}
+          {/* Observações */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Observacoes</Label>
+            <Label htmlFor="notes">Observações</Label>
             <textarea
               id="notes"
-              placeholder="Observacoes adicionais sobre o contrato"
+              placeholder="Observações adicionais sobre o contrato"
               className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               {...register("notes")}
             />

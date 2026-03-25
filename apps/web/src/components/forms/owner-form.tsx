@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,8 +28,8 @@ import {
 } from "@/components/ui/select";
 
 const ownerSchema = z.object({
-  name: z.string().min(1, "Nome e obrigatorio"),
-  cpfCnpj: z.string().min(1, "CPF/CNPJ e obrigatorio"),
+  name: z.string().min(1, "Nome é obrigatório"),
+  cpfCnpj: z.string().min(1, "CPF/CNPJ é obrigatório"),
   personType: z.string().default("PF"),
   email: z.string().email("Email invalido").or(z.literal("")).optional(),
   phone: z.string().optional(),
@@ -251,7 +252,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
-      alert(error.message || "Erro ao salvar proprietario");
+      toast.error(error.message || "Erro ao salvar proprietario");
     } finally {
       setLoading(false);
     }
@@ -262,7 +263,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
       <DialogContent className="sm:max-w-[680px] sm:max-h-[90vh]" preventOutsideClose>
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? "Editar Proprietario" : "Novo Proprietario"}
+            {isEditing ? "Editar Proprietário" : "Novo Proprietário"}
           </DialogTitle>
           <DialogDescription>
             {isEditing
@@ -300,8 +301,8 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="PF">Pessoa Fisica</SelectItem>
-                    <SelectItem value="PJ">Pessoa Juridica</SelectItem>
+                    <SelectItem value="PF">Pessoa Física</SelectItem>
+                    <SelectItem value="PJ">Pessoa Jurídica</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -349,15 +350,15 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
               {personType === "PJ" && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="stateRegistration">Inscricao Estadual</Label>
+                    <Label htmlFor="stateRegistration">Inscrição Estadual</Label>
                     <Input
                       id="stateRegistration"
-                      placeholder="Inscricao estadual"
+                      placeholder="Inscrição estadual"
                       {...register("stateRegistration")}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="rgIssuer">Orgao Expedidor</Label>
+                    <Label htmlFor="rgIssuer">Órgão Expedidor</Label>
                     <Input
                       id="rgIssuer"
                       placeholder="SSP, DETRAN, etc."
@@ -370,7 +371,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
               {personType === "PF" && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="rgIssuer">Orgao Expedidor</Label>
+                    <Label htmlFor="rgIssuer">Órgão Expedidor</Label>
                     <Input
                       id="rgIssuer"
                       placeholder="SSP, DETRAN, etc."
@@ -412,10 +413,10 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
             </div>
           </div>
 
-          {/* Endereco */}
+          {/* Endereço */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
-              Endereco
+              Endereço
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2 sm:col-span-2">
@@ -428,7 +429,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="number">Numero</Label>
+                <Label htmlFor="number">Número</Label>
                 <Input
                   id="number"
                   placeholder="123"
@@ -521,7 +522,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bankAgency">Agencia</Label>
+                <Label htmlFor="bankAgency">Agência</Label>
                 <Input
                   id="bankAgency"
                   placeholder="0000"
@@ -605,7 +606,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="thirdPartyAgency">Agencia</Label>
+                <Label htmlFor="thirdPartyAgency">Agência</Label>
                 <Input
                   id="thirdPartyAgency"
                   placeholder="0000"
@@ -659,7 +660,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="paymentDay">Dia Pagamento Proprietario</Label>
+                <Label htmlFor="paymentDay">Dia Pagamento Proprietário</Label>
                 <Input
                   id="paymentDay"
                   type="number"
@@ -672,12 +673,12 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
             </div>
           </div>
 
-          {/* Observacoes */}
+          {/* Observações */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Observacoes</Label>
+            <Label htmlFor="notes">Observações</Label>
             <Input
               id="notes"
-              placeholder="Observacoes adicionais"
+              placeholder="Observações adicionais"
               {...register("notes")}
             />
           </div>

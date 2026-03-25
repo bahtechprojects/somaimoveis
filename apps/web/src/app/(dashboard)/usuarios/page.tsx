@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -298,7 +299,7 @@ export default function UsuariosPage() {
         });
         if (!response.ok) {
           const data = await response.json();
-          alert(data.error || "Erro ao desativar usuario");
+          toast.error(data.error || "Erro ao desativar usuario");
           return;
         }
       } else {
@@ -310,7 +311,7 @@ export default function UsuariosPage() {
         });
         if (!response.ok) {
           const data = await response.json();
-          alert(data.error || "Erro ao ativar usuario");
+          toast.error(data.error || "Erro ao ativar usuario");
           return;
         }
       }
@@ -318,7 +319,7 @@ export default function UsuariosPage() {
       setToggleActiveOpen(false);
       fetchUsers();
     } catch {
-      alert("Erro de conexao. Tente novamente.");
+      toast.error("Erro de conexao. Tente novamente.");
     } finally {
       setToggleLoading(false);
     }
@@ -338,8 +339,8 @@ export default function UsuariosPage() {
   return (
     <div className="flex flex-col">
       <Header
-        title="Usuarios"
-        subtitle="Gerenciamento de usuarios do sistema"
+        title="Usuários"
+        subtitle="Gerenciamento de usuários do sistema"
       />
 
       <div className="p-4 sm:p-6 space-y-4">
@@ -347,7 +348,7 @@ export default function UsuariosPage() {
         <div className="grid grid-cols-3 gap-3">
           {[
             {
-              label: "Total Usuarios",
+              label: "Total Usuários",
               value: loading ? "..." : String(totalUsers),
               icon: UsersRound,
             },

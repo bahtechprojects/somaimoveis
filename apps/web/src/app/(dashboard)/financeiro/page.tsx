@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -250,12 +251,12 @@ function FinanceiroContent() {
       });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao excluir pagamento");
+        toast.error(error.error || "Erro ao excluir pagamento");
         return;
       }
       fetchPayments();
     } catch (error) {
-      alert("Erro ao excluir pagamento");
+      toast.error("Erro ao excluir pagamento");
     } finally {
       setDeleteDialogOpen(false);
       setPaymentToDelete(null);
@@ -275,12 +276,12 @@ function FinanceiroContent() {
       });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao atualizar pagamento");
+        toast.error(error.error || "Erro ao atualizar pagamento");
         return;
       }
       fetchPayments();
     } catch (error) {
-      alert("Erro ao atualizar pagamento");
+      toast.error("Erro ao atualizar pagamento");
     }
   }
 
@@ -294,10 +295,10 @@ function FinanceiroContent() {
       const res = await fetch(`/api/payments/${paymentId}/boleto`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao emitir boleto");
-      alert("Boleto emitido com sucesso!");
+      toast.success("Boleto emitido com sucesso!");
       fetchPayments();
     } catch (err: any) {
-      alert(err.message || "Erro ao emitir boleto");
+      toast.error(err.message || "Erro ao emitir boleto");
     } finally {
       setBoletoLoading(prev => ({ ...prev, [paymentId]: false }));
     }
@@ -315,7 +316,7 @@ function FinanceiroContent() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
-      alert(err.message || "Erro ao baixar boleto");
+      toast.error(err.message || "Erro ao baixar boleto");
     }
   };
 
@@ -328,10 +329,10 @@ function FinanceiroContent() {
         body: JSON.stringify({}),
       });
       const data = await res.json();
-      alert(`${data.emitidos} boleto(s) emitido(s), ${data.erros?.length || 0} erro(s)`);
+      toast.success(`${data.emitidos} boleto(s) emitido(s), ${data.erros?.length || 0} erro(s)`);
       fetchPayments();
     } catch (err: any) {
-      alert(err.message || "Erro ao emitir boletos");
+      toast.error(err.message || "Erro ao emitir boletos");
     }
   };
 
@@ -585,11 +586,11 @@ function FinanceiroContent() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs">Codigo</TableHead>
+                    <TableHead className="text-xs">Código</TableHead>
                     <TableHead className="text-xs">Contrato</TableHead>
-                    <TableHead className="text-xs">Locatario</TableHead>
+                    <TableHead className="text-xs">Locatário</TableHead>
                     <TableHead className="text-xs text-right">Valor</TableHead>
-                    <TableHead className="text-xs">Composicao</TableHead>
+                    <TableHead className="text-xs">Composição</TableHead>
                     <TableHead className="text-xs">Vencimento</TableHead>
                     <TableHead className="text-xs">Pagamento</TableHead>
                     <TableHead className="text-xs">Status</TableHead>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/layout/header";
@@ -143,7 +144,7 @@ const contractStatusConfig: Record<
     className: "bg-gray-100 text-gray-500 border-gray-200",
   },
   PENDENTE_RENOVACAO: {
-    label: "Pendente Renovacao",
+    label: "Pendente Renovação",
     className: "bg-yellow-100 text-yellow-700 border-yellow-200",
   },
   CANCELADO: {
@@ -210,12 +211,12 @@ export default function TenantDetailPage() {
       const response = await fetch(`/api/tenants/${id}`, { method: "DELETE" });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao excluir locatario");
+        toast.error(error.error || "Erro ao excluir locatario");
         return;
       }
       router.push("/locatarios");
     } catch (error) {
-      alert("Erro ao excluir locatario");
+      toast.error("Erro ao excluir locatario");
     } finally {
       setDeleting(false);
       setDeleteDialogOpen(false);
@@ -265,7 +266,7 @@ export default function TenantDetailPage() {
   if (loading) {
     return (
       <div className="flex flex-col">
-        <Header title="Locatario" subtitle="Carregando..." />
+        <Header title="Locatário" subtitle="Carregando..." />
         <div className="flex items-center justify-center py-24">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -279,7 +280,7 @@ export default function TenantDetailPage() {
   if (notFound || !tenant) {
     return (
       <div className="flex flex-col">
-        <Header title="Locatario" subtitle="Nao encontrado" />
+        <Header title="Locatário" subtitle="Não encontrado" />
         <div className="p-4 sm:p-6 space-y-4">
           <Button variant="ghost" size="sm" className="gap-1.5" asChild>
             <Link href="/locatarios">
@@ -289,7 +290,7 @@ export default function TenantDetailPage() {
           </Button>
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <User className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <h2 className="text-lg font-semibold">Locatario nao encontrado</h2>
+            <h2 className="text-lg font-semibold">Locatário não encontrado</h2>
             <p className="text-sm text-muted-foreground mt-1">
               O locatario solicitado nao existe ou foi removido.
             </p>
@@ -304,7 +305,7 @@ export default function TenantDetailPage() {
   // --------------------------------------------------
   return (
     <div className="flex flex-col">
-      <Header title="Locatario" subtitle="Detalhes do locatario" />
+      <Header title="Locatário" subtitle="Detalhes do locatário" />
 
       <div className="p-4 sm:p-6 space-y-6">
         {/* Back button */}
@@ -332,7 +333,7 @@ export default function TenantDetailPage() {
                       : "bg-sky-100 text-sky-700 border-sky-200"
                   }
                 >
-                  {tenant.personType === "PJ" ? "Pessoa Juridica" : "Pessoa Fisica"}
+                  {tenant.personType === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}
                 </Badge>
                 {!tenant.active && (
                   <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-200">
@@ -425,7 +426,7 @@ export default function TenantDetailPage() {
                 <InfoField label="CPF/CNPJ" value={tenant.cpfCnpj} />
                 <InfoField
                   label="Tipo de Pessoa"
-                  value={tenant.personType === "PJ" ? "Pessoa Juridica" : "Pessoa Fisica"}
+                  value={tenant.personType === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}
                 />
                 <InfoField label="RG" value={tenant.rgNumber} />
                 <InfoField label="Email" value={tenant.email} />
@@ -455,16 +456,16 @@ export default function TenantDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Endereco */}
+          {/* Endereço */}
           <Card className="border-0 shadow-sm lg:col-span-2">
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-4">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-semibold">Endereco</h3>
+                <h3 className="text-sm font-semibold">Endereço</h3>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <InfoField label="Rua" value={tenant.street} />
-                <InfoField label="Numero" value={tenant.number} />
+                <InfoField label="Número" value={tenant.number} />
                 <InfoField label="Complemento" value={tenant.complement} />
                 <InfoField label="Bairro" value={tenant.neighborhood} />
                 <InfoField label="Cidade" value={tenant.city} />
@@ -501,7 +502,7 @@ export default function TenantDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs">Codigo</TableHead>
+                    <TableHead className="text-xs">Código</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs text-right">
                       Valor Aluguel
@@ -575,7 +576,7 @@ export default function TenantDetailPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs">Codigo</TableHead>
+                    <TableHead className="text-xs">Código</TableHead>
                     <TableHead className="text-xs">Contrato</TableHead>
                     <TableHead className="text-xs text-right">Valor</TableHead>
                     <TableHead className="text-xs">Vencimento</TableHead>
@@ -629,11 +630,11 @@ export default function TenantDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Observacoes */}
+        {/* Observações */}
         {tenant.notes && (
           <Card className="border-0 shadow-sm">
             <CardContent className="p-5">
-              <h3 className="text-sm font-semibold mb-2">Observacoes</h3>
+              <h3 className="text-sm font-semibold mb-2">Observações</h3>
               <p className="text-sm text-muted-foreground">{tenant.notes}</p>
             </CardContent>
           </Card>
@@ -652,7 +653,7 @@ export default function TenantDetailPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Locatario</AlertDialogTitle>
+            <AlertDialogTitle>Excluir Locatário</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir o locatario{" "}
               <strong>{tenant.name}</strong>? Esta acao nao pode ser desfeita.

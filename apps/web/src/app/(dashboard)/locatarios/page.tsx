@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -185,12 +186,12 @@ function LocatariosContent() {
       });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao excluir locatario");
+        toast.error(error.error || "Erro ao excluir locatario");
         return;
       }
       fetchTenants();
     } catch (error) {
-      alert("Erro ao excluir locatario");
+      toast.error("Erro ao excluir locatario");
     } finally {
       setDeleteDialogOpen(false);
       setTenantToDelete(null);
@@ -203,7 +204,7 @@ function LocatariosContent() {
 
   return (
     <div className="flex flex-col">
-      <Header title="Locatarios" subtitle="Cadastro e gestao de inquilinos" />
+      <Header title="Locatários" subtitle="Cadastro e gestão de inquilinos" />
 
       <div className="p-4 sm:p-6 space-y-4">
         {/* Stats */}
@@ -344,7 +345,7 @@ function LocatariosContent() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs whitespace-nowrap">Locatario</TableHead>
+                    <TableHead className="text-xs whitespace-nowrap">Locatário</TableHead>
                     <TableHead className="text-xs whitespace-nowrap">Contato</TableHead>
                     <TableHead className="text-xs whitespace-nowrap">Profissao</TableHead>
                     <TableHead className="text-xs text-right whitespace-nowrap">Renda Mensal</TableHead>
@@ -443,7 +444,7 @@ function LocatariosContent() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Locatario</AlertDialogTitle>
+            <AlertDialogTitle>Excluir Locatário</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir o locatario{" "}
               <strong>{tenantToDelete?.name}</strong>? Esta acao nao pode ser desfeita.

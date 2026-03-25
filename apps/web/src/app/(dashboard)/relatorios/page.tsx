@@ -103,8 +103,8 @@ const MONTH_NAMES = [
 // Status configs
 const propertyStatusConfig: Record<string, { label: string; className: string; color: string }> = {
   ALUGADO: { label: "Alugado", className: "bg-primary/10 text-primary border-primary/20", color: "bg-primary" },
-  DISPONIVEL: { label: "Disponivel", className: "bg-emerald-100 text-emerald-700 border-emerald-200", color: "bg-emerald-500" },
-  MANUTENCAO: { label: "Manutencao", className: "bg-amber-100 text-amber-700 border-amber-200", color: "bg-amber-500" },
+  DISPONIVEL: { label: "Disponível", className: "bg-emerald-100 text-emerald-700 border-emerald-200", color: "bg-emerald-500" },
+  MANUTENCAO: { label: "Manutenção", className: "bg-amber-100 text-amber-700 border-amber-200", color: "bg-amber-500" },
   INATIVO: { label: "Inativo", className: "bg-muted text-muted-foreground", color: "bg-gray-400" },
 };
 
@@ -118,7 +118,7 @@ const paymentStatusConfig: Record<string, { label: string; className: string }> 
 
 const contractStatusConfig: Record<string, { label: string; className: string }> = {
   ATIVO: { label: "Ativo", className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  PENDENTE_RENOVACAO: { label: "Renovacao", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  PENDENTE_RENOVACAO: { label: "Renovação", className: "bg-amber-100 text-amber-700 border-amber-200" },
   ENCERRADO: { label: "Encerrado", className: "bg-gray-100 text-gray-500 border-gray-200" },
   CANCELADO: { label: "Cancelado", className: "bg-red-100 text-red-700 border-red-200" },
 };
@@ -347,7 +347,7 @@ export default function RelatoriosPage() {
   if (loading) {
     return (
       <div className="flex flex-col">
-        <Header title="Relatorios" subtitle="Analise e indicadores do portfolio" />
+        <Header title="Relatórios" subtitle="Análise e indicadores do portfólio" />
         <div className="flex items-center justify-center h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -357,12 +357,12 @@ export default function RelatoriosPage() {
 
   return (
     <div className="flex flex-col">
-      <Header title="Relatorios" subtitle="Analise e indicadores do portfolio" />
+      <Header title="Relatórios" subtitle="Análise e indicadores do portfólio" />
 
       <div className="p-4 sm:p-6 space-y-6">
         {/* ---- Period Selector ---- */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 -mb-1">
-          <span className="text-sm font-medium text-muted-foreground mr-1 shrink-0">Periodo:</span>
+          <span className="text-sm font-medium text-muted-foreground mr-1 shrink-0">Período:</span>
           {periodOptions.map((opt) => (
             <Button
               key={opt.value}
@@ -630,9 +630,9 @@ export default function RelatoriosPage() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="text-xs w-12 text-center">#</TableHead>
-                    <TableHead className="text-xs">Proprietario</TableHead>
-                    <TableHead className="text-xs text-center">Imoveis</TableHead>
-                    <TableHead className="text-xs text-right">Valor Locacao Total</TableHead>
+                    <TableHead className="text-xs">Proprietário</TableHead>
+                    <TableHead className="text-xs text-center">Imóveis</TableHead>
+                    <TableHead className="text-xs text-right">Valor Locação Total</TableHead>
                     <TableHead className="text-xs text-center">Contratos Ativos</TableHead>
                   </TableRow>
                 </TableHeader>

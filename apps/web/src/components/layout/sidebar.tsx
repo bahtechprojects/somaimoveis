@@ -38,17 +38,17 @@ const navigation = [
     icon: LayoutDashboard,
   },
   {
-    label: "Imoveis",
+    label: "Imóveis",
     href: "/imoveis",
     icon: Building2,
   },
   {
-    label: "Proprietarios",
+    label: "Proprietários",
     href: "/proprietarios",
     icon: Users,
   },
   {
-    label: "Locatarios",
+    label: "Locatários",
     href: "/locatarios",
     icon: UserCheck,
   },
@@ -63,12 +63,12 @@ const navigation = [
     icon: DollarSign,
   },
   {
-    label: "Lancamentos",
+    label: "Lançamentos",
     href: "/lancamentos",
     icon: Receipt,
   },
   {
-    label: "Relatorios",
+    label: "Relatórios",
     href: "/relatorios",
     icon: BarChart3,
   },
@@ -78,12 +78,12 @@ const navigation = [
     icon: Receipt,
   },
   {
-    label: "Notificacoes",
+    label: "Notificações",
     href: "/notificacoes",
     icon: Bell,
   },
   {
-    label: "Usuarios",
+    label: "Usuários",
     href: "/usuarios",
     icon: UsersRound,
     adminOnly: true,
@@ -92,7 +92,7 @@ const navigation = [
 
 const bottomNavigation = [
   {
-    label: "Configuracoes",
+    label: "Configurações",
     href: "/configuracoes",
     icon: Settings,
   },

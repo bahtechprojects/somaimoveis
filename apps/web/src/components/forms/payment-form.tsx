@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -25,17 +26,17 @@ import {
 } from "@/components/ui/select";
 
 const paymentSchema = z.object({
-  code: z.string().min(1, "Codigo e obrigatorio"),
-  contractId: z.string().min(1, "Contrato e obrigatorio"),
-  tenantId: z.string().min(1, "Locatario e obrigatorio"),
-  ownerId: z.string().min(1, "Proprietario e obrigatorio"),
-  value: z.coerce.number().min(0.01, "Valor e obrigatorio"),
+  code: z.string().min(1, "Código é obrigatório"),
+  contractId: z.string().min(1, "Contrato é obrigatório"),
+  tenantId: z.string().min(1, "Locatário é obrigatório"),
+  ownerId: z.string().min(1, "Proprietário é obrigatório"),
+  value: z.coerce.number().min(0.01, "Valor é obrigatório"),
   paidValue: z.coerce.number().optional(),
   fineValue: z.coerce.number().optional(),
   interestValue: z.coerce.number().optional(),
   discountValue: z.coerce.number().optional(),
   intermediationFee: z.coerce.number().optional(),
-  dueDate: z.string().min(1, "Data de vencimento e obrigatoria"),
+  dueDate: z.string().min(1, "Data de vencimento é obrigatória"),
   paidAt: z.string().optional(),
   status: z.string().default("PENDENTE"),
   paymentMethod: z.string().optional(),
@@ -292,7 +293,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
-      alert(error.message || "Erro ao salvar pagamento");
+      toast.error(error.message || "Erro ao salvar pagamento");
     } finally {
       setLoading(false);
     }
@@ -342,7 +343,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="tenantId">Locatario *</Label>
+                <Label htmlFor="tenantId">Locatário *</Label>
                 <Select
                   value={selectedTenantId}
                   onValueChange={(value) => setValue("tenantId", value)}
@@ -364,7 +365,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="ownerId">Proprietario *</Label>
+                <Label htmlFor="ownerId">Proprietário *</Label>
                 <Select
                   value={selectedOwnerId}
                   onValueChange={(value) => setValue("ownerId", value)}
@@ -452,7 +453,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="intermediationFee">Valor Intermediacao (R$)</Label>
+                <Label htmlFor="intermediationFee">Valor Intermediação (R$)</Label>
                 <Input
                   id="intermediationFee"
                   type="number"
@@ -538,7 +539,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="splitOwnerValue">Repasse Proprietario (R$)</Label>
+                <Label htmlFor="splitOwnerValue">Repasse Proprietário (R$)</Label>
                 <Input
                   id="splitOwnerValue"
                   type="number"
@@ -549,7 +550,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="splitAdminValue">Taxa Administracao (R$)</Label>
+                <Label htmlFor="splitAdminValue">Taxa Administração (R$)</Label>
                 <Input
                   id="splitAdminValue"
                   type="number"
@@ -561,10 +562,10 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
             </div>
           </div>
 
-          {/* Observacoes */}
+          {/* Observações */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
-              Observacoes
+              Observações
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -580,7 +581,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
                 <Label htmlFor="notes">Notas</Label>
                 <Input
                   id="notes"
-                  placeholder="Observacoes adicionais"
+                  placeholder="Observações adicionais"
                   {...register("notes")}
                 />
               </div>

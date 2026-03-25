@@ -1,5 +1,6 @@
 "use client";
 
+import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { PropertyForm } from "@/components/forms/property-form";
 import { Button } from "@/components/ui/button";
@@ -82,8 +83,8 @@ interface Property {
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   ALUGADO: { label: "Alugado", className: "bg-primary/10 text-primary border-primary/20" },
-  DISPONIVEL: { label: "Disponivel", className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  MANUTENCAO: { label: "Manutencao", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  DISPONIVEL: { label: "Disponível", className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  MANUTENCAO: { label: "Manutenção", className: "bg-amber-100 text-amber-700 border-amber-200" },
   INATIVO: { label: "Inativo", className: "bg-muted text-muted-foreground" },
 };
 
@@ -219,7 +220,7 @@ function ImoveisContent() {
       setDeletingProperty(null);
       fetchProperties();
     } catch (error: any) {
-      alert(error.message || "Erro ao excluir imovel");
+      toast.error(error.message || "Erro ao excluir imovel");
     } finally {
       setDeleting(false);
     }
@@ -231,7 +232,7 @@ function ImoveisContent() {
 
   return (
     <div className="flex flex-col">
-      <Header title="Imoveis" subtitle="Gerencie todos os imoveis do portfolio" />
+      <Header title="Imóveis" subtitle="Gerencie todos os imóveis do portfólio" />
 
       <div className="p-4 sm:p-6 space-y-4">
         {/* Stats */}
@@ -293,9 +294,9 @@ function ImoveisContent() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="DISPONIVEL">Disponivel</SelectItem>
+                <SelectItem value="DISPONIVEL">Disponível</SelectItem>
                 <SelectItem value="ALUGADO">Alugado</SelectItem>
-                <SelectItem value="MANUTENCAO">Manutencao</SelectItem>
+                <SelectItem value="MANUTENCAO">Manutenção</SelectItem>
                 <SelectItem value="INATIVO">Inativo</SelectItem>
               </SelectContent>
             </Select>
@@ -339,7 +340,7 @@ function ImoveisContent() {
             </Button>
             <Button size="sm" className="gap-1.5" onClick={handleNewProperty}>
               <Plus className="h-4 w-4" />
-              Novo Imovel
+              Novo Imóvel
             </Button>
           </div>
         </div>
@@ -358,7 +359,7 @@ function ImoveisContent() {
             <p className="text-lg font-medium">Nenhum imovel encontrado</p>
             <p className="text-sm">
               {properties.length === 0
-                ? "Cadastre seu primeiro imovel clicando em \"Novo Imovel\"."
+                ? "Cadastre seu primeiro imóvel clicando em \"Novo Imóvel\"."
                 : "Tente ajustar os filtros de busca."}
             </p>
           </div>
@@ -519,7 +520,7 @@ function ImoveisContent() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Imovel</AlertDialogTitle>
+            <AlertDialogTitle>Excluir Imóvel</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir o imovel{" "}
               <strong>{deletingProperty?.title}</strong>? Esta acao nao pode ser

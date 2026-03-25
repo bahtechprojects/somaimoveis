@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionProvider } from "@/components/providers/session-provider";
 import "./globals.css";
@@ -15,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Somma - Gestao Imobiliaria",
-  description: "Sistema de Gestao Imobiliaria da Somma",
+  title: "Somma - Gestão Imobiliária",
+  description: "Sistema de Gestão Imobiliária da Somma",
 };
 
 export default function RootLayout({
@@ -41,6 +42,7 @@ export default function RootLayout({
         <SessionProvider>
           <TooltipProvider delayDuration={300}>
             {children}
+            <Toaster richColors position="top-right" />
           </TooltipProvider>
         </SessionProvider>
       </body>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -58,7 +59,7 @@ export function UploadPdf({ open, onOpenChange, onSuccess }: UploadPdfProps) {
     const f = e.target.files?.[0];
     if (f) {
       if (f.type !== "application/pdf") {
-        alert("Apenas arquivos PDF são aceitos");
+        toast.error("Apenas arquivos PDF sao aceitos");
         return;
       }
       setFile(f);
@@ -84,14 +85,14 @@ export function UploadPdf({ open, onOpenChange, onSuccess }: UploadPdfProps) {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao fazer upload");
+        toast.error(error.error || "Erro ao fazer upload");
         return;
       }
 
       setUploaded(true);
       onSuccess();
     } catch {
-      alert("Erro ao fazer upload");
+      toast.error("Erro ao fazer upload");
     } finally {
       setUploading(false);
     }

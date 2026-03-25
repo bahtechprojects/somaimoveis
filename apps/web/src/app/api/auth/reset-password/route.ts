@@ -8,7 +8,7 @@ export async function POST(request: Request) {
 
     if (!email || !code || !newPassword) {
       return NextResponse.json(
-        { error: "Todos os campos sao obrigatorios" },
+        { error: "Todos os campos são obrigatórios" },
         { status: 400 }
       );
     }

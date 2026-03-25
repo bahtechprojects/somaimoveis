@@ -109,7 +109,7 @@ export default function PortalDashboardPage() {
         ? "Boa tarde"
         : "Boa noite";
 
-  const firstName = owner?.name?.split(" ")[0] || "Proprietario";
+  const firstName = owner?.name?.split(" ")[0] || "Proprietário";
 
   return (
     <div className="space-y-6">
@@ -254,9 +254,9 @@ export default function PortalDashboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs">Codigo</TableHead>
-                    <TableHead className="text-xs">Imovel</TableHead>
-                    <TableHead className="text-xs">Locatario</TableHead>
+                    <TableHead className="text-xs">Código</TableHead>
+                    <TableHead className="text-xs">Imóvel</TableHead>
+                    <TableHead className="text-xs">Locatário</TableHead>
                     <TableHead className="text-xs text-right">Valor</TableHead>
                     <TableHead className="text-xs">Vencimento</TableHead>
                     <TableHead className="text-xs">Status</TableHead>

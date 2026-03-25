@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { toast } from "sonner"
 import { CalendarPlusIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon } from "lucide-react"
 import {
   Dialog,
@@ -133,7 +134,7 @@ export function GenerateChargesDialog({
         onSuccess()
       }
     } catch {
-      alert("Erro ao gerar cobrancas")
+      toast.error("Erro ao gerar cobrancas")
     } finally {
       setGenerating(false)
     }

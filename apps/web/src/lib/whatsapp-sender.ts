@@ -75,7 +75,7 @@ async function doSendText(msg: WhatsAppMessage): Promise<SendResult> {
   if (cleanPhone.length < 10) {
     return {
       success: false,
-      error: `Numero de telefone invalido: ${msg.to}`,
+      error: `Número de telefone inválido: ${msg.to}`,
     };
   }
 
@@ -151,7 +151,7 @@ async function doSendDocument(params: {
   if (cleanPhone.length < 10) {
     return {
       success: false,
-      error: `Numero de telefone invalido: ${params.to}`,
+      error: `Número de telefone inválido: ${params.to}`,
     };
   }
 

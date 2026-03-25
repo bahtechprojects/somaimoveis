@@ -43,7 +43,7 @@ export default function EsqueciSenhaPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Erro ao enviar codigo");
+        setError(data.error || "Erro ao enviar código");
         return;
       }
 
@@ -118,7 +118,7 @@ export default function EsqueciSenhaPage() {
               </div>
               <p className="text-xl font-medium">Recuperar Senha</p>
               <p className="text-sm text-muted-foreground text-center mt-1">
-                Informe seu email para receber o codigo de recuperacao
+                Informe seu email para receber o código de recuperação
               </p>
             </div>
 
@@ -154,7 +154,7 @@ export default function EsqueciSenhaPage() {
                     Enviando...
                   </>
                 ) : (
-                  "Enviar Codigo"
+                  "Enviar Código"
                 )}
               </Button>
             </form>
@@ -178,7 +178,7 @@ export default function EsqueciSenhaPage() {
               </div>
               <p className="text-xl font-medium">Redefinir Senha</p>
               <p className="text-sm text-muted-foreground text-center mt-1">
-                Digite o codigo recebido e sua nova senha
+                Digite o código recebido e sua nova senha
               </p>
             </div>
 
@@ -228,7 +228,7 @@ export default function EsqueciSenhaPage() {
 
               {/* Code */}
               <div className="space-y-2">
-                <Label htmlFor="code">Codigo de Recuperacao</Label>
+                <Label htmlFor="code">Código de Recuperação</Label>
                 <Input
                   id="code"
                   type="text"
@@ -331,7 +331,7 @@ export default function EsqueciSenhaPage() {
             {/* Dev hint */}
             {process.env.NODE_ENV === "development" && (
               <p className="text-xs text-center text-muted-foreground/60 mt-1 border-t pt-3">
-                Verifique o console do servidor para o codigo
+                Verifique o console do servidor para o código
               </p>
             )}
           </>

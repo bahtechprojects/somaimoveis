@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -171,12 +172,12 @@ function ProprietariosContent() {
       });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao excluir proprietario");
+        toast.error(error.error || "Erro ao excluir proprietario");
         return;
       }
       fetchOwners();
     } catch (error) {
-      alert("Erro ao excluir proprietario");
+      toast.error("Erro ao excluir proprietario");
     } finally {
       setDeleteDialogOpen(false);
       setOwnerToDelete(null);
@@ -189,7 +190,7 @@ function ProprietariosContent() {
 
   return (
     <div className="flex flex-col">
-      <Header title="Proprietarios" subtitle="Cadastro e gestao de proprietarios de imoveis" />
+      <Header title="Proprietários" subtitle="Cadastro e gestão de proprietários de imóveis" />
 
       <div className="p-4 sm:p-6 space-y-4">
         {/* Stats */}
@@ -324,9 +325,9 @@ function ProprietariosContent() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs">Proprietario</TableHead>
+                    <TableHead className="text-xs">Proprietário</TableHead>
                     <TableHead className="text-xs">Contato</TableHead>
-                    <TableHead className="text-xs text-center">Imoveis</TableHead>
+                    <TableHead className="text-xs text-center">Imóveis</TableHead>
                     <TableHead className="text-xs text-center">Contratos Ativos</TableHead>
                     <TableHead className="text-xs text-right">Renda Mensal</TableHead>
                     <TableHead className="text-xs w-10"></TableHead>
@@ -421,7 +422,7 @@ function ProprietariosContent() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Proprietario</AlertDialogTitle>
+            <AlertDialogTitle>Excluir Proprietário</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir o proprietario{" "}
               <strong>{ownerToDelete?.name}</strong>? Esta acao nao pode ser desfeita.

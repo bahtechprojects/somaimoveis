@@ -11,7 +11,7 @@ export async function POST(request: Request) {
 
     if (!email) {
       return NextResponse.json(
-        { error: "Email e obrigatorio" },
+        { error: "Email é obrigatório" },
         { status: 400 }
       );
     }
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
     // Always return success (don't leak user existence)
     return NextResponse.json({
-      message: "Se o email existir, enviaremos um codigo de recuperacao.",
+      message: "Se o email existir, enviaremos um código de recuperação.",
     });
   } catch (error) {
     console.error("Forgot password error:", error);

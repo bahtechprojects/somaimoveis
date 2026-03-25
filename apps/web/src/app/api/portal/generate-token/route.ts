@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     if (!ownerId) {
       return NextResponse.json(
-        { error: "ownerId e obrigatorio" },
+        { error: "ownerId é obrigatório" },
         { status: 400 }
       );
     }

@@ -87,7 +87,7 @@ export async function POST(
           guaranteeNotes: existing.guaranteeNotes,
           adjustmentIndex: existing.adjustmentIndex,
           adjustmentMonth: existing.adjustmentMonth,
-          notes: `Renovacao do contrato ${existing.code}`,
+          notes: `Renovação do contrato ${existing.code}`,
         },
       }),
       prisma.contract.update({

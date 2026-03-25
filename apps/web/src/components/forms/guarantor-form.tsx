@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,8 +27,8 @@ import {
 } from "@/components/ui/select";
 
 const guarantorSchema = z.object({
-  name: z.string().min(1, "Nome e obrigatorio"),
-  cpfCnpj: z.string().min(1, "CPF/CNPJ e obrigatorio"),
+  name: z.string().min(1, "Nome é obrigatório"),
+  cpfCnpj: z.string().min(1, "CPF/CNPJ é obrigatório"),
   maritalStatus: z.string().optional(),
   profession: z.string().optional(),
   rgNumber: z.string().optional(),
@@ -154,7 +155,7 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
       onOpenChange(false);
       onSuccess(result);
     } catch (error: any) {
-      alert(error.message || "Erro ao salvar fiador");
+      toast.error(error.message || "Erro ao salvar fiador");
     } finally {
       setLoading(false);
     }
@@ -238,13 +239,13 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
                 <Label htmlFor="g-rgNumber">RG</Label>
                 <Input
                   id="g-rgNumber"
-                  placeholder="Numero do RG"
+                  placeholder="Número do RG"
                   {...register("rgNumber")}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="g-rgIssuer">Orgao Expedidor</Label>
+                <Label htmlFor="g-rgIssuer">Órgão Expedidor</Label>
                 <Input
                   id="g-rgIssuer"
                   placeholder="SSP, DETRAN, etc."
@@ -276,10 +277,10 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
             </div>
           </div>
 
-          {/* Endereco */}
+          {/* Endereço */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
-              Endereco
+              Endereço
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -323,7 +324,7 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="g-number">Numero</Label>
+                <Label htmlFor="g-number">Número</Label>
                 <Input
                   id="g-number"
                   placeholder="123"
@@ -370,29 +371,29 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
             </div>
           </div>
 
-          {/* Imovel */}
+          {/* Imóvel */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
-              Imovel do Fiador
+              Imóvel do Fiador
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="g-propertyRegistration">Numero da Matricula do Imovel</Label>
+                <Label htmlFor="g-propertyRegistration">Número da Matrícula do Imóvel</Label>
                 <Input
                   id="g-propertyRegistration"
-                  placeholder="Numero de matricula no cartorio"
+                  placeholder="Número de matrícula no cartório"
                   {...register("propertyRegistration")}
                 />
               </div>
             </div>
           </div>
 
-          {/* Observacoes */}
+          {/* Observações */}
           <div className="space-y-2">
-            <Label htmlFor="g-notes">Observacoes</Label>
+            <Label htmlFor="g-notes">Observações</Label>
             <Input
               id="g-notes"
-              placeholder="Observacoes adicionais"
+              placeholder="Observações adicionais"
               {...register("notes")}
             />
           </div>

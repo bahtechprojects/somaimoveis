@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/layout/header";
@@ -130,7 +131,7 @@ interface ContractDocument {
 
 const contractStatusConfig: Record<string, { label: string; className: string }> = {
   ATIVO: { label: "Ativo", className: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-  PENDENTE_RENOVACAO: { label: "Renovacao", className: "bg-amber-100 text-amber-700 border-amber-200" },
+  PENDENTE_RENOVACAO: { label: "Renovação", className: "bg-amber-100 text-amber-700 border-amber-200" },
   ENCERRADO: { label: "Encerrado", className: "bg-muted text-muted-foreground" },
   CANCELADO: { label: "Cancelado", className: "bg-red-100 text-red-700 border-red-200" },
 };
@@ -145,14 +146,14 @@ const paymentStatusConfig: Record<string, { label: string; className: string }> 
 
 const guaranteeTypeLabels: Record<string, string> = {
   FIADOR: "Fiador",
-  CAUCAO: "Caucao",
-  SEGURO_FIANCA: "Seguro Fianca",
-  TITULO_CAPITALIZACAO: "Titulo Capitalizacao",
+  CAUCAO: "Caução",
+  SEGURO_FIANCA: "Seguro Fiança",
+  TITULO_CAPITALIZACAO: "Título Capitalização",
   SEM_GARANTIA: "Sem Garantia",
 };
 
 const contractTypeLabels: Record<string, string> = {
-  LOCACAO: "Locacao",
+  LOCACAO: "Locação",
   VENDA: "Venda",
   TEMPORADA: "Temporada",
 };
@@ -305,12 +306,12 @@ export default function ContratoDetalhePage() {
       });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao excluir contrato");
+        toast.error(error.error || "Erro ao excluir contrato");
         return;
       }
       router.push("/contratos");
     } catch (error) {
-      alert("Erro ao excluir contrato");
+      toast.error("Erro ao excluir contrato");
     } finally {
       setDeleting(false);
       setDeleteDialogOpen(false);
@@ -327,7 +328,7 @@ export default function ContratoDetalhePage() {
     try {
       const percent = parseFloat(reajustePercent);
       if (isNaN(percent) || percent <= 0) {
-        alert("Informe um percentual valido.");
+        toast.error("Informe um percentual valido.");
         return;
       }
       const newRentalValue = contract.rentalValue * (1 + percent / 100);
@@ -342,14 +343,14 @@ export default function ContratoDetalhePage() {
       });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao aplicar reajuste");
+        toast.error(error.error || "Erro ao aplicar reajuste");
         return;
       }
       setReajusteDialogOpen(false);
       setReajustePercent("");
       fetchContract();
     } catch (error) {
-      alert("Erro ao aplicar reajuste");
+      toast.error("Erro ao aplicar reajuste");
     } finally {
       setReajusteLoading(false);
     }
@@ -365,7 +366,7 @@ export default function ContratoDetalhePage() {
         const oldEnd = new Date(contract.endDate);
         const newEnd = new Date(renewEndDate);
         if (newEnd <= oldEnd) {
-          alert("A nova data de termino deve ser posterior a data de termino atual.");
+          toast.error("A nova data de termino deve ser posterior a data de termino atual.");
           return;
         }
         // Calculate months difference from old endDate + 1 day to new endDate
@@ -389,7 +390,7 @@ export default function ContratoDetalhePage() {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao renovar contrato");
+        toast.error(error.error || "Erro ao renovar contrato");
         return;
       }
 
@@ -400,7 +401,7 @@ export default function ContratoDetalhePage() {
       // Navigate to the new contract
       router.push(`/contratos/${newContract.id}`);
     } catch (error) {
-      alert("Erro ao renovar contrato");
+      toast.error("Erro ao renovar contrato");
     } finally {
       setRenewLoading(false);
     }
@@ -603,12 +604,12 @@ export default function ContratoDetalhePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column - 2/3 */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Informacoes do Contrato */}
+            {/* Informações do Contrato */}
             <Card className="border-0 shadow-sm">
               <CardContent className="p-6">
-                <SectionTitle icon={FileText} title="Informacoes do Contrato" />
+                <SectionTitle icon={FileText} title="Informações do Contrato" />
                 <div className="divide-y">
-                  <InfoRow label="Codigo" value={contract.code} />
+                  <InfoRow label="Código" value={contract.code} />
                   <InfoRow
                     label="Tipo"
                     value={
@@ -627,22 +628,22 @@ export default function ContratoDetalhePage() {
                   />
                   <InfoRow label="Data Inicio" value={formatDate(contract.startDate)} />
                   <InfoRow label="Data Termino" value={formatDate(contract.endDate)} />
-                  <InfoRow label="Dia Pagamento Locatario" value={`Dia ${contract.tenant?.paymentDay || contract.paymentDay}`} />
-                  <InfoRow label="Dia Pagamento Proprietario" value={`Dia ${contract.owner?.paymentDay || 10}`} />
+                  <InfoRow label="Dia Pagamento Locatário" value={`Dia ${contract.tenant?.paymentDay || contract.paymentDay}`} />
+                  <InfoRow label="Dia Pagamento Proprietário" value={`Dia ${contract.owner?.paymentDay || 10}`} />
                   <InfoRow
                     label="Indice de Reajuste"
-                    value={contract.adjustmentIndex || "Nao definido"}
+                    value={contract.adjustmentIndex || "Não definido"}
                   />
                   <InfoRow
                     label="Mes de Reajuste"
                     value={
                       contract.adjustmentMonth
                         ? monthLabels[contract.adjustmentMonth] || String(contract.adjustmentMonth)
-                        : "Nao definido"
+                        : "Não definido"
                     }
                   />
                   <InfoRow
-                    label="Taxa Intermediacao"
+                    label="Taxa Intermediação"
                     value={
                       contract.intermediationFee != null
                         ? `${contract.intermediationFee}%`
@@ -650,7 +651,7 @@ export default function ContratoDetalhePage() {
                     }
                   />
                   <InfoRow
-                    label="Parcelas Intermediacao"
+                    label="Parcelas Intermediação"
                     value={contract.intermediationInstallments ?? "-"}
                   />
                   {(contract.lastAdjustmentPercent != null || contract.lastAdjustmentDate) && (
@@ -682,7 +683,7 @@ export default function ContratoDetalhePage() {
                   <InfoRow label="Valor Aluguel" value={formatCurrency(contract.rentalValue)} />
                   <InfoRow label="Taxa Administrativa" value={`${contract.adminFeePercent}%`} />
                   <InfoRow label="Valor Administrativo" value={formatCurrency(adminValue)} />
-                  <InfoRow label="Bruto ao Proprietario" value={formatCurrency(ownerNetValue)} />
+                  <InfoRow label="Bruto ao Proprietário" value={formatCurrency(ownerNetValue)} />
                   {hasIrrf && latestPaymentWithIrrf ? (
                     <>
                       <InfoRow
@@ -697,7 +698,7 @@ export default function ContratoDetalhePage() {
                         }
                       />
                       <InfoRow
-                        label="Liquido ao Proprietario"
+                        label="Líquido ao Proprietário"
                         value={
                           <span className="text-emerald-600 font-semibold">
                             {formatCurrency(latestPaymentWithIrrf.netToOwner ?? ownerNetValue)}
@@ -707,7 +708,7 @@ export default function ContratoDetalhePage() {
                     </>
                   ) : (
                     <InfoRow
-                      label="Liquido ao Proprietario"
+                      label="Líquido ao Proprietário"
                       value={
                         <span className="text-emerald-600 font-semibold">
                           {formatCurrency(ownerNetValue)}
@@ -760,7 +761,7 @@ export default function ContratoDetalhePage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-xs">Codigo</TableHead>
+                        <TableHead className="text-xs">Código</TableHead>
                         <TableHead className="text-xs">Valor</TableHead>
                         <TableHead className="text-xs">Vencimento</TableHead>
                         <TableHead className="text-xs">Data Pgto.</TableHead>
@@ -824,7 +825,7 @@ export default function ContratoDetalhePage() {
                 <SectionTitle icon={Users} title="Partes" />
                 <div className="space-y-4">
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Imovel</p>
+                    <p className="text-xs text-muted-foreground mb-1">Imóvel</p>
                     <Link
                       href={`/imoveis/${contract.propertyId}`}
                       className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
@@ -836,7 +837,7 @@ export default function ContratoDetalhePage() {
                   </div>
                   <Separator />
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Proprietario</p>
+                    <p className="text-xs text-muted-foreground mb-1">Proprietário</p>
                     <Link
                       href={`/proprietarios/${contract.ownerId}`}
                       className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
@@ -848,7 +849,7 @@ export default function ContratoDetalhePage() {
                   </div>
                   <Separator />
                   <div>
-                    <p className="text-xs text-muted-foreground mb-1">Locatario</p>
+                    <p className="text-xs text-muted-foreground mb-1">Locatário</p>
                     <Link
                       href={`/locatarios/${contract.tenantId}`}
                       className="flex items-center gap-2 text-sm font-medium text-primary hover:underline"
@@ -872,7 +873,7 @@ export default function ContratoDetalhePage() {
                     value={
                       contract.guaranteeType
                         ? guaranteeTypeLabels[contract.guaranteeType] || contract.guaranteeType
-                        : "Nao definido"
+                        : "Não definido"
                     }
                   />
                   <InfoRow
@@ -885,7 +886,7 @@ export default function ContratoDetalhePage() {
                   />
                   {contract.guaranteeNotes && (
                     <div className="py-2.5">
-                      <p className="text-sm text-muted-foreground mb-1">Observacoes</p>
+                      <p className="text-sm text-muted-foreground mb-1">Observações</p>
                       <p className="text-sm">{contract.guaranteeNotes}</p>
                     </div>
                   )}
@@ -986,7 +987,7 @@ export default function ContratoDetalhePage() {
                           <div>
                             <p className="text-sm font-medium">{doc.code}</p>
                             <p className="text-xs text-muted-foreground">
-                              {doc.type === "VISTORIA" ? "Vistoria" : doc.type === "PROCURACAO" ? "Procuracao" : doc.type === "ADMINISTRACAO" ? "Administracao" : doc.type === "ADITIVO" ? "Aditivo" : doc.type}
+                              {doc.type === "VISTORIA" ? "Vistoria" : doc.type === "PROCURACAO" ? "Procuração" : doc.type === "ADMINISTRACAO" ? "Administração" : doc.type === "ADITIVO" ? "Aditivo" : doc.type}
                               {doc.startDate ? ` - ${formatDate(doc.startDate)}` : ""}
                             </p>
                           </div>
@@ -1008,11 +1009,11 @@ export default function ContratoDetalhePage() {
               </Card>
             )}
 
-            {/* Observacoes */}
+            {/* Observações */}
             {contract.notes && (
               <Card className="border-0 shadow-sm">
                 <CardContent className="p-6">
-                  <SectionTitle icon={Clock} title="Observacoes" />
+                  <SectionTitle icon={Clock} title="Observações" />
                   <p className="text-sm text-muted-foreground">{contract.notes}</p>
                 </CardContent>
               </Card>

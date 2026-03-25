@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -54,11 +55,11 @@ export function PhotoUpload({
 
     Array.from(files).forEach((file) => {
       if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-        alert(`Arquivo "${file.name}" ignorado. Apenas JPEG, PNG e WebP sao aceitos.`);
+        toast.error(`Arquivo "${file.name}" ignorado. Apenas JPEG, PNG e WebP sao aceitos.`);
         return;
       }
       if (file.size > 25 * 1024 * 1024) {
-        alert(`Arquivo "${file.name}" ignorado. Tamanho maximo: 25MB.`);
+        toast.error(`Arquivo "${file.name}" ignorado. Tamanho maximo: 25MB.`);
         return;
       }
       validFiles.push({
@@ -137,7 +138,7 @@ export function PhotoUpload({
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao fazer upload das fotos");
+        toast.error(error.error || "Erro ao fazer upload das fotos");
         return;
       }
 
@@ -146,7 +147,7 @@ export function PhotoUpload({
       setPreviews([]);
       onPhotosChange();
     } catch {
-      alert("Erro ao fazer upload das fotos");
+      toast.error("Erro ao fazer upload das fotos");
     } finally {
       setUploading(false);
     }
@@ -167,13 +168,13 @@ export function PhotoUpload({
 
         if (!response.ok) {
           const error = await response.json();
-          alert(error.error || "Erro ao excluir foto");
+          toast.error(error.error || "Erro ao excluir foto");
           return;
         }
 
         onPhotosChange();
       } catch {
-        alert("Erro ao excluir foto");
+        toast.error("Erro ao excluir foto");
       } finally {
         setDeleting(null);
         setPhotoToDelete(null);
@@ -189,7 +190,7 @@ export function PhotoUpload({
         <div>
           <h4 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
             <Camera className="h-4 w-4" />
-            Fotos do Imovel ({photos.length})
+            Fotos do Imóvel ({photos.length})
           </h4>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {photos.map((photo) => (

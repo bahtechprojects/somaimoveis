@@ -37,7 +37,7 @@ export async function POST(_request: NextRequest) {
         skipped: 0,
         errors: 0,
         details: [],
-        message: "Notificacoes por WhatsApp estao desativadas nas regras de cobranca.",
+        message: "Notificações por WhatsApp estão desativadas nas regras de cobrança.",
       });
     }
 

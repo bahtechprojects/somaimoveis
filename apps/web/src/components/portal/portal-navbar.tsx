@@ -32,7 +32,7 @@ const navigation = [
     exact: true,
   },
   {
-    label: "Imoveis",
+    label: "Imóveis",
     href: "/portal/imoveis",
     icon: Building2,
   },
@@ -72,7 +72,7 @@ export function PortalNavbar() {
   const { owner, logout } = usePortal();
   const pathname = usePathname();
 
-  const ownerName = owner?.name || "Proprietario";
+  const ownerName = owner?.name || "Proprietário";
   const initials = getInitials(ownerName);
 
   return (

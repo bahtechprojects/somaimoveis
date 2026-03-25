@@ -412,7 +412,7 @@ async function importOwners(rows: Record<string, unknown>[]): Promise<{ imported
     // Validate required
     for (const field of required) {
       if (!mapped[field] || String(mapped[field]).trim() === "") {
-        errors.push({ row: rowNum, field, message: `Campo obrigatorio ausente: ${field}` });
+        errors.push({ row: rowNum, field, message: `Campo obrigatório ausente: ${field}` });
       }
     }
     if (errors.some((e) => e.row === rowNum)) continue;
@@ -483,7 +483,7 @@ async function importTenants(rows: Record<string, unknown>[]): Promise<{ importe
 
     for (const field of required) {
       if (!mapped[field] || String(mapped[field]).trim() === "") {
-        errors.push({ row: rowNum, field, message: `Campo obrigatorio ausente: ${field}` });
+        errors.push({ row: rowNum, field, message: `Campo obrigatório ausente: ${field}` });
       }
     }
     if (errors.some((e) => e.row === rowNum)) continue;
@@ -549,7 +549,7 @@ async function importProperties(rows: Record<string, unknown>[]): Promise<{ impo
 
     for (const field of required) {
       if (!mapped[field] || String(mapped[field]).trim() === "") {
-        errors.push({ row: rowNum, field, message: `Campo obrigatorio ausente: ${field}` });
+        errors.push({ row: rowNum, field, message: `Campo obrigatório ausente: ${field}` });
       }
     }
     if (errors.some((e) => e.row === rowNum)) continue;
@@ -574,7 +574,7 @@ async function importProperties(rows: Record<string, unknown>[]): Promise<{ impo
         continue;
       }
     } else {
-      errors.push({ row: rowNum, field: "ownerId", message: "Proprietario (email ou CPF) e obrigatorio" });
+      errors.push({ row: rowNum, field: "ownerId", message: "Proprietário (email ou CPF) é obrigatório" });
       continue;
     }
 
@@ -633,7 +633,7 @@ async function importContracts(rows: Record<string, unknown>[]): Promise<{ impor
 
     for (const field of required) {
       if (!mapped[field] || String(mapped[field]).trim() === "") {
-        errors.push({ row: rowNum, field, message: `Campo obrigatorio ausente: ${field}` });
+        errors.push({ row: rowNum, field, message: `Campo obrigatório ausente: ${field}` });
       }
     }
     if (errors.some((e) => e.row === rowNum)) continue;
@@ -649,7 +649,7 @@ async function importContracts(rows: Record<string, unknown>[]): Promise<{ impor
         continue;
       }
     } else {
-      errors.push({ row: rowNum, field: "imovel_titulo", message: "Imovel (titulo) e obrigatorio" });
+      errors.push({ row: rowNum, field: "imovel_titulo", message: "Imóvel (título) é obrigatório" });
       continue;
     }
 
@@ -666,7 +666,7 @@ async function importContracts(rows: Record<string, unknown>[]): Promise<{ impor
       if (tenant) tenantId = tenant.id;
       else { errors.push({ row: rowNum, field: "locatario_cpf", message: `Locatario nao encontrado: ${tenantCpf}` }); continue; }
     } else {
-      errors.push({ row: rowNum, field: "tenantId", message: "Locatario (email ou CPF) e obrigatorio" }); continue;
+      errors.push({ row: rowNum, field: "tenantId", message: "Locatário (email ou CPF) é obrigatório" }); continue;
     }
 
     // Resolve owner by email or CPF
@@ -682,7 +682,7 @@ async function importContracts(rows: Record<string, unknown>[]): Promise<{ impor
       if (owner) ownerId = owner.id;
       else { errors.push({ row: rowNum, field: "proprietario_cpf", message: `Proprietario nao encontrado: ${ownerCpf}` }); continue; }
     } else {
-      errors.push({ row: rowNum, field: "ownerId", message: "Proprietario (email ou CPF) e obrigatorio" }); continue;
+      errors.push({ row: rowNum, field: "ownerId", message: "Proprietário (email ou CPF) é obrigatório" }); continue;
     }
 
     const startDate = parseDate(mapped.startDate as string);

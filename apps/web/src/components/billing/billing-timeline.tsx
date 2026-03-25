@@ -116,35 +116,35 @@ const DEFAULT_RULES: BillingRule[] = [
     type: "email_reminder",
     dayOffset: 5,
     label: "Cobranca por e-mail",
-    description: "E-mail de cobranca enviado 5 dias apos vencimento",
+    description: "E-mail de cobranca enviado 5 dias após vencimento",
   },
   {
     id: "phone-7",
     type: "phone_contact",
     dayOffset: 7,
     label: "Contato telefonico",
-    description: "Ligacao de cobranca 7 dias apos vencimento",
+    description: "Ligacao de cobranca 7 dias após vencimento",
   },
   {
     id: "whatsapp-post-10",
     type: "whatsapp_reminder",
     dayOffset: 10,
     label: "Cobranca por WhatsApp",
-    description: "Mensagem de cobranca 10 dias apos vencimento",
+    description: "Mensagem de cobranca 10 dias após vencimento",
   },
   {
     id: "formal-15",
     type: "formal_notice",
     dayOffset: 15,
-    label: "Notificacao formal",
-    description: "Notificacao formal enviada 15 dias apos vencimento",
+    label: "Notificação formal",
+    description: "Notificação formal enviada 15 dias após vencimento",
   },
   {
     id: "legal-30",
     type: "legal_action",
     dayOffset: 30,
     label: "Acao judicial",
-    description: "Inicio de procedimento judicial 30 dias apos vencimento",
+    description: "Inicio de procedimento judicial 30 dias após vencimento",
   },
 ];
 
@@ -279,7 +279,7 @@ export function BillingTimeline({
               type: actionMap[step.action] || "email_reminder",
               dayOffset: step.daysAfterDue,
               label: step.description,
-              description: `${step.description} (${step.daysAfterDue} dias apos vencimento)`,
+              description: `${step.description} (${step.daysAfterDue} dias após vencimento)`,
             });
           });
         }

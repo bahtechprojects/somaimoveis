@@ -316,9 +316,9 @@ export default function PortalFinancialPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs">Codigo</TableHead>
-                    <TableHead className="text-xs">Imovel</TableHead>
-                    <TableHead className="text-xs">Locatario</TableHead>
+                    <TableHead className="text-xs">Código</TableHead>
+                    <TableHead className="text-xs">Imóvel</TableHead>
+                    <TableHead className="text-xs">Locatário</TableHead>
                     <TableHead className="text-xs text-right">Valor</TableHead>
                     <TableHead className="text-xs text-right">
                       Valor Pago

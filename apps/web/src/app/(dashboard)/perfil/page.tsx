@@ -232,7 +232,7 @@ export default function PerfilPage() {
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-xl">Informacoes Pessoais</CardTitle>
+                  <CardTitle className="text-xl">Informações Pessoais</CardTitle>
                   <CardDescription>
                     Atualize seus dados de perfil
                   </CardDescription>

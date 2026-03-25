@@ -47,9 +47,9 @@ interface ImportResult {
 type ImportStep = "select" | "preview" | "importing" | "done";
 
 const ENTITY_LABELS: Record<EntityType, string> = {
-  owners: "Proprietarios",
-  tenants: "Locatarios",
-  properties: "Imoveis",
+  owners: "Proprietários",
+  tenants: "Locatários",
+  properties: "Imóveis",
   contracts: "Contratos",
 };
 

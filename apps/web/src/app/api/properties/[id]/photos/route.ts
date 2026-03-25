@@ -152,7 +152,7 @@ export async function DELETE(
 
     if (!photoId) {
       return NextResponse.json(
-        { error: "ID da foto e obrigatorio" },
+        { error: "ID da foto é obrigatório" },
         { status: 400 }
       );
     }

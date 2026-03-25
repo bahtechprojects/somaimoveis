@@ -48,7 +48,7 @@ interface Property {
 
 const statusConfig: Record<string, { label: string; className: string }> = {
   DISPONIVEL: {
-    label: "Disponivel",
+    label: "Disponível",
     className: "bg-emerald-100 text-emerald-700 border-emerald-200",
   },
   ALUGADO: {
@@ -56,7 +56,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
     className: "bg-blue-100 text-blue-700 border-blue-200",
   },
   MANUTENCAO: {
-    label: "Em Manutencao",
+    label: "Em Manutenção",
     className: "bg-amber-100 text-amber-700 border-amber-200",
   },
   INDISPONIVEL: {

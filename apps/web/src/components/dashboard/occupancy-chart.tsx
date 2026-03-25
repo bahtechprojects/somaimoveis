@@ -21,7 +21,7 @@ export function OccupancyChart({ properties }: OccupancyChartProps) {
   const data = [
     { label: "Alugados", value: rented, color: "bg-primary", percentage: (rented / safeTotal) * 100 },
     { label: "Disponiveis", value: available, color: "bg-emerald-500", percentage: (available / safeTotal) * 100 },
-    { label: "Manutencao", value: maintenance, color: "bg-amber-500", percentage: (maintenance / safeTotal) * 100 },
+    { label: "Manutenção", value: maintenance, color: "bg-amber-500", percentage: (maintenance / safeTotal) * 100 },
     { label: "Inativos", value: inactive, color: "bg-muted-foreground/30", percentage: (inactive / safeTotal) * 100 },
   ];
 

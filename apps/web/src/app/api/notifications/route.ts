@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 }
 
 // ==================================================
-// POST /api/notifications - Criar e enviar uma notificacao
+// POST /api/notifications - Criar e enviar uma notificação
 // ==================================================
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
     // Validacoes basicas
     if (!type || !recipientName || !templateKey) {
       return NextResponse.json(
-        { error: "Campos obrigatorios: type, recipientName, templateKey" },
+        { error: "Campos obrigatórios: type, recipientName, templateKey" },
         { status: 400 }
       );
     }
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
     // Determinar canal
     const channel = type === "WHATSAPP" ? "whatsapp" : type === "EMAIL" ? "email" : "sms";
 
-    // Criar registro da notificacao como PENDENTE
+    // Criar registro da notificação como PENDENTE
     let notification = await prisma.notification.create({
       data: {
         type,
@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
           message: rendered.message,
         });
       } else {
-        throw new Error(`Tipo de notificacao desconhecido: ${type}`);
+        throw new Error(`Tipo de notificação desconhecido: ${type}`);
       }
 
       // Atualizar status baseado no resultado
@@ -203,9 +203,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(notification, { status: 201 });
   } catch (error) {
-    console.error("Erro ao criar notificacao:", error);
+    console.error("Erro ao criar notificação:", error);
     return NextResponse.json(
-      { error: "Erro ao criar notificacao" },
+      { error: "Erro ao criar notificação" },
       { status: 500 }
     );
   }

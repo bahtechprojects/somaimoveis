@@ -17,7 +17,7 @@ export async function PUT(request: NextRequest) {
 
   if (!currentPassword || !newPassword || !confirmPassword) {
     return NextResponse.json(
-      { error: "Todos os campos sao obrigatorios" },
+      { error: "Todos os campos são obrigatórios" },
       { status: 400 }
     );
   }

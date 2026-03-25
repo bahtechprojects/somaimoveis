@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -273,14 +274,14 @@ function LancamentosContent() {
       });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao criar lancamento");
+        toast.error(error.error || "Erro ao criar lancamento");
         return;
       }
       setFormOpen(false);
       resetForm();
       fetchEntries();
     } catch (error) {
-      alert("Erro ao criar lancamento");
+      toast.error("Erro ao criar lancamento");
     } finally {
       setSubmitting(false);
     }
@@ -299,12 +300,12 @@ function LancamentosContent() {
       });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao excluir lancamento");
+        toast.error(error.error || "Erro ao excluir lancamento");
         return;
       }
       fetchEntries();
     } catch (error) {
-      alert("Erro ao excluir lancamento");
+      toast.error("Erro ao excluir lancamento");
     } finally {
       setDeleteDialogOpen(false);
       setEntryToDelete(null);
@@ -313,7 +314,7 @@ function LancamentosContent() {
 
   return (
     <div className="flex flex-col">
-      <Header title="Lancamentos" subtitle="Debitos e creditos dos locatarios" />
+      <Header title="Lançamentos" subtitle="Débitos e créditos dos locatários" />
 
       <div className="p-4 sm:p-6 space-y-4">
         {/* Summary Cards */}
@@ -322,7 +323,7 @@ function LancamentosContent() {
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">Total Lancamentos</p>
+                  <p className="text-xs font-medium text-muted-foreground">Total Lançamentos</p>
                   <p className="text-2xl font-bold mt-1">{loading ? "..." : entries.length}</p>
                 </div>
               </div>
@@ -489,7 +490,7 @@ function LancamentosContent() {
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="text-xs">Data</TableHead>
-                        <TableHead className="text-xs">Locatario</TableHead>
+                        <TableHead className="text-xs">Locatário</TableHead>
                         <TableHead className="text-xs">Tipo</TableHead>
                         <TableHead className="text-xs">Categoria</TableHead>
                         <TableHead className="text-xs">Descricao</TableHead>
@@ -592,7 +593,7 @@ function LancamentosContent() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="tenantId">Locatario</Label>
+              <Label htmlFor="tenantId">Locatário</Label>
               <Select value={formTenantId} onValueChange={setFormTenantId}>
                 <SelectTrigger id="tenantId">
                   <SelectValue placeholder="Selecione o locatario" />
@@ -677,7 +678,7 @@ function LancamentosContent() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="installments">Numero de Parcelas</Label>
+                <Label htmlFor="installments">Número de Parcelas</Label>
                 <Input
                   id="installments"
                   type="number"
@@ -704,10 +705,10 @@ function LancamentosContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="notes">Observacoes</Label>
+              <Label htmlFor="notes">Observações</Label>
               <Input
                 id="notes"
-                placeholder="Observacoes adicionais (opcional)"
+                placeholder="Observações adicionais (opcional)"
                 value={formNotes}
                 onChange={(e) => setFormNotes(e.target.value)}
               />

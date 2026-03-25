@@ -131,7 +131,7 @@ export default function DashboardPage() {
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
-            title="Total de Imoveis"
+            title="Total de Imóveis"
             value={dashboard ? String(dashboard.properties.total) : "..."}
             icon={Building2}
             trend={{ value: 0, label: `${dashboard?.properties.available || 0} disponiveis` }}

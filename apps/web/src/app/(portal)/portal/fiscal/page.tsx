@@ -109,7 +109,7 @@ export default function PortalFiscalPage() {
         <h1 className="text-xl font-bold text-center">
           INFORME DE RENDIMENTOS - {year}
         </h1>
-        <p className="text-center text-sm">Somma Imoveis - Gestao Imobiliaria</p>
+        <p className="text-center text-sm">Somma Imoveis - Gestão Imobiliária</p>
       </div>
 
       {loading && (
@@ -131,7 +131,7 @@ export default function PortalFiscalPage() {
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <span>{report.ownerCpfCnpj}</span>
                     <Badge variant={report.personType === "PF" ? "default" : "secondary"}>
-                      {report.personType === "PF" ? "Pessoa Fisica" : "Pessoa Juridica"}
+                      {report.personType === "PF" ? "Pessoa Física" : "Pessoa Jurídica"}
                     </Badge>
                   </div>
                 </div>

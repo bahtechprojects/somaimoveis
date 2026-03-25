@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
     const result = await sendWhatsAppMessage({
       to: phone,
-      message: "Mensagem de teste do Somma - Sistema de Gestao Imobiliaria. Se voce recebeu esta mensagem, a integracao WhatsApp esta funcionando corretamente!",
+      message: "Mensagem de teste do Somma - Sistema de Gestão Imobiliária. Se voce recebeu esta mensagem, a integração WhatsApp está funcionando corretamente!",
     });
 
     return NextResponse.json({

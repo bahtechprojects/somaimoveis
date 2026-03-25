@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -125,9 +126,9 @@ export function BatchUploadPdf({
       // All files were filtered out
       const nonPdf = fileArray.some((f) => f.type !== "application/pdf");
       if (nonPdf) {
-        alert("Apenas arquivos PDF sao aceitos.");
+        toast.error("Apenas arquivos PDF sao aceitos.");
       } else {
-        alert("Os arquivos selecionados ja foram adicionados.");
+        toast.error("Os arquivos selecionados ja foram adicionados.");
       }
       return;
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/layout/header";
@@ -127,7 +128,7 @@ const contractStatusConfig: Record<string, { label: string; className: string }>
     className: "bg-emerald-100 text-emerald-700 border-emerald-200",
   },
   PENDENTE_RENOVACAO: {
-    label: "Renovacao",
+    label: "Renovação",
     className: "bg-amber-100 text-amber-700 border-amber-200",
   },
   ENCERRADO: {
@@ -146,11 +147,11 @@ const propertyStatusConfig: Record<string, { label: string; className: string }>
     className: "bg-primary/10 text-primary border-primary/20",
   },
   DISPONIVEL: {
-    label: "Disponivel",
+    label: "Disponível",
     className: "bg-emerald-100 text-emerald-700 border-emerald-200",
   },
   MANUTENCAO: {
-    label: "Manutencao",
+    label: "Manutenção",
     className: "bg-amber-100 text-amber-700 border-amber-200",
   },
   INATIVO: {
@@ -229,12 +230,12 @@ export default function OwnerDetailPage() {
       const response = await fetch(`/api/owners/${id}`, { method: "DELETE" });
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || "Erro ao excluir proprietario");
+        toast.error(error.error || "Erro ao excluir proprietario");
         return;
       }
       router.push("/proprietarios");
     } catch (error) {
-      alert("Erro ao excluir proprietario");
+      toast.error("Erro ao excluir proprietario");
     } finally {
       setDeleting(false);
       setDeleteDialogOpen(false);
@@ -274,7 +275,7 @@ export default function OwnerDetailPage() {
         setPortalStatus({ active: true, token: data.portalToken ?? data.token });
       }
     } catch {
-      alert("Erro ao ativar portal");
+      toast.error("Erro ao ativar portal");
     } finally {
       setPortalLoading(false);
     }
@@ -288,7 +289,7 @@ export default function OwnerDetailPage() {
         setPortalStatus({ active: false, token: null });
       }
     } catch {
-      alert("Erro ao desativar portal");
+      toast.error("Erro ao desativar portal");
     } finally {
       setPortalLoading(false);
     }
@@ -333,7 +334,7 @@ export default function OwnerDetailPage() {
   if (loading) {
     return (
       <div className="flex flex-col">
-        <Header title="Proprietario" subtitle="Carregando..." />
+        <Header title="Proprietário" subtitle="Carregando..." />
         <div className="flex items-center justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -348,10 +349,10 @@ export default function OwnerDetailPage() {
   if (notFound || !owner) {
     return (
       <div className="flex flex-col">
-        <Header title="Proprietario" subtitle="Nao encontrado" />
+        <Header title="Proprietário" subtitle="Não encontrado" />
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <User className="h-12 w-12 text-muted-foreground" />
-          <p className="text-muted-foreground">Proprietario nao encontrado.</p>
+          <p className="text-muted-foreground">Proprietário não encontrado.</p>
           <Button variant="outline" asChild>
             <Link href="/proprietarios">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -369,7 +370,7 @@ export default function OwnerDetailPage() {
 
   return (
     <div className="flex flex-col">
-      <Header title="Proprietario" subtitle="Detalhes do proprietario" />
+      <Header title="Proprietário" subtitle="Detalhes do proprietário" />
 
       <div className="p-4 sm:p-6 space-y-6">
         {/* Back Button */}
@@ -397,7 +398,7 @@ export default function OwnerDetailPage() {
                       : "bg-sky-100 text-sky-700 border-sky-200"
                   }
                 >
-                  {owner.personType === "PJ" ? "Pessoa Juridica" : "Pessoa Fisica"}
+                  {owner.personType === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}
                 </Badge>
                 {!owner.active && (
                   <Badge variant="outline" className="bg-muted text-muted-foreground">
@@ -478,7 +479,7 @@ export default function OwnerDetailPage() {
                 <InfoRow label="CPF/CNPJ" value={owner.cpfCnpj} />
                 <InfoRow
                   label="Tipo de Pessoa"
-                  value={owner.personType === "PJ" ? "Pessoa Juridica" : "Pessoa Fisica"}
+                  value={owner.personType === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"}
                 />
                 <div>
                   <p className="text-xs text-muted-foreground">Email</p>
@@ -505,23 +506,23 @@ export default function OwnerDetailPage() {
               </div>
               {owner.notes && (
                 <div className="mt-4 pt-3 border-t">
-                  <p className="text-xs text-muted-foreground">Observacoes</p>
+                  <p className="text-xs text-muted-foreground">Observações</p>
                   <p className="text-sm mt-1">{owner.notes}</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Endereco */}
+          {/* Endereço */}
           <Card className="border-0 shadow-sm">
             <CardContent className="p-5">
               <div className="flex items-center gap-2 mb-4">
                 <MapPin className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-semibold">Endereco</h3>
+                <h3 className="text-sm font-semibold">Endereço</h3>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InfoRow label="Rua" value={owner.street} />
-                <InfoRow label="Numero" value={owner.number} />
+                <InfoRow label="Número" value={owner.number} />
                 <InfoRow label="Complemento" value={owner.complement} />
                 <InfoRow label="Bairro" value={owner.neighborhood} />
                 <InfoRow label="Cidade" value={owner.city} />
@@ -540,7 +541,7 @@ export default function OwnerDetailPage() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <InfoRow label="Banco" value={owner.bankName} />
-                <InfoRow label="Agencia" value={owner.bankAgency} />
+                <InfoRow label="Agência" value={owner.bankAgency} />
                 <InfoRow label="Conta" value={owner.bankAccount} />
                 <div>
                   <p className="text-xs text-muted-foreground">Chave PIX</p>
@@ -558,13 +559,13 @@ export default function OwnerDetailPage() {
           </Card>
         </div>
 
-        {/* Portal do Proprietario */}
+        {/* Portal do Proprietário */}
         <Card className="border-0 shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-semibold">Portal do Proprietario</h3>
+                <h3 className="text-sm font-semibold">Portal do Proprietário</h3>
                 {portalStatus?.active ? (
                   <Badge variant="outline" className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
                     Ativo
@@ -641,7 +642,7 @@ export default function OwnerDetailPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Home className="h-4 w-4 text-muted-foreground" />
-                <h3 className="text-sm font-semibold">Imoveis Vinculados</h3>
+                <h3 className="text-sm font-semibold">Imóveis Vinculados</h3>
                 <Badge variant="secondary" className="text-xs">
                   {totalProperties}
                 </Badge>
@@ -725,11 +726,11 @@ export default function OwnerDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="text-xs">Codigo</TableHead>
-                      <TableHead className="text-xs">Imovel</TableHead>
-                      <TableHead className="text-xs">Locatario</TableHead>
+                      <TableHead className="text-xs">Código</TableHead>
+                      <TableHead className="text-xs">Imóvel</TableHead>
+                      <TableHead className="text-xs">Locatário</TableHead>
                       <TableHead className="text-xs text-right">Valor</TableHead>
-                      <TableHead className="text-xs text-center">Periodo</TableHead>
+                      <TableHead className="text-xs text-center">Período</TableHead>
                       <TableHead className="text-xs text-center">Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -788,7 +789,7 @@ export default function OwnerDetailPage() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir Proprietario</AlertDialogTitle>
+            <AlertDialogTitle>Excluir Proprietário</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir o proprietario{" "}
               <strong>{owner.name}</strong>? Esta acao nao pode ser desfeita.

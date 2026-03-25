@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
   if (!name || !email || !password) {
     return NextResponse.json(
-      { error: "Nome, email e senha sao obrigatorios" },
+      { error: "Nome, email e senha são obrigatórios" },
       { status: 400 }
     );
   }

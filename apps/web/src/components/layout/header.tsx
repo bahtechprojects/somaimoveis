@@ -54,7 +54,7 @@ export function Header({ title, subtitle }: HeaderProps) {
         <div className="relative hidden lg:block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar imoveis, contratos..."
+            placeholder="Buscar imóveis, contratos..."
             className="w-[280px] pl-9 h-9 bg-muted/50 border-0 focus-visible:ring-1"
           />
         </div>
@@ -71,7 +71,7 @@ export function Header({ title, subtitle }: HeaderProps) {
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem onClick={() => router.push("/imoveis?novo=true")}>
               <Building2 className="h-4 w-4 mr-2" />
-              Novo Imovel
+              Novo Imóvel
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/contratos?novo=true")}>
               <FileText className="h-4 w-4 mr-2" />
@@ -79,16 +79,16 @@ export function Header({ title, subtitle }: HeaderProps) {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/proprietarios?novo=true")}>
               <Users className="h-4 w-4 mr-2" />
-              Novo Proprietario
+              Novo Proprietário
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/locatarios?novo=true")}>
               <UserPlus className="h-4 w-4 mr-2" />
-              Novo Locatario
+              Novo Locatário
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => router.push("/financeiro?novo=true")}>
               <DollarSign className="h-4 w-4 mr-2" />
-              Nova Cobranca
+              Nova Cobrança
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -123,7 +123,7 @@ export function Header({ title, subtitle }: HeaderProps) {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => router.push("/configuracoes")}>
               <Settings className="h-4 w-4 mr-2" />
-              Configuracoes
+              Configurações
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-destructive" onClick={() => signOut({ callbackUrl: "/login" })}>

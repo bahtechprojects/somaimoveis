@@ -16,7 +16,7 @@ import {
 
 const portalPrimaryItems: BottomNavItem[] = [
   { label: "Inicio", href: "/portal", icon: LayoutDashboard, exact: true },
-  { label: "Imoveis", href: "/portal/imoveis", icon: Building2 },
+  { label: "Imóveis", href: "/portal/imoveis", icon: Building2 },
   { label: "Financeiro", href: "/portal/financeiro", icon: DollarSign },
   { label: "Contratos", href: "/portal/contratos", icon: FileText },
 ];

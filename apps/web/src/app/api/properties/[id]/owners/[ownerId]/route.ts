@@ -16,7 +16,7 @@ export async function PUT(
 
     if (percentage == null) {
       return NextResponse.json(
-        { error: "Campo obrigatorio: percentage" },
+        { error: "Campo obrigatório: percentage" },
         { status: 400 }
       );
     }

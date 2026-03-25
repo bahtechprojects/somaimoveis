@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -100,7 +101,7 @@ const defaultBillingRules: BillingRules = {
       id: "1",
       daysAfterDue: 1,
       actionType: "Email",
-      description: "Notificacao automatica de atraso por e-mail",
+      description: "Notificação automática de atraso por e-mail",
     },
     {
       id: "2",
@@ -117,8 +118,8 @@ const defaultBillingRules: BillingRules = {
     {
       id: "4",
       daysAfterDue: 30,
-      actionType: "Notificacao Extrajudicial",
-      description: "Envio de notificacao extrajudicial",
+      actionType: "Notificação Extrajudicial",
+      description: "Envio de notificação extrajudicial",
     },
     {
       id: "5",
@@ -140,7 +141,7 @@ const actionTypeOptions = [
   "SMS",
   "WhatsApp",
   "Telefone",
-  "Notificacao Extrajudicial",
+  "Notificação Extrajudicial",
   "Acao Juridica",
 ];
 
@@ -149,7 +150,7 @@ const actionTypeIcons: Record<string, typeof Mail> = {
   SMS: MessageSquare,
   WhatsApp: MessageCircle,
   Telefone: Phone,
-  "Notificacao Extrajudicial": FileWarning,
+  "Notificação Extrajudicial": FileWarning,
   "Acao Juridica": Scale,
 };
 
@@ -188,7 +189,7 @@ function TimelinePreview({ rules }: { rules: BillingRules }) {
   if (rules.gracePeriodDays > 0) {
     events.push({
       day: rules.gracePeriodDays,
-      label: `Carencia D+${rules.gracePeriodDays}`,
+      label: `Carência D+${rules.gracePeriodDays}`,
       type: "grace",
     });
   }
@@ -250,7 +251,7 @@ function TimelinePreview({ rules }: { rules: BillingRules }) {
           </div>
           <div className="flex items-center gap-1.5">
             <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-            <span className="text-muted-foreground">Carencia</span>
+            <span className="text-muted-foreground">Carência</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
@@ -437,10 +438,10 @@ export default function ConfiguracoesPage() {
         setTimeout(() => setSaveSuccess(false), 3000);
       } else {
         const error = await response.json();
-        alert(error.error || "Erro ao salvar regras");
+        toast.error(error.error || "Erro ao salvar regras");
       }
     } catch (error) {
-      alert("Erro ao salvar regras de cobranca");
+      toast.error("Erro ao salvar regras de cobranca");
     } finally {
       setSavingRules(false);
     }
@@ -459,10 +460,10 @@ export default function ConfiguracoesPage() {
         setProcessResult(data);
       } else {
         const error = await response.json();
-        alert(error.error || "Erro ao processar cobrancas");
+        toast.error(error.error || "Erro ao processar cobrancas");
       }
     } catch (error) {
-      alert("Erro ao processar cobrancas");
+      toast.error("Erro ao processar cobrancas");
     } finally {
       setProcessing(false);
     }
@@ -530,7 +531,7 @@ export default function ConfiguracoesPage() {
 
   return (
     <div className="flex flex-col">
-      <Header title="Configuracoes" subtitle="Gerencie as configuracoes do sistema" />
+      <Header title="Configurações" subtitle="Gerencie as configurações do sistema" />
 
       <div className="p-4 sm:p-6">
         <Tabs defaultValue="perfil" className="space-y-6">
@@ -549,7 +550,7 @@ export default function ConfiguracoesPage() {
             </TabsTrigger>
             <TabsTrigger value="notificacoes" className="gap-1.5 text-sm px-4">
               <Bell className="h-4 w-4" />
-              Notificacoes
+              Notificações
             </TabsTrigger>
             <TabsTrigger value="sistema" className="gap-1.5 text-sm px-4">
               <Settings className="h-4 w-4" />
@@ -566,7 +567,7 @@ export default function ConfiguracoesPage() {
             <div className="grid gap-6 max-w-2xl">
               <Card className="border-0 shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-base">Informacoes do Perfil</CardTitle>
+                  <CardTitle className="text-base">Informações do Perfil</CardTitle>
                   <CardDescription>
                     Seus dados pessoais vinculados a conta
                   </CardDescription>
@@ -663,7 +664,7 @@ export default function ConfiguracoesPage() {
                 <CardHeader>
                   <CardTitle className="text-base">Dados da Empresa</CardTitle>
                   <CardDescription>
-                    Informacoes da sua empresa de gestao imobiliaria
+                    Informações da sua empresa de gestão imobiliária
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -742,7 +743,7 @@ export default function ConfiguracoesPage() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="company-address" className="text-sm font-medium">
-                        Endereco
+                        Endereço
                       </Label>
                       <Input
                         id="company-address"
@@ -867,7 +868,7 @@ export default function ConfiguracoesPage() {
                           htmlFor="grace-period"
                           className="text-xs font-medium"
                         >
-                          Periodo de Carencia (dias apos vencimento)
+                          Período de Carência (dias após vencimento)
                         </Label>
                         <Input
                           id="grace-period"
@@ -963,7 +964,7 @@ export default function ConfiguracoesPage() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm font-medium flex items-center gap-2">
                         <Settings className="h-4 w-4 text-muted-foreground" />
-                        Opcoes Gerais
+                        Opções Gerais
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -993,7 +994,7 @@ export default function ConfiguracoesPage() {
                       {/* Notification channels */}
                       <div>
                         <p className="text-sm font-medium mb-3">
-                          Canais de Notificacao
+                          Canais de Notificação
                         </p>
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
@@ -1146,7 +1147,7 @@ export default function ConfiguracoesPage() {
                                   <div className="grid grid-cols-2 gap-3">
                                     <div className="grid gap-1.5">
                                       <Label className="text-[11px] text-muted-foreground">
-                                        Dias apos vencimento
+                                        Dias após vencimento
                                       </Label>
                                       <Input
                                         type="number"
@@ -1269,7 +1270,7 @@ export default function ConfiguracoesPage() {
                         ) : (
                           <Save className="h-4 w-4" />
                         )}
-                        {savingRules ? "Salvando..." : "Salvar Configuracoes"}
+                        {savingRules ? "Salvando..." : "Salvar Configurações"}
                       </Button>
                     </div>
                   </div>
@@ -1284,7 +1285,7 @@ export default function ConfiguracoesPage() {
               <Card className="border-0 shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">
-                    Preferencias de Notificacao
+                    Preferências de Notificação
                   </CardTitle>
                   <CardDescription>
                     Controle quais notificacoes voce deseja receber
@@ -1321,7 +1322,7 @@ export default function ConfiguracoesPage() {
                           Email de pagamentos recebidos
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Notificacao quando um pagamento for confirmado
+                          Notificação quando um pagamento for confirmado
                         </p>
                       </div>
                     </div>
@@ -1340,7 +1341,7 @@ export default function ConfiguracoesPage() {
                           Alerta de pagamentos atrasados
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Notificacao diaria de cobrancas em atraso
+                          Notificação diária de cobranças em atraso
                         </p>
                       </div>
                     </div>
@@ -1395,7 +1396,7 @@ export default function ConfiguracoesPage() {
               <Card className="border-0 shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">
-                    Informacoes do Sistema
+                    Informações do Sistema
                   </CardTitle>
                   <CardDescription>
                     Dados tecnicos e opcoes de manutencao
@@ -1525,7 +1526,7 @@ export default function ConfiguracoesPage() {
                           Integracao Bancaria - Sicredi
                         </CardTitle>
                         <CardDescription>
-                          Emissao e gestao de boletos via API Sicredi
+                          Emissão e gestão de boletos via API Sicredi
                         </CardDescription>
                       </div>
                     </div>
