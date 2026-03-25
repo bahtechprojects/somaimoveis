@@ -449,48 +449,6 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="propertyId">Imóvel *</Label>
-                <div className="flex gap-2">
-                  <Select
-                    value={selectedPropertyId}
-                    onValueChange={(value) => {
-                      setValue("propertyId", value);
-                      // Auto-load co-owners from property
-                      if (value) {
-                        fetch(`/api/properties/${value}/owners`).then(r => r.json()).then(data => {
-                          const ownersList = data.owners || [];
-                          if (ownersList.length > 0) {
-                            // Set primary owner if not set
-                            const primaryId = data.primaryOwnerId;
-                            if (primaryId && !selectedOwnerId) setValue("ownerId", primaryId);
-                            // Set co-owners (exclude primary)
-                            setCoOwners(ownersList.filter((o: any) => o.ownerId !== primaryId).map((o: any) => ({ ownerId: o.ownerId, percentage: o.percentage })));
-                          }
-                        }).catch(() => {});
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione o imovel" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {properties.map((property) => (
-                        <SelectItem key={property.id} value={property.id}>
-                          {property.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button type="button" size="icon" variant="outline" onClick={() => setShowNewProperty(true)} title="Cadastrar imovel">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                {errors.propertyId && (
-                  <p className="text-xs text-destructive">{errors.propertyId.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
                 <Label htmlFor="ownerId">Proprietário *</Label>
                 <div className="flex gap-2">
                   <Select
@@ -498,7 +456,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                     onValueChange={(value) => setValue("ownerId", value)}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Selecione o proprietario" />
+                      <SelectValue placeholder="Selecione o proprietário" />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       {owners.map((owner) => (
@@ -508,12 +466,51 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                       ))}
                     </SelectContent>
                   </Select>
-                  <Button type="button" size="icon" variant="outline" onClick={() => setShowNewOwner(true)} title="Cadastrar proprietario">
+                  <Button type="button" size="icon" variant="outline" onClick={() => setShowNewOwner(true)} title="Cadastrar proprietário">
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
                 {errors.ownerId && (
                   <p className="text-xs text-destructive">{errors.ownerId.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="propertyId">Imóvel *</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={selectedPropertyId}
+                    onValueChange={(value) => {
+                      setValue("propertyId", value);
+                      if (value) {
+                        fetch(`/api/properties/${value}/owners`).then(r => r.json()).then(data => {
+                          const ownersList = data.owners || [];
+                          if (ownersList.length > 0) {
+                            const primaryId = data.primaryOwnerId;
+                            if (primaryId && !selectedOwnerId) setValue("ownerId", primaryId);
+                            setCoOwners(ownersList.filter((o: any) => o.ownerId !== primaryId).map((o: any) => ({ ownerId: o.ownerId, percentage: o.percentage })));
+                          }
+                        }).catch(() => {});
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o imóvel" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {properties.map((property) => (
+                        <SelectItem key={property.id} value={property.id}>
+                          {property.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" size="icon" variant="outline" onClick={() => setShowNewProperty(true)} title="Cadastrar imóvel">
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {errors.propertyId && (
+                  <p className="text-xs text-destructive">{errors.propertyId.message}</p>
                 )}
               </div>
 
