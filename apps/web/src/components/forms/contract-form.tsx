@@ -778,39 +778,15 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               {selectedGuaranteeType === "FIADOR" && (
                 <div className="space-y-3 sm:col-span-2">
                   <Label>Fiadores</Label>
-                  <div className="flex gap-2">
-                    <Select
-                      value=""
-                      onValueChange={(value) => {
-                        if (value && !selectedGuarantorIds.includes(value)) {
-                          setSelectedGuarantorIds(prev => [...prev, value]);
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Adicionar fiador" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {guarantorsList
-                          .filter(g => !selectedGuarantorIds.includes(g.id))
-                          .map((guarantor) => (
-                            <SelectItem key={guarantor.id} value={guarantor.id}>
-                              {guarantor.name} {guarantor.cpfCnpj ? `(${guarantor.cpfCnpj})` : ""}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0"
-                      onClick={() => setGuarantorFormOpen(true)}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Cadastrar Fiador
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setGuarantorFormOpen(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Cadastrar Fiador
+                  </Button>
 
                   {selectedGuarantorIds.length > 0 && (
                     <div className="space-y-1.5">
