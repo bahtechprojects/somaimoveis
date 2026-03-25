@@ -33,6 +33,8 @@ const ownerSchema = z.object({
   personType: z.string().default("PF"),
   email: z.string().email("Email invalido").or(z.literal("")).optional(),
   phone: z.string().optional(),
+  phone2: z.string().optional(),
+  email2: z.string().email("Email invalido").or(z.literal("")).optional(),
   street: z.string().optional(),
   number: z.string().optional(),
   complement: z.string().optional(),
@@ -88,6 +90,8 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
       personType: "PF",
       email: "",
       phone: "",
+      phone2: "",
+      email2: "",
       street: "",
       number: "",
       complement: "",
@@ -160,6 +164,8 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
           personType: owner.personType || "PF",
           email: owner.email || "",
           phone: owner.phone || "",
+          phone2: owner.phone2 || "",
+          email2: owner.email2 || "",
           street: owner.street || "",
           number: owner.number || "",
           complement: owner.complement || "",
@@ -194,7 +200,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
             reset(parsed);
           } else {
             reset({
-              name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
+              name: "", cpfCnpj: "", personType: "PF", email: "", phone: "", phone2: "", email2: "",
               street: "", number: "", complement: "", neighborhood: "",
               city: "", state: "", zipCode: "", stateRegistration: "",
               rgIssuer: "", birthDate: "",
@@ -206,7 +212,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
           }
         } catch {
           reset({
-            name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
+            name: "", cpfCnpj: "", personType: "PF", email: "", phone: "", phone2: "", email2: "",
             street: "", number: "", complement: "", neighborhood: "",
             city: "", state: "", zipCode: "", stateRegistration: "",
             bankName: "", bankAgency: "", bankAccount: "", bankPix: "",
@@ -408,6 +414,28 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
                   id="phone"
                   placeholder="(00) 00000-0000"
                   {...register("phone")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email2">Email 2</Label>
+                <Input
+                  id="email2"
+                  type="email"
+                  placeholder="email2@exemplo.com"
+                  {...register("email2")}
+                />
+                {errors.email2 && (
+                  <p className="text-xs text-destructive">{errors.email2.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone2">Telefone 2</Label>
+                <Input
+                  id="phone2"
+                  placeholder="(00) 00000-0000"
+                  {...register("phone2")}
                 />
               </div>
             </div>

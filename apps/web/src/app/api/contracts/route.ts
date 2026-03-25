@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     property: { select: { id: true, title: true } },
     owner: { select: { id: true, name: true } },
     tenant: { select: { id: true, name: true } },
+    tenant2: { select: { id: true, name: true } },
     guarantors: {
       select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
     },
@@ -101,6 +102,7 @@ export async function POST(request: NextRequest) {
         ownerId,
         propertyId: body.propertyId || null,
         tenantId: body.tenantId || null,
+        tenant2Id: body.tenant2Id || null,
         rentalValue: rentalValue ? parseFloat(String(rentalValue)) : 0,
         startDate: new Date(String(startDate).includes("T") ? startDate : startDate + "T12:00:00"),
         endDate: new Date(String(endDate).includes("T") ? endDate : endDate + "T12:00:00"),
@@ -127,6 +129,7 @@ export async function POST(request: NextRequest) {
         property: { select: { id: true, title: true } },
         owner: { select: { id: true, name: true } },
         tenant: { select: { id: true, name: true } },
+    tenant2: { select: { id: true, name: true } },
         guarantors: {
           select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
         },

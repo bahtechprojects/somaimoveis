@@ -169,6 +169,7 @@ function LancamentosContent() {
   const [formNotes, setFormNotes] = useState("");
   const [formInstallments, setFormInstallments] = useState("1");
   const [formIsRecurring, setFormIsRecurring] = useState(false);
+  const [formDestination, setFormDestination] = useState("");
 
   async function fetchEntries() {
     setLoading(true);
@@ -244,6 +245,7 @@ function LancamentosContent() {
     setFormNotes("");
     setFormInstallments("1");
     setFormIsRecurring(false);
+    setFormDestination("");
   }
 
   function handleNewEntry() {
@@ -270,6 +272,7 @@ function LancamentosContent() {
           notes: formNotes || null,
           installments: parseInt(formInstallments) || 1,
           isRecurring: formIsRecurring,
+          destination: formDestination || null,
         }),
       });
       if (!response.ok) {
@@ -649,9 +652,23 @@ function LancamentosContent() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="destination">Destino</Label>
+              <Select value={formDestination} onValueChange={setFormDestination}>
+                <SelectTrigger id="destination">
+                  <SelectValue placeholder="Para Imobiliária (padrão)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="IMOBILIARIA">Para Imobiliária</SelectItem>
+                  <SelectItem value="PROPRIETARIO">Para Proprietário</SelectItem>
+                  <SelectItem value="TERCEIRO">Para Terceiro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="value">Valor (R$)</Label>
+                <Label htmlFor="value">Valor Total (R$)</Label>
                 <Input
                   id="value"
                   type="number"
@@ -662,6 +679,11 @@ function LancamentosContent() {
                   onChange={(e) => setFormValue(e.target.value)}
                   required
                 />
+                {parseInt(formInstallments) > 1 && (
+                  <p className="text-xs text-muted-foreground">
+                    Informe o valor total - será dividido automaticamente pelas parcelas
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

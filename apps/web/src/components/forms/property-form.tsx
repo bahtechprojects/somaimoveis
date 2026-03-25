@@ -282,10 +282,16 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
                   <SelectContent>
                     <SelectItem value="CASA">Casa</SelectItem>
                     <SelectItem value="APARTAMENTO">Apartamento</SelectItem>
-                    <SelectItem value="COMERCIAL">Comercial</SelectItem>
-                    <SelectItem value="TERRENO">Terreno</SelectItem>
+                    <SelectItem value="DUPLEX">Duplex</SelectItem>
+                    <SelectItem value="GEMINADO">Geminado</SelectItem>
                     <SelectItem value="SALA">Sala</SelectItem>
-                    <SelectItem value="PAVILHAO">Pavilhao</SelectItem>
+                    <SelectItem value="CASA_COMERCIAL">Casa Comercial</SelectItem>
+                    <SelectItem value="LOJA">Loja</SelectItem>
+                    <SelectItem value="TERRENO">Terreno</SelectItem>
+                    <SelectItem value="PAVILHAO">Pavilhão</SelectItem>
+                    <SelectItem value="COMERCIAL">Comercial</SelectItem>
+                    <SelectItem value="KITNET">Kitnet</SelectItem>
+                    <SelectItem value="COBERTURA">Cobertura</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.type && (

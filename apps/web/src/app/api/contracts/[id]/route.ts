@@ -16,6 +16,7 @@ export async function GET(
         property: { select: { id: true, title: true } },
         owner: { select: { id: true, name: true, paymentDay: true } },
         tenant: { select: { id: true, name: true, paymentDay: true } },
+        tenant2: { select: { id: true, name: true } },
         guarantors: {
           select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
         },
@@ -55,6 +56,7 @@ export async function PUT(
       data.endDate = new Date(ed.includes("T") ? ed : ed + "T12:00:00");
     }
     if (data.paymentDay !== undefined) data.paymentDay = parseInt(data.paymentDay as string);
+    if (data.tenant2Id !== undefined) data.tenant2Id = data.tenant2Id || null;
     if (data.guaranteeValue !== undefined) data.guaranteeValue = data.guaranteeValue ? parseFloat(data.guaranteeValue as string) : null;
     if (data.adjustmentMonth !== undefined) data.adjustmentMonth = data.adjustmentMonth ? parseInt(data.adjustmentMonth as string) : null;
     if (data.intermediationInstallments !== undefined) data.intermediationInstallments = data.intermediationInstallments ? parseInt(data.intermediationInstallments as string) : 1;
@@ -87,6 +89,7 @@ export async function PUT(
         property: { select: { id: true, title: true } },
         owner: { select: { id: true, name: true } },
         tenant: { select: { id: true, name: true } },
+        tenant2: { select: { id: true, name: true } },
         guarantors: {
           select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
         },

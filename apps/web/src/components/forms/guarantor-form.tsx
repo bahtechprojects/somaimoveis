@@ -34,7 +34,9 @@ const guarantorSchema = z.object({
   rgNumber: z.string().optional(),
   rgIssuer: z.string().optional(),
   phone: z.string().optional(),
+  phone2: z.string().optional(),
   email: z.string().email("Email invalido").or(z.literal("")).optional(),
+  email2: z.string().email("Email invalido").or(z.literal("")).optional(),
   street: z.string().optional(),
   number: z.string().optional(),
   complement: z.string().optional(),
@@ -77,7 +79,9 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
       rgNumber: "",
       rgIssuer: "",
       phone: "",
+      phone2: "",
       email: "",
+      email2: "",
       street: "",
       number: "",
       complement: "",
@@ -112,7 +116,9 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
           rgNumber: guarantor.rgNumber || "",
           rgIssuer: guarantor.rgIssuer || "",
           phone: guarantor.phone || "",
+          phone2: guarantor.phone2 || "",
           email: guarantor.email || "",
+          email2: guarantor.email2 || "",
           street: guarantor.street || "",
           number: guarantor.number || "",
           complement: guarantor.complement || "",
@@ -126,7 +132,7 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
       } else {
         reset({
           name: "", cpfCnpj: "", maritalStatus: "", profession: "",
-          rgNumber: "", rgIssuer: "", phone: "", email: "",
+          rgNumber: "", rgIssuer: "", phone: "", phone2: "", email: "", email2: "",
           street: "", number: "", complement: "", neighborhood: "",
           city: "", state: "", zipCode: "", propertyRegistration: "", notes: "",
         });
@@ -272,6 +278,28 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
                 />
                 {errors.email && (
                   <p className="text-xs text-destructive">{errors.email.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="g-phone2">Telefone 2</Label>
+                <Input
+                  id="g-phone2"
+                  placeholder="(00) 00000-0000"
+                  {...register("phone2")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="g-email2">Email 2</Label>
+                <Input
+                  id="g-email2"
+                  type="email"
+                  placeholder="email2@exemplo.com"
+                  {...register("email2")}
+                />
+                {errors.email2 && (
+                  <p className="text-xs text-destructive">{errors.email2.message}</p>
                 )}
               </div>
             </div>

@@ -33,6 +33,8 @@ const tenantSchema = z.object({
   personType: z.string().default("PF"),
   email: z.string().email("Email invalido").or(z.literal("")).optional(),
   phone: z.string().optional(),
+  phone2: z.string().optional(),
+  email2: z.string().email("Email invalido").or(z.literal("")).optional(),
   rgNumber: z.string().optional(),
   rgIssuer: z.string().optional(),
   birthDate: z.string().optional(),
@@ -79,6 +81,8 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
       personType: "PF",
       email: "",
       phone: "",
+      phone2: "",
+      email2: "",
       rgNumber: "",
       rgIssuer: "",
       birthDate: "",
@@ -139,6 +143,8 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
           personType: tenant.personType || "PF",
           email: tenant.email || "",
           phone: tenant.phone || "",
+          phone2: tenant.phone2 || "",
+          email2: tenant.email2 || "",
           rgNumber: tenant.rgNumber || "",
           rgIssuer: tenant.rgIssuer || "",
           birthDate: tenant.birthDate || "",
@@ -162,7 +168,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
             reset(JSON.parse(draft));
           } else {
             reset({
-              name: "", cpfCnpj: "", personType: "PF", email: "", phone: "",
+              name: "", cpfCnpj: "", personType: "PF", email: "", phone: "", phone2: "", email2: "",
               rgNumber: "", rgIssuer: "", birthDate: "", occupation: "", monthlyIncome: undefined, paymentDay: 5,
               street: "", number: "", complement: "", neighborhood: "",
               city: "", state: "", zipCode: "", stateRegistration: "", notes: "",
@@ -335,6 +341,28 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
                   id="phone"
                   placeholder="(00) 00000-0000"
                   {...register("phone")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email2">Email 2</Label>
+                <Input
+                  id="email2"
+                  type="email"
+                  placeholder="email2@exemplo.com"
+                  {...register("email2")}
+                />
+                {errors.email2 && (
+                  <p className="text-xs text-destructive">{errors.email2.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone2">Telefone 2</Label>
+                <Input
+                  id="phone2"
+                  placeholder="(00) 00000-0000"
+                  {...register("phone2")}
                 />
               </div>
 

@@ -147,7 +147,10 @@ export async function POST(request: NextRequest) {
 
         const splitOwnerValue = Math.round((contract.rentalValue - splitAdminValue) * 100) / 100;
 
-        // Calculate IRRF on owner's gross income (rental - admin fee)
+        // Calculate IRRF on owner's gross income (rental - admin fee).
+        // IRRF is calculated ONLY on the rental value (aluguel) minus admin fee.
+        // Condominio, IPTU and other fees are NOT included in the IRRF base,
+        // since grossToOwner = rentalValue - adminFee (does not include condoFee or iptuMonthly).
         const grossToOwner = splitOwnerValue;
         const irrf = calculateIRRF(grossToOwner);
         const irrfValue = irrf.irrfValue;

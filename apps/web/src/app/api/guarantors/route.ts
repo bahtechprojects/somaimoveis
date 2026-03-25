@@ -95,6 +95,8 @@ export async function POST(request: NextRequest) {
       personType: body.personType || "PF",
       email: body.email || null,
       phone: body.phone || null,
+      phone2: body.phone2 || null,
+      email2: body.email2 || null,
       rgNumber: body.rgNumber || null,
       rgIssuer: body.rgIssuer || null,
       birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,

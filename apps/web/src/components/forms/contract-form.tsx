@@ -36,6 +36,7 @@ const contractSchema = z.object({
   propertyId: z.string().optional(),
   ownerId: z.string().min(1, "Proprietário é obrigatório"),
   tenantId: z.string().optional(),
+  tenant2Id: z.string().optional(),
   rentalValue: z.coerce.number().min(0).optional(),
   adminFeePercent: z.coerce.number().min(0),
   intermediationFee: z.coerce.number().min(0).optional(),
@@ -61,6 +62,7 @@ type ContractFormData = {
   propertyId: string;
   ownerId: string;
   tenantId: string;
+  tenant2Id?: string;
   rentalValue: number;
   adminFeePercent: number;
   intermediationFee?: number;
@@ -125,6 +127,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       propertyId: "",
       ownerId: "",
       tenantId: "",
+      tenant2Id: "",
       rentalValue: undefined,
       adminFeePercent: 10,
       intermediationFee: undefined,
@@ -149,6 +152,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   const selectedPropertyId = watch("propertyId");
   const selectedOwnerId = watch("ownerId");
   const selectedTenantId = watch("tenantId");
+  const selectedTenant2Id = watch("tenant2Id");
   const selectedGuaranteeType = watch("guaranteeType");
   const selectedAdjustmentIndex = watch("adjustmentIndex");
 
@@ -221,6 +225,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           propertyId: contract.propertyId || "",
           ownerId: contract.ownerId || "",
           tenantId: contract.tenantId || "",
+          tenant2Id: contract.tenant2Id || "",
           rentalValue: contract.rentalValue ?? undefined,
           adminFeePercent: contract.adminFeePercent ?? 10,
           intermediationFee: contract.intermediationFee ?? undefined,
@@ -274,6 +279,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           propertyId: "",
           ownerId: "",
           tenantId: "",
+          tenant2Id: "",
           rentalValue: undefined,
           adminFeePercent: 10,
           intermediationFee: undefined,
@@ -304,6 +310,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
 
       const payload = {
         ...data,
+        tenant2Id: data.tenant2Id || null,
         startDate: data.startDate,
         endDate: data.endDate,
         intermediationFee: data.intermediationFee || null,
@@ -571,7 +578,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 )}
               </div>
 
-              <div className="space-y-2 sm:col-span-2">
+              <div className="space-y-2">
                 <Label htmlFor="tenantId">Locatário *</Label>
                 <div className="flex gap-2">
                   <Select
@@ -596,6 +603,26 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 {errors.tenantId && (
                   <p className="text-xs text-destructive">{errors.tenantId.message}</p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="tenant2Id">Locatário 2 (opcional)</Label>
+                <Select
+                  value={selectedTenant2Id || ""}
+                  onValueChange={(value) => setValue("tenant2Id", value === "__none__" ? "" : value)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione (opcional)" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem value="__none__">Nenhum</SelectItem>
+                    {tenants.filter((t) => t.id !== selectedTenantId).map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
