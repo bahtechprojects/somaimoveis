@@ -274,10 +274,17 @@ model Payment {
   status        String    @default("PENDENTE") // PENDENTE, PAGO, ATRASADO, CANCELADO, PARCIAL
   paymentMethod String?   // BOLETO, PIX, CARTAO, TRANSFERENCIA, DINHEIRO
   description   String?
-  // Split (futuro - Asaas)
+  // Split
   splitOwnerValue     Float?
   splitAdminValue     Float?
-  externalPaymentId   String?  // ID do Asaas
+  externalPaymentId   String?
+  // Boleto Sicredi
+  nossoNumero       String?   // ID unico do boleto no Sicredi
+  linhaDigitavel    String?   // Linha digitavel para pagamento
+  codigoBarras      String?   // Codigo de barras
+  boletoStatus      String?   // EMITIDO, LIQUIDADO, BAIXADO, VENCIDO
+  boletoEmitidoEm   DateTime? // Data de emissao
+  boletoLiquidadoEm DateTime? // Data de liquidacao (webhook)
   // Meta
   notes         String?
   createdAt     DateTime  @default(now())
@@ -288,6 +295,7 @@ model Payment {
   @@index([contractId])
   @@index([tenantId])
   @@index([ownerId])
+  @@index([nossoNumero])
   @@map("payments")
 }
 

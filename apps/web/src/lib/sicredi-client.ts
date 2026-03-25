@@ -1,0 +1,460 @@
+// ==================================================
+// Cliente API Sicredi - Cobranca / Boletos
+// https://developers.sicredi.com.br
+// ==================================================
+
+const SICREDI_API_URL = process.env.SICREDI_API_URL || "https://api-parceiro.sicredi.com.br";
+const SICREDI_API_KEY = process.env.SICREDI_API_KEY;
+const SICREDI_USERNAME = process.env.SICREDI_USERNAME;
+const SICREDI_PASSWORD = process.env.SICREDI_PASSWORD;
+const SICREDI_COOPERATIVA = process.env.SICREDI_COOPERATIVA;
+const SICREDI_POSTO = process.env.SICREDI_POSTO;
+const SICREDI_BENEFICIARIO = process.env.SICREDI_BENEFICIARIO;
+const SICREDI_SANDBOX = process.env.SICREDI_SANDBOX === "true";
+
+// Prefixo de sandbox para URLs
+const PATH_PREFIX = SICREDI_SANDBOX ? "/sb" : "";
+
+// Cache de token em memoria
+let cachedToken: string | null = null;
+let tokenExpiresAt = 0;
+const TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+// ---- Tipos ----
+
+export interface CreateBoletoParams {
+  beneficiarioFinal: {
+    cep: string;
+    cidade: string;
+    documento: string; // CPF/CNPJ
+    logradouro: string;
+    nome: string;
+    tipoPessoa: "PESSOA_FISICA" | "PESSOA_JURIDICA";
+    uf: string;
+  };
+  pagador: {
+    cep: string;
+    cidade: string;
+    documento: string;
+    nome: string;
+    tipoPessoa: "PESSOA_FISICA" | "PESSOA_JURIDICA";
+    endereco: string;
+    uf: string;
+  };
+  valor: number;
+  dataVencimento: string; // YYYY-MM-DD
+  tipoCobranca?: "NORMAL" | "HIBRIDO";
+  seuNumero?: string;
+  especieDocumento?: string;
+  informativos?: string[];
+  mensagens?: string[];
+}
+
+export interface CreateBoletoResult {
+  nossoNumero: string;
+  linhaDigitavel: string;
+  codigoBarras: string;
+  success: boolean;
+  error?: string;
+}
+
+// ---- Helpers ----
+
+/**
+ * Verifica se a integracao Sicredi esta configurada
+ */
+export function isSicrediConfigured(): boolean {
+  return !!(
+    SICREDI_API_KEY &&
+    SICREDI_USERNAME &&
+    SICREDI_PASSWORD &&
+    SICREDI_COOPERATIVA &&
+    SICREDI_POSTO &&
+    SICREDI_BENEFICIARIO
+  );
+}
+
+/**
+ * Headers comuns para chamadas autenticadas
+ */
+function commonHeaders(token: string): Record<string, string> {
+  return {
+    "Authorization": `Bearer ${token}`,
+    "x-api-key": SICREDI_API_KEY!,
+    "Content-Type": "application/json",
+    "cooperativa": SICREDI_COOPERATIVA!,
+    "posto": SICREDI_POSTO!,
+  };
+}
+
+/**
+ * Faz fetch com retry automatico em caso de 401 (token expirado)
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit
+): Promise<Response> {
+  let response = await fetch(url, options);
+
+  if (response.status === 401) {
+    console.log("[Sicredi] Token expirado, renovando...");
+    cachedToken = null;
+    tokenExpiresAt = 0;
+    const newToken = await sicrediAuth();
+
+    // Atualiza headers com novo token
+    const headers = options.headers as Record<string, string>;
+    headers["Authorization"] = `Bearer ${newToken}`;
+
+    response = await fetch(url, { ...options, headers });
+  }
+
+  return response;
+}
+
+// ---- Autenticacao ----
+
+/**
+ * Autentica na API Sicredi e retorna Bearer token.
+ * Usa cache em memoria com TTL de 5 minutos.
+ */
+export async function sicrediAuth(): Promise<string> {
+  // Retorna token em cache se ainda valido
+  if (cachedToken && Date.now() < tokenExpiresAt) {
+    return cachedToken;
+  }
+
+  // Mock se nao configurado
+  if (!isSicrediConfigured()) {
+    console.log("[Sicredi Mock] Auth - retornando token mock");
+    cachedToken = `mock-token-${Date.now()}`;
+    tokenExpiresAt = Date.now() + TOKEN_TTL_MS;
+    return cachedToken;
+  }
+
+  const url = `${SICREDI_API_URL}${PATH_PREFIX}/auth/openapi/token`;
+
+  console.log(`[Sicredi] Autenticando em ${url}...`);
+
+  try {
+    const body = new URLSearchParams({
+      username: SICREDI_USERNAME!,
+      password: SICREDI_PASSWORD!,
+      scope: "cobranca",
+      grant_type: "password",
+    });
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "x-api-key": SICREDI_API_KEY!,
+        "context": "COBRANCA",
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(`[Sicredi] Erro auth ${response.status}:`, data);
+      throw new Error(
+        data?.message || data?.error || `Erro HTTP ${response.status}`
+      );
+    }
+
+    console.log("[Sicredi] Autenticacao bem-sucedida");
+    cachedToken = data.access_token;
+    tokenExpiresAt = Date.now() + TOKEN_TTL_MS;
+    return cachedToken!;
+  } catch (error) {
+    const errMsg =
+      error instanceof Error ? error.message : "Erro desconhecido na auth";
+    console.error(`[Sicredi] Falha na autenticacao:`, errMsg);
+    throw new Error(`Sicredi auth falhou: ${errMsg}`);
+  }
+}
+
+// ---- Boletos ----
+
+/**
+ * Cria um boleto na API Sicredi
+ */
+export async function sicrediCreateBoleto(
+  params: CreateBoletoParams
+): Promise<CreateBoletoResult> {
+  // Mock se nao configurado
+  if (!isSicrediConfigured()) {
+    const mockNN = `${Date.now()}`.slice(-10);
+    console.log(
+      `[Sicredi Mock] Criando boleto - Pagador: ${params.pagador.nome}, Valor: ${params.valor}, Venc: ${params.dataVencimento}`
+    );
+    return {
+      nossoNumero: mockNN,
+      linhaDigitavel: `74891.11111 11111.111111 11111.111111 1 ${mockNN}`,
+      codigoBarras: `74891${mockNN}00000000${Math.floor(params.valor * 100)}`,
+      success: true,
+    };
+  }
+
+  const token = await sicrediAuth();
+  const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos`;
+
+  const body = {
+    codigoBeneficiario: SICREDI_BENEFICIARIO,
+    tipoCobranca: params.tipoCobranca || "HIBRIDO",
+    especieDocumento: params.especieDocumento || "DUPLICATA_MERCANTIL_INDICACAO",
+    valor: params.valor,
+    dataVencimento: params.dataVencimento,
+    pagador: params.pagador,
+    beneficiarioFinal: params.beneficiarioFinal,
+    ...(params.seuNumero && { seuNumero: params.seuNumero }),
+    ...(params.informativos && { informativos: params.informativos }),
+    ...(params.mensagens && { mensagens: params.mensagens }),
+  };
+
+  console.log(`[Sicredi] Criando boleto:`, JSON.stringify(body, null, 2));
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: "POST",
+      headers: commonHeaders(token),
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(`[Sicredi] Erro ao criar boleto ${response.status}:`, data);
+      return {
+        nossoNumero: "",
+        linhaDigitavel: "",
+        codigoBarras: "",
+        success: false,
+        error: data?.message || data?.error || `Erro HTTP ${response.status}`,
+      };
+    }
+
+    console.log("[Sicredi] Boleto criado com sucesso:", data);
+    return {
+      nossoNumero: data.nossoNumero || "",
+      linhaDigitavel: data.linhaDigitavel || "",
+      codigoBarras: data.codigoBarras || "",
+      success: true,
+    };
+  } catch (error) {
+    const errMsg =
+      error instanceof Error ? error.message : "Erro desconhecido";
+    console.error(`[Sicredi] Falha ao criar boleto:`, errMsg);
+    return {
+      nossoNumero: "",
+      linhaDigitavel: "",
+      codigoBarras: "",
+      success: false,
+      error: errMsg,
+    };
+  }
+}
+
+/**
+ * Consulta um boleto pelo nossoNumero
+ */
+export async function sicrediQueryBoleto(nossoNumero: string): Promise<any> {
+  // Mock se nao configurado
+  if (!isSicrediConfigured()) {
+    console.log(`[Sicredi Mock] Consultando boleto ${nossoNumero}`);
+    return {
+      nossoNumero,
+      situacao: "EM_ABERTO",
+      valor: 1500.0,
+      dataVencimento: "2026-04-01",
+      success: true,
+    };
+  }
+
+  const token = await sicrediAuth();
+  const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos?codigoBeneficiario=${SICREDI_BENEFICIARIO}&nossoNumero=${nossoNumero}`;
+
+  console.log(`[Sicredi] Consultando boleto ${nossoNumero}...`);
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: "GET",
+      headers: commonHeaders(token),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error(
+        `[Sicredi] Erro ao consultar boleto ${response.status}:`,
+        data
+      );
+      return {
+        success: false,
+        error: data?.message || data?.error || `Erro HTTP ${response.status}`,
+      };
+    }
+
+    console.log(`[Sicredi] Boleto ${nossoNumero}:`, data);
+    return { ...data, success: true };
+  } catch (error) {
+    const errMsg =
+      error instanceof Error ? error.message : "Erro desconhecido";
+    console.error(`[Sicredi] Falha ao consultar boleto:`, errMsg);
+    return { success: false, error: errMsg };
+  }
+}
+
+/**
+ * Imprime (baixa PDF) de um boleto pela linhaDigitavel
+ * Retorna o PDF como Buffer
+ */
+export async function sicrediPrintBoleto(
+  linhaDigitavel: string
+): Promise<Buffer> {
+  // Mock se nao configurado
+  if (!isSicrediConfigured()) {
+    console.log(`[Sicredi Mock] Imprimindo boleto ${linhaDigitavel}`);
+    return Buffer.from("PDF_MOCK_CONTENT");
+  }
+
+  const token = await sicrediAuth();
+  const encoded = encodeURIComponent(linhaDigitavel);
+  const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/pdf?linhaDigitavel=${encoded}`;
+
+  console.log(`[Sicredi] Baixando PDF do boleto...`);
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: "GET",
+      headers: {
+        ...commonHeaders(token),
+        "Accept": "application/pdf",
+      },
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[Sicredi] Erro ao baixar PDF ${response.status}:`, text);
+      throw new Error(`Erro HTTP ${response.status}: ${text}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    console.log(
+      `[Sicredi] PDF baixado com sucesso (${arrayBuffer.byteLength} bytes)`
+    );
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    const errMsg =
+      error instanceof Error ? error.message : "Erro desconhecido";
+    console.error(`[Sicredi] Falha ao baixar PDF:`, errMsg);
+    throw new Error(`Sicredi PDF falhou: ${errMsg}`);
+  }
+}
+
+/**
+ * Cancela (baixa) um boleto pelo nossoNumero
+ */
+export async function sicrediCancelBoleto(
+  nossoNumero: string
+): Promise<{ success: boolean; error?: string }> {
+  // Mock se nao configurado
+  if (!isSicrediConfigured()) {
+    console.log(`[Sicredi Mock] Cancelando boleto ${nossoNumero}`);
+    return { success: true };
+  }
+
+  const token = await sicrediAuth();
+  const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/${nossoNumero}/baixa`;
+
+  console.log(`[Sicredi] Cancelando boleto ${nossoNumero}...`);
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: "PATCH",
+      headers: commonHeaders(token),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      console.error(
+        `[Sicredi] Erro ao cancelar boleto ${response.status}:`,
+        data
+      );
+      return {
+        success: false,
+        error:
+          (data as any)?.message ||
+          (data as any)?.error ||
+          `Erro HTTP ${response.status}`,
+      };
+    }
+
+    console.log(`[Sicredi] Boleto ${nossoNumero} cancelado com sucesso`);
+    return { success: true };
+  } catch (error) {
+    const errMsg =
+      error instanceof Error ? error.message : "Erro desconhecido";
+    console.error(`[Sicredi] Falha ao cancelar boleto:`, errMsg);
+    return { success: false, error: errMsg };
+  }
+}
+
+/**
+ * Atualiza descontos de um boleto pelo nossoNumero
+ */
+export async function sicrediUpdateDiscount(
+  nossoNumero: string,
+  descontos: { valor1?: number; valor2?: number; valor3?: number }
+): Promise<{ success: boolean; error?: string }> {
+  // Mock se nao configurado
+  if (!isSicrediConfigured()) {
+    console.log(
+      `[Sicredi Mock] Atualizando desconto boleto ${nossoNumero}:`,
+      descontos
+    );
+    return { success: true };
+  }
+
+  const token = await sicrediAuth();
+  const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/${nossoNumero}/desconto`;
+
+  console.log(
+    `[Sicredi] Atualizando desconto do boleto ${nossoNumero}:`,
+    descontos
+  );
+
+  try {
+    const response = await fetchWithRetry(url, {
+      method: "PATCH",
+      headers: commonHeaders(token),
+      body: JSON.stringify(descontos),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      console.error(
+        `[Sicredi] Erro ao atualizar desconto ${response.status}:`,
+        data
+      );
+      return {
+        success: false,
+        error:
+          (data as any)?.message ||
+          (data as any)?.error ||
+          `Erro HTTP ${response.status}`,
+      };
+    }
+
+    console.log(
+      `[Sicredi] Desconto do boleto ${nossoNumero} atualizado com sucesso`
+    );
+    return { success: true };
+  } catch (error) {
+    const errMsg =
+      error instanceof Error ? error.message : "Erro desconhecido";
+    console.error(`[Sicredi] Falha ao atualizar desconto:`, errMsg);
+    return { success: false, error: errMsg };
+  }
+}
