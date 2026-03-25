@@ -143,7 +143,7 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
           birthDate: tenant.birthDate || "",
           occupation: tenant.occupation || "",
           monthlyIncome: tenant.monthlyIncome ?? undefined,
-          paymentDay: tenant.paymentDay ?? 10,
+          paymentDay: tenant.paymentDay ?? 5,
           street: tenant.street || "",
           number: tenant.number || "",
           complement: tenant.complement || "",

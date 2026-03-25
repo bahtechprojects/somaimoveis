@@ -48,6 +48,8 @@ const contractSchema = z.object({
   adjustmentIndex: z.string().optional(),
   adjustmentMonth: z.coerce.number().int().min(1).max(12).optional(),
   lastAdjustmentPercent: z.coerce.number().optional(),
+  renewalMonths: z.coerce.number().int().min(1).default(12),
+  penaltyPercent: z.coerce.number().min(0).default(3),
   notes: z.string().optional(),
 });
 
@@ -71,6 +73,8 @@ type ContractFormData = {
   adjustmentIndex?: string;
   adjustmentMonth?: number;
   lastAdjustmentPercent?: number;
+  renewalMonths: number;
+  penaltyPercent: number;
   notes?: string;
 };
 
@@ -135,6 +139,8 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       adjustmentIndex: "IGPM",
       adjustmentMonth: undefined,
       lastAdjustmentPercent: undefined,
+      renewalMonths: 12,
+      penaltyPercent: 3,
       notes: "",
     },
   });
@@ -233,6 +239,8 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           adjustmentIndex: contract.adjustmentIndex || "IGPM",
           adjustmentMonth: contract.adjustmentMonth ?? undefined,
           lastAdjustmentPercent: contract.lastAdjustmentPercent ?? undefined,
+          renewalMonths: contract.renewalMonths ?? 12,
+          penaltyPercent: contract.penaltyPercent ?? 3,
           notes: contract.notes || "",
         });
         // Set selected guarantors from contract data
@@ -264,6 +272,8 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           adjustmentIndex: "IGPM",
           adjustmentMonth: undefined,
           lastAdjustmentPercent: undefined,
+          renewalMonths: 12,
+          penaltyPercent: 3,
           notes: "",
         });
         setSelectedGuarantorIds([]);
@@ -284,6 +294,8 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         intermediationFee: data.intermediationFee || null,
         intermediationInstallments: data.intermediationInstallments || 1,
         lastAdjustmentPercent: data.lastAdjustmentPercent || null,
+        renewalMonths: data.renewalMonths || 12,
+        penaltyPercent: data.penaltyPercent ?? 3,
         guaranteeType: data.guaranteeType || null,
         guaranteeValue: data.guaranteeValue || null,
         guaranteeNotes: data.guaranteeNotes || null,
@@ -591,6 +603,26 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 {errors.endDate && (
                   <p className="text-xs text-destructive">{errors.endDate.message}</p>
                 )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="renewalMonths">Prazo Renovacao (meses)</Label>
+                <Input
+                  id="renewalMonths"
+                  type="number"
+                  min={1}
+                  {...register("renewalMonths")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="penaltyPercent">Multa Rescisao (meses)</Label>
+                <Input
+                  id="penaltyPercent"
+                  type="number"
+                  step="0.5"
+                  min={0}
+                  {...register("penaltyPercent")}
+                />
               </div>
             </div>
           </div>
