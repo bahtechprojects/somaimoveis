@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload, X, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -91,6 +91,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   const [tenants, setTenants] = useState<SelectOption[]>([]);
   const [properties, setProperties] = useState<SelectOption[]>([]);
   const [guarantors, setGuarantors] = useState<SelectOption[]>([]);
+  const [pdfFiles, setPdfFiles] = useState<File[]>([]);
   const isEditing = !!contract;
 
   const {
@@ -285,6 +286,23 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Erro ao salvar contrato");
+      }
+
+      // Upload PDFs if any
+      if (pdfFiles.length > 0) {
+        const result = await response.json();
+        const contractId = result.id || contract?.id;
+        if (contractId) {
+          for (const file of pdfFiles) {
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("contractId", contractId);
+            formData.append("entityType", "CONTRACT");
+            formData.append("entityId", contractId);
+            await fetch("/api/upload", { method: "POST", body: formData }).catch(() => {});
+          }
+        }
+        setPdfFiles([]);
       }
 
       onOpenChange(false);
@@ -661,6 +679,51 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 />
               </div>
             </div>
+          </div>
+
+          {/* Upload PDFs */}
+          <div className="space-y-3">
+            <Label className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Documentos PDF
+            </Label>
+            <div
+              className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => document.getElementById("contract-pdf-input")?.click()}
+            >
+              <Upload className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+              <p className="text-sm text-muted-foreground">Clique para anexar PDFs (locacao, vistoria, procuracao, etc.)</p>
+              <input
+                id="contract-pdf-input"
+                type="file"
+                accept=".pdf"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  setPdfFiles(prev => [...prev, ...files]);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+            {pdfFiles.length > 0 && (
+              <div className="space-y-1">
+                {pdfFiles.map((file, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-1.5">
+                    <FileText className="h-4 w-4 text-red-500 shrink-0" />
+                    <span className="truncate flex-1">{file.name}</span>
+                    <span className="text-muted-foreground text-xs">{(file.size / 1024 / 1024).toFixed(1)}MB</span>
+                    <button
+                      type="button"
+                      onClick={() => setPdfFiles(prev => prev.filter((_, idx) => idx !== i))}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Observacoes */}
