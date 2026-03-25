@@ -82,6 +82,10 @@ export async function POST(request: NextRequest) {
       `[Sicredi Webhook] Pagamento ${payment.code} atualizado para LIQUIDADO`
     );
 
+    if (!payment.owner) {
+      console.warn("[Sicredi Webhook] Payment has no owner linked:", payment.id);
+    }
+
     // Notificacao WhatsApp ao proprietario (opcional, nao falha se der erro)
     try {
       const ownerPhone = payment.owner?.phone;

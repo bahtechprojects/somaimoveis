@@ -36,9 +36,38 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    const data: Record<string, unknown> = {};
+    // String fields
+    if (body.title !== undefined) data.title = body.title;
+    if (body.description !== undefined) data.description = body.description;
+    if (body.type !== undefined) data.type = body.type;
+    if (body.status !== undefined) data.status = body.status;
+    if (body.street !== undefined) data.street = body.street;
+    if (body.number !== undefined) data.number = body.number;
+    if (body.complement !== undefined) data.complement = body.complement;
+    if (body.neighborhood !== undefined) data.neighborhood = body.neighborhood;
+    if (body.city !== undefined) data.city = body.city;
+    if (body.state !== undefined) data.state = body.state;
+    if (body.zipCode !== undefined) data.zipCode = body.zipCode;
+    if (body.ownerNotes !== undefined) data.ownerNotes = body.ownerNotes;
+    // Numeric fields (parseFloat)
+    if (body.area !== undefined) data.area = body.area ? parseFloat(body.area) : null;
+    if (body.rentalValue !== undefined) data.rentalValue = body.rentalValue ? parseFloat(body.rentalValue) : null;
+    if (body.saleValue !== undefined) data.saleValue = body.saleValue ? parseFloat(body.saleValue) : null;
+    if (body.condoFee !== undefined) data.condoFee = body.condoFee ? parseFloat(body.condoFee) : null;
+    if (body.iptuValue !== undefined) data.iptuValue = body.iptuValue ? parseFloat(body.iptuValue) : null;
+    // Integer fields (parseInt)
+    if (body.bedrooms !== undefined) data.bedrooms = body.bedrooms ? parseInt(body.bedrooms) : null;
+    if (body.bathrooms !== undefined) data.bathrooms = body.bathrooms ? parseInt(body.bathrooms) : null;
+    if (body.parkingSpaces !== undefined) data.parkingSpaces = body.parkingSpaces ? parseInt(body.parkingSpaces) : null;
+    // ID fields
+    if (body.ownerId !== undefined) data.ownerId = body.ownerId;
+    // Boolean fields
+    if (body.furnished !== undefined) data.furnished = Boolean(body.furnished);
+
     const property = await prisma.property.update({
       where: { id },
-      data: body,
+      data,
       include: { owner: true },
     });
     return NextResponse.json(property);

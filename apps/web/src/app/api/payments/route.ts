@@ -98,6 +98,13 @@ export async function POST(request: NextRequest) {
       discountValue: body.discountValue ? parseFloat(body.discountValue) : null,
       splitOwnerValue: body.splitOwnerValue ? parseFloat(body.splitOwnerValue) : null,
       splitAdminValue: body.splitAdminValue ? parseFloat(body.splitAdminValue) : null,
+      lateFee: body.lateFee ? parseFloat(body.lateFee) : null,
+      totalDue: body.totalDue ? parseFloat(body.totalDue) : null,
+      irrfValue: body.irrfValue ? parseFloat(body.irrfValue) : null,
+      irrfRate: body.irrfRate ? parseFloat(body.irrfRate) : null,
+      grossToOwner: body.grossToOwner ? parseFloat(body.grossToOwner) : null,
+      netToOwner: body.netToOwner ? parseFloat(body.netToOwner) : null,
+      intermediationFee: body.intermediationFee ? parseFloat(body.intermediationFee) : null,
       notes: body.notes || null,
     },
     include: {
