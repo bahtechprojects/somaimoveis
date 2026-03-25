@@ -345,7 +345,11 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
             formData.append("contractId", contractId);
             formData.append("entityType", "CONTRACT");
             formData.append("entityId", contractId);
-            await fetch("/api/upload", { method: "POST", body: formData }).catch(() => {});
+            const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+            if (!uploadRes.ok) {
+              const err = await uploadRes.json().catch(() => ({}));
+              console.error("[Upload PDF]", err);
+            }
           }
         }
         setPdfFiles([]);

@@ -57,6 +57,7 @@ import {
   Download,
   Paperclip,
   RefreshCw,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContractForm } from "@/components/forms/contract-form";
@@ -897,7 +898,33 @@ export default function ContratoDetalhePage() {
             {/* Documentos Anexados (API) */}
             <Card className="border-0 shadow-sm">
               <CardContent className="p-6">
-                <SectionTitle icon={Paperclip} title="Documentos" />
+                <div className="flex items-center justify-between mb-2">
+                  <SectionTitle icon={Paperclip} title="Documentos" />
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors">
+                    <Upload className="h-3.5 w-3.5" />
+                    Anexar PDF
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      multiple
+                      className="hidden"
+                      onChange={async (e) => {
+                        const files = Array.from(e.target.files || []);
+                        for (const file of files) {
+                          const formData = new FormData();
+                          formData.append("file", file);
+                          formData.append("contractId", contractId);
+                          formData.append("entityType", "CONTRACT");
+                          formData.append("entityId", contractId);
+                          await fetch("/api/upload", { method: "POST", body: formData });
+                        }
+                        e.target.value = "";
+                        fetchContractDocs();
+                        toast.success(`${files.length} documento(s) anexado(s)`);
+                      }}
+                    />
+                  </label>
+                </div>
                 {docsLoading ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
