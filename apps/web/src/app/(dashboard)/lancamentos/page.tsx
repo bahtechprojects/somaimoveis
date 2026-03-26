@@ -105,6 +105,8 @@ const categoryLabels: Record<string, string> = {
   MULTA: "Multa",
   REPARO: "Reparo",
   DESCONTO: "Desconto",
+  SEGURO_FIANCA: "Seguro Fiança",
+  SEGURO_INCENDIO: "Seguro Incêndio",
   ACORDO: "Acordo",
   OUTROS: "Outros",
 };
@@ -119,6 +121,8 @@ const categories = [
   "MULTA",
   "REPARO",
   "DESCONTO",
+  "SEGURO_FIANCA",
+  "SEGURO_INCENDIO",
   "ACORDO",
   "OUTROS",
 ];
