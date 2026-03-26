@@ -57,9 +57,9 @@ export async function PUT(
     if (body.condoFee !== undefined) data.condoFee = body.condoFee ? parseFloat(body.condoFee) : null;
     if (body.iptuValue !== undefined) data.iptuValue = body.iptuValue ? parseFloat(body.iptuValue) : null;
     // Integer fields (parseInt)
-    if (body.bedrooms !== undefined) data.bedrooms = body.bedrooms ? parseInt(body.bedrooms) : null;
-    if (body.bathrooms !== undefined) data.bathrooms = body.bathrooms ? parseInt(body.bathrooms) : null;
-    if (body.parkingSpaces !== undefined) data.parkingSpaces = body.parkingSpaces ? parseInt(body.parkingSpaces) : null;
+    if (body.bedrooms !== undefined) data.bedrooms = parseInt(body.bedrooms) || 0;
+    if (body.bathrooms !== undefined) data.bathrooms = parseInt(body.bathrooms) || 0;
+    if (body.parkingSpaces !== undefined) data.parkingSpaces = parseInt(body.parkingSpaces) || 0;
     // ID fields
     if (body.ownerId !== undefined) data.ownerId = body.ownerId;
     // Boolean fields
