@@ -204,17 +204,29 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
       const url = isEditing ? `/api/properties/${property.id}` : "/api/properties";
       const method = isEditing ? "PUT" : "POST";
 
-      // Clean up optional numeric fields: convert empty/NaN to null
+      // Clean up and send only valid Prisma fields
       const payload = {
-        ...data,
+        title: data.title,
+        type: data.type,
+        status: data.status,
+        ownerId: data.ownerId,
+        street: data.street,
+        number: data.number,
+        complement: data.complement || null,
+        neighborhood: data.neighborhood,
+        city: data.city,
+        state: data.state,
+        zipCode: data.zipCode,
+        description: data.description || null,
         area: data.area || null,
+        bedrooms: data.bedrooms || 0,
+        bathrooms: data.bathrooms || 0,
+        parkingSpaces: data.parkingSpaces || 0,
+        furnished: data.furnished || false,
         rentalValue: data.rentalValue || null,
         saleValue: data.saleValue || null,
         condoFee: data.condoFee || null,
         iptuValue: data.iptuValue || null,
-        description: data.description || null,
-        complement: data.complement || null,
-        notes: data.notes || null,
       };
 
       const response = await fetch(url, {

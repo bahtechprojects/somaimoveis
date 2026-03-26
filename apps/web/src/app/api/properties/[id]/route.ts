@@ -49,7 +49,7 @@ export async function PUT(
     if (body.city !== undefined) data.city = body.city;
     if (body.state !== undefined) data.state = body.state;
     if (body.zipCode !== undefined) data.zipCode = body.zipCode;
-    if (body.ownerNotes !== undefined) data.ownerNotes = body.ownerNotes;
+    // ownerNotes removed - field does not exist in schema
     // Numeric fields (parseFloat)
     if (body.area !== undefined) data.area = body.area ? parseFloat(body.area) : null;
     if (body.rentalValue !== undefined) data.rentalValue = body.rentalValue ? parseFloat(body.rentalValue) : null;
