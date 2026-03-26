@@ -333,6 +333,7 @@ model Guarantor {
   name         String
   cpfCnpj      String   @unique
   personType   String   @default("PF") // PF ou PJ
+  stateRegistration String? // Inscricao Estadual (PJ)
   email        String?
   phone        String?
   phone2       String?

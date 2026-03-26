@@ -28,7 +28,9 @@ import {
 
 const guarantorSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
+  personType: z.string().default("PF"),
   cpfCnpj: z.string().min(1, "CPF/CNPJ é obrigatório"),
+  stateRegistration: z.string().optional(),
   maritalStatus: z.string().optional(),
   profession: z.string().optional(),
   rgNumber: z.string().optional(),
@@ -73,7 +75,9 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
     resolver: zodResolver(guarantorSchema) as any,
     defaultValues: {
       name: "",
+      personType: "PF",
       cpfCnpj: "",
+      stateRegistration: "",
       maritalStatus: "",
       profession: "",
       rgNumber: "",
@@ -192,7 +196,7 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
                 <Label htmlFor="g-name">Nome *</Label>
                 <Input
                   id="g-name"
-                  placeholder="Nome completo"
+                  placeholder="Nome completo ou razão social"
                   {...register("name")}
                 />
                 {errors.name && (
@@ -201,17 +205,44 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="g-cpfCnpj">CPF *</Label>
+                <Label>Tipo de Pessoa</Label>
+                <Select
+                  value={watch("personType") || "PF"}
+                  onValueChange={(value) => setValue("personType", value)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PF">Pessoa Física</SelectItem>
+                    <SelectItem value="PJ">Pessoa Jurídica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="g-cpfCnpj">{watch("personType") === "PJ" ? "CNPJ *" : "CPF *"}</Label>
                 <Input
                   id="g-cpfCnpj"
-                  placeholder="000.000.000-00"
-                  maxLength={14}
+                  placeholder={watch("personType") === "PJ" ? "00.000.000/0000-00" : "000.000.000-00"}
+                  maxLength={watch("personType") === "PJ" ? 18 : 14}
                   {...register("cpfCnpj")}
                 />
                 {errors.cpfCnpj && (
                   <p className="text-xs text-destructive">{errors.cpfCnpj.message}</p>
                 )}
               </div>
+
+              {watch("personType") === "PJ" && (
+                <div className="space-y-2">
+                  <Label htmlFor="g-stateRegistration">Inscrição Estadual</Label>
+                  <Input
+                    id="g-stateRegistration"
+                    placeholder="Inscrição estadual"
+                    {...register("stateRegistration")}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="g-maritalStatus">Estado Civil</Label>

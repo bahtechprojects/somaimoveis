@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
       name,
       cpfCnpj,
       personType: body.personType || "PF",
+      stateRegistration: body.stateRegistration || null,
       email: body.email || null,
       phone: body.phone || null,
       phone2: body.phone2 || null,
