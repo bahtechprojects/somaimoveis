@@ -227,6 +227,7 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
         saleValue: data.saleValue || null,
         condoFee: data.condoFee || null,
         iptuValue: data.iptuValue || null,
+        notes: data.notes || null,
       };
 
       const response = await fetch(url, {

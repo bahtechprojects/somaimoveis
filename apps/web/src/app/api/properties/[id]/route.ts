@@ -49,7 +49,7 @@ export async function PUT(
     if (body.city !== undefined) data.city = body.city;
     if (body.state !== undefined) data.state = body.state;
     if (body.zipCode !== undefined) data.zipCode = body.zipCode;
-    // ownerNotes removed - field does not exist in schema
+    if (body.notes !== undefined) data.notes = body.notes;
     // Numeric fields (parseFloat)
     if (body.area !== undefined) data.area = body.area ? parseFloat(body.area) : null;
     if (body.rentalValue !== undefined) data.rentalValue = body.rentalValue ? parseFloat(body.rentalValue) : null;
@@ -72,10 +72,11 @@ export async function PUT(
     });
     return NextResponse.json(property);
   } catch (error: any) {
+    console.error("[Property PUT] Erro:", error);
     if (error?.code === "P2025") {
       return NextResponse.json({ error: "Imóvel não encontrado" }, { status: 404 });
     }
-    return NextResponse.json({ error: "Erro ao atualizar imóvel" }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao atualizar imóvel", details: error?.message || String(error) }, { status: 500 });
   }
 }
 
