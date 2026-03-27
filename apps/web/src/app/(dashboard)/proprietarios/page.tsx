@@ -133,7 +133,9 @@ function ProprietariosContent() {
     const term = search.toLowerCase();
     return (
       owner.name.toLowerCase().includes(term) ||
-      (owner.email && owner.email.toLowerCase().includes(term))
+      (owner.cpfCnpj && owner.cpfCnpj.toLowerCase().includes(term)) ||
+      (owner.email && owner.email.toLowerCase().includes(term)) ||
+      (owner.phone && owner.phone.includes(term))
     );
   });
 
