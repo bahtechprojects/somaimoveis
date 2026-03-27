@@ -173,7 +173,8 @@ function ContratosContent() {
     return (
       contract.code.toLowerCase().includes(term) ||
       (contract.property?.title || "").toLowerCase().includes(term) ||
-      (contract.tenant?.name || "").toLowerCase().includes(term)
+      (contract.tenant?.name || "").toLowerCase().includes(term) ||
+      (contract.owner?.name || "").toLowerCase().includes(term)
     );
   });
 

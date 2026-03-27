@@ -142,8 +142,9 @@ function LocatariosContent() {
     const term = search.toLowerCase();
     return (
       tenant.name.toLowerCase().includes(term) ||
+      (tenant.cpfCnpj && tenant.cpfCnpj.toLowerCase().includes(term)) ||
       (tenant.email && tenant.email.toLowerCase().includes(term)) ||
-      tenant.cpfCnpj.toLowerCase().includes(term)
+      (tenant.phone && tenant.phone.includes(term))
     );
   });
 

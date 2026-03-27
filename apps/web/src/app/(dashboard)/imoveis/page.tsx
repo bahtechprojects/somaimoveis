@@ -171,6 +171,8 @@ function ImoveisContent() {
           p.street.toLowerCase().includes(searchLower) ||
           p.neighborhood.toLowerCase().includes(searchLower) ||
           p.city.toLowerCase().includes(searchLower) ||
+          (p.state || "").toLowerCase().includes(searchLower) ||
+          (p.zipCode || "").includes(searchLower) ||
           (p.owner?.name?.toLowerCase().includes(searchLower) ?? false);
         if (!matchesSearch) return false;
       }

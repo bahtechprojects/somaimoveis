@@ -224,7 +224,10 @@ function FinanceiroContent() {
     return (
       payment.code.toLowerCase().includes(term) ||
       (payment.tenant?.name || "").toLowerCase().includes(term) ||
-      payment.contract.code.toLowerCase().includes(term)
+      (payment.owner?.name || "").toLowerCase().includes(term) ||
+      (payment.contract?.code || "").toLowerCase().includes(term) ||
+      (payment.contract?.property?.title || "").toLowerCase().includes(term) ||
+      (payment.description || "").toLowerCase().includes(term)
     );
   });
 
