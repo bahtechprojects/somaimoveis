@@ -552,8 +552,9 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                     </Select>
                     <Input
                       type="number"
-                      min={1}
+                      min={0.5}
                       max={100}
+                      step={0.5}
                       className="w-20"
                       placeholder="%"
                       value={co.percentage || ""}
@@ -573,7 +574,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 ))}
                 {coOwners.length > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Total: {coOwners.reduce((s, c) => s + (c.percentage || 0), 0)}% para co-proprietários
+                    Total: {coOwners.reduce((s, c) => s + (c.percentage || 0), 0).toFixed(1).replace(/\.0$/, "")}% para co-proprietários
                   </p>
                 )}
               </div>
