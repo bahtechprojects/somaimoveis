@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendWhatsAppMessage } from "@/lib/whatsapp-sender";
+import { verifyWebhookSignature } from "@/lib/webhook-verify";
 
 // GET - Health check para verificacao do endpoint pelo Sicredi
 export async function GET() {
@@ -11,7 +12,18 @@ export async function GET() {
 // Sem autenticacao - chamado pelos servidores do Sicredi
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const rawBody = await request.text();
+
+    // Verify webhook signature if secret is configured
+    const webhookSecret = process.env.SICREDI_WEBHOOK_SECRET;
+    if (webhookSecret) {
+      const signature = request.headers.get("x-webhook-signature") || "";
+      if (!verifyWebhookSignature(rawBody, signature, webhookSecret)) {
+        return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
+      }
+    }
+
+    const body = JSON.parse(rawBody);
 
     // Log completo do payload para debug
     console.log("[Sicredi Webhook]", JSON.stringify(body));

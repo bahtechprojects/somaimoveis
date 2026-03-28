@@ -42,43 +42,47 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    // Parse numeric and date fields if present
-    const data: Record<string, unknown> = { ...body };
-    if (data.rentalValue !== undefined) data.rentalValue = parseFloat(data.rentalValue as string);
-    if (data.adminFeePercent !== undefined) data.adminFeePercent = parseFloat(data.adminFeePercent as string);
-    if (data.bankFee !== undefined) data.bankFee = parseFloat(data.bankFee as string);
-    if (data.intermediationFee !== undefined) data.intermediationFee = data.intermediationFee ? parseFloat(data.intermediationFee as string) : null;
-    if (data.startDate !== undefined) {
-      const sd = data.startDate as string;
+    // Parse numeric and date fields if present - only allow explicit fields (no mass assignment)
+    const data: Record<string, unknown> = {};
+    if (body.rentalValue !== undefined) data.rentalValue = parseFloat(body.rentalValue as string);
+    if (body.adminFeePercent !== undefined) data.adminFeePercent = parseFloat(body.adminFeePercent as string);
+    if (body.bankFee !== undefined) data.bankFee = parseFloat(body.bankFee as string);
+    if (body.intermediationFee !== undefined) data.intermediationFee = body.intermediationFee ? parseFloat(body.intermediationFee as string) : null;
+    if (body.startDate !== undefined) {
+      const sd = body.startDate as string;
       data.startDate = new Date(sd.includes("T") ? sd : sd + "T12:00:00");
     }
-    if (data.endDate !== undefined) {
-      const ed = data.endDate as string;
+    if (body.endDate !== undefined) {
+      const ed = body.endDate as string;
       data.endDate = new Date(ed.includes("T") ? ed : ed + "T12:00:00");
     }
-    if (data.paymentDay !== undefined) data.paymentDay = parseInt(data.paymentDay as string);
-    if (data.tenant2Id !== undefined) data.tenant2Id = data.tenant2Id || null;
-    if (data.guaranteeValue !== undefined) data.guaranteeValue = data.guaranteeValue ? parseFloat(data.guaranteeValue as string) : null;
-    if (data.adjustmentMonth !== undefined) data.adjustmentMonth = data.adjustmentMonth ? parseInt(data.adjustmentMonth as string) : null;
-    if (data.intermediationInstallments !== undefined) data.intermediationInstallments = data.intermediationInstallments ? parseInt(data.intermediationInstallments as string) : 1;
-    if (data.lastAdjustmentPercent !== undefined) data.lastAdjustmentPercent = data.lastAdjustmentPercent ? parseFloat(data.lastAdjustmentPercent as string) : null;
-    if (data.lastAdjustmentDate !== undefined) {
-      const d = String(data.lastAdjustmentDate);
-      data.lastAdjustmentDate = data.lastAdjustmentDate ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
+    if (body.paymentDay !== undefined) data.paymentDay = parseInt(body.paymentDay as string);
+    if (body.tenant2Id !== undefined) data.tenant2Id = body.tenant2Id || null;
+    if (body.guaranteeValue !== undefined) data.guaranteeValue = body.guaranteeValue ? parseFloat(body.guaranteeValue as string) : null;
+    if (body.adjustmentMonth !== undefined) data.adjustmentMonth = body.adjustmentMonth ? parseInt(body.adjustmentMonth as string) : null;
+    if (body.intermediationInstallments !== undefined) data.intermediationInstallments = body.intermediationInstallments ? parseInt(body.intermediationInstallments as string) : 1;
+    if (body.lastAdjustmentPercent !== undefined) data.lastAdjustmentPercent = body.lastAdjustmentPercent ? parseFloat(body.lastAdjustmentPercent as string) : null;
+    if (body.lastAdjustmentDate !== undefined) {
+      const d = String(body.lastAdjustmentDate);
+      data.lastAdjustmentDate = body.lastAdjustmentDate ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
     }
+    if (body.status !== undefined) data.status = body.status;
+    if (body.propertyId !== undefined) data.propertyId = body.propertyId;
+    if (body.ownerId !== undefined) data.ownerId = body.ownerId;
+    if (body.tenantId !== undefined) data.tenantId = body.tenantId;
+    if (body.guaranteeType !== undefined) data.guaranteeType = body.guaranteeType;
+    if (body.adjustmentIndex !== undefined) data.adjustmentIndex = body.adjustmentIndex;
+    if (body.notes !== undefined) data.notes = body.notes;
 
     // Handle many-to-many guarantors
-    const guarantorIds: string[] | undefined = data.guarantorIds as string[] | undefined;
-    delete data.guarantorIds;
-    // Remove legacy guarantorId if present
-    delete data.guarantorId;
+    const guarantorIds: string[] | undefined = body.guarantorIds as string[] | undefined;
 
-    const guarantorsUpdate = data.guaranteeType === "FIADOR" && Array.isArray(guarantorIds)
+    const guarantorsUpdate = (body.guaranteeType ?? data.guaranteeType) === "FIADOR" && Array.isArray(guarantorIds)
       ? {
           deleteMany: {},
           create: guarantorIds.map((gId: string) => ({ guarantorId: gId })),
         }
-      : data.guaranteeType !== "FIADOR"
+      : body.guaranteeType !== undefined && body.guaranteeType !== "FIADOR"
         ? { deleteMany: {} }
         : undefined;
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { randomInt } from "crypto";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 function cuid() {
   return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -7,6 +9,15 @@ function cuid() {
 
 export async function POST(request: Request) {
   try {
+    const ip = request.headers.get("x-forwarded-for") || "unknown";
+    const rl = checkRateLimit(`forgot:${ip}`, 5, 15 * 60 * 1000);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Muitas tentativas. Tente novamente mais tarde." },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+      );
+    }
+
     const { email } = await request.json();
 
     if (!email) {
@@ -28,7 +39,7 @@ export async function POST(request: Request) {
       });
 
       // Generate 6-digit code
-      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      const code = randomInt(100000, 1000000).toString();
 
       // Store token with 15min expiry
       await prisma.passwordResetToken.create({

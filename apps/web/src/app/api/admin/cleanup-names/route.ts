@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, isAuthError } from "@/lib/api-auth";
+import { requireAdmin, isAuthError } from "@/lib/api-auth";
 
 function truncateName(name: string): string {
   let n = name;
@@ -25,7 +25,7 @@ function truncateName(name: string): string {
 }
 
 export async function POST() {
-  const auth = await requireAuth();
+  const auth = await requireAdmin();
   if (isAuthError(auth)) return auth;
 
   let fixed = 0;
