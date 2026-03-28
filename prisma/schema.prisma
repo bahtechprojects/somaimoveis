@@ -153,6 +153,13 @@ model Property {
   bathrooms     Int      @default(0)
   parkingSpaces Int      @default(0)
   furnished     Boolean  @default(false)
+  // Codigos / Registros
+  registrationNumber String? // Matricula
+  iptuNumber         String? // N do IPTU
+  energyMeter        String? // N medidor energia
+  waterMeter         String? // N medidor agua
+  gasMeter           String? // N medidor gas
+  condoAdmin         String? // Administradora de Condominio
   // Valores
   rentalValue   Float?
   saleValue     Float?

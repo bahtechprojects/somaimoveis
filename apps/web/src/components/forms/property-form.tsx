@@ -49,6 +49,12 @@ const propertySchema = z.object({
   saleValue: z.coerce.number().optional(),
   condoFee: z.coerce.number().optional(),
   iptuValue: z.coerce.number().optional(),
+  registrationNumber: z.string().optional(),
+  iptuNumber: z.string().optional(),
+  energyMeter: z.string().optional(),
+  waterMeter: z.string().optional(),
+  gasMeter: z.string().optional(),
+  condoAdmin: z.string().optional(),
   ownerId: z.string().min(1, "Proprietário é obrigatório"),
   notes: z.string().optional(),
 });
@@ -166,6 +172,12 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
           saleValue: property.saleValue ?? undefined,
           condoFee: property.condoFee ?? undefined,
           iptuValue: property.iptuValue ?? undefined,
+          registrationNumber: property.registrationNumber || "",
+          iptuNumber: property.iptuNumber || "",
+          energyMeter: property.energyMeter || "",
+          waterMeter: property.waterMeter || "",
+          gasMeter: property.gasMeter || "",
+          condoAdmin: property.condoAdmin || "",
           ownerId: property.ownerId || "",
           notes: property.notes || "",
         });
@@ -191,6 +203,12 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
           saleValue: undefined,
           condoFee: undefined,
           iptuValue: undefined,
+          registrationNumber: "",
+          iptuNumber: "",
+          energyMeter: "",
+          waterMeter: "",
+          gasMeter: "",
+          condoAdmin: "",
           ownerId: "",
           notes: "",
         });
@@ -227,6 +245,12 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
         saleValue: data.saleValue || null,
         condoFee: data.condoFee || null,
         iptuValue: data.iptuValue || null,
+        registrationNumber: data.registrationNumber || null,
+        iptuNumber: data.iptuNumber || null,
+        energyMeter: data.energyMeter || null,
+        waterMeter: data.waterMeter || null,
+        gasMeter: data.gasMeter || null,
+        condoAdmin: data.condoAdmin || null,
         notes: data.notes || null,
       };
 
@@ -590,6 +614,68 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
                   step="0.01"
                   placeholder="0.00"
                   {...register("iptuValue")}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Codigos e Registros */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground border-b pb-2">
+              Codigos e Registros
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="registrationNumber">Matricula</Label>
+                <Input
+                  id="registrationNumber"
+                  placeholder="N da matricula"
+                  {...register("registrationNumber")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="iptuNumber">N do IPTU</Label>
+                <Input
+                  id="iptuNumber"
+                  placeholder="N do IPTU"
+                  {...register("iptuNumber")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="energyMeter">N Medidor Energia</Label>
+                <Input
+                  id="energyMeter"
+                  placeholder="N do medidor de energia"
+                  {...register("energyMeter")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="waterMeter">N Medidor Agua</Label>
+                <Input
+                  id="waterMeter"
+                  placeholder="N do medidor de agua"
+                  {...register("waterMeter")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="gasMeter">N Medidor Gas</Label>
+                <Input
+                  id="gasMeter"
+                  placeholder="N do medidor de gas"
+                  {...register("gasMeter")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="condoAdmin">Administradora de Condominio</Label>
+                <Input
+                  id="condoAdmin"
+                  placeholder="Nome da administradora"
+                  {...register("condoAdmin")}
                 />
               </div>
             </div>

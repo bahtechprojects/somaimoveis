@@ -75,6 +75,17 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  // Validate dates
+  const parsedStart = new Date(String(startDate).includes("T") ? startDate : startDate + "T12:00:00");
+  const parsedEnd = new Date(String(endDate).includes("T") ? endDate : endDate + "T12:00:00");
+  if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
+    return NextResponse.json(
+      { error: "Datas inválidas. Use o formato AAAA-MM-DD." },
+      { status: 400 }
+    );
+  }
+
   try {
     // Auto-generate code if not provided or if it already exists
     let code = body.code;
@@ -83,9 +94,17 @@ export async function POST(request: NextRequest) {
       const lastNum = lastContract ? parseInt(lastContract.code.replace(/\D/g, "") || "0") : 0;
       code = `CTR-${lastNum + 1}`;
     }
-    // Check uniqueness, increment if needed
+    // Check uniqueness
     const exists = await prisma.contract.findUnique({ where: { code } });
+    if (exists && body.code) {
+      // User provided explicit code that already exists
+      return NextResponse.json(
+        { error: `Já existe um contrato com o código ${code}. Escolha outro código ou deixe em branco para gerar automaticamente.` },
+        { status: 409 }
+      );
+    }
     if (exists) {
+      // Auto-generated code collision, increment
       const allContracts = await prisma.contract.findMany({ select: { code: true }, orderBy: { createdAt: "desc" }, take: 1 });
       const maxNum = allContracts.reduce((max, c) => Math.max(max, parseInt(c.code.replace(/\D/g, "") || "0")), 0);
       code = `CTR-${maxNum + 1}`;
@@ -104,8 +123,8 @@ export async function POST(request: NextRequest) {
         tenantId: body.tenantId || null,
         tenant2Id: body.tenant2Id || null,
         rentalValue: rentalValue ? parseFloat(String(rentalValue)) : 0,
-        startDate: new Date(String(startDate).includes("T") ? startDate : startDate + "T12:00:00"),
-        endDate: new Date(String(endDate).includes("T") ? endDate : endDate + "T12:00:00"),
+        startDate: parsedStart,
+        endDate: parsedEnd,
         type: body.type || "LOCACAO",
         status: body.status || "ATIVO",
         adminFeePercent: body.adminFeePercent ? parseFloat(String(body.adminFeePercent)) : 10,

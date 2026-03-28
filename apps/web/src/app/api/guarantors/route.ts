@@ -79,13 +79,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Check duplicate CPF/CNPJ
+  // Check duplicate CPF/CNPJ - return existing instead of error
   const existing = await prisma.guarantor.findUnique({ where: { cpfCnpj } });
   if (existing) {
-    return NextResponse.json(
-      { error: "Já existe um fiador com este CPF/CNPJ" },
-      { status: 409 }
-    );
+    return NextResponse.json(existing, { status: 200 });
   }
 
   const guarantor = await prisma.guarantor.create({
