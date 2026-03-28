@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Upload, X, FileText, Plus, Trash2 } from "lucide-react";
+import { Loader2, Upload, X, FileText, Plus, Trash2, Eye } from "lucide-react";
 import { GuarantorForm } from "@/components/forms/guarantor-form";
 import { OwnerForm } from "@/components/forms/owner-form";
 import { TenantForm } from "@/components/forms/tenant-form";
@@ -106,6 +106,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   const [selectedGuarantorIds, setSelectedGuarantorIds] = useState<string[]>([]);
   const [guarantorFormOpen, setGuarantorFormOpen] = useState(false);
   const [pdfFiles, setPdfFiles] = useState<File[]>([]);
+  const [pdfPreviewIndex, setPdfPreviewIndex] = useState<number | null>(null);
   const [showNewProperty, setShowNewProperty] = useState(false);
   const [showNewOwner, setShowNewOwner] = useState(false);
   const [showNewTenant, setShowNewTenant] = useState(false);
@@ -929,17 +930,38 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
             {pdfFiles.length > 0 && (
               <div className="space-y-1">
                 {pdfFiles.map((file, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-1.5">
-                    <FileText className="h-4 w-4 text-red-500 shrink-0" />
-                    <span className="truncate flex-1">{file.name}</span>
-                    <span className="text-muted-foreground text-xs">{(file.size / 1024 / 1024).toFixed(1)}MB</span>
-                    <button
-                      type="button"
-                      onClick={() => setPdfFiles(prev => prev.filter((_, idx) => idx !== i))}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+                  <div key={i}>
+                    <div className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-1.5">
+                      <FileText className="h-4 w-4 text-red-500 shrink-0" />
+                      <span className="truncate flex-1">{file.name}</span>
+                      <span className="text-muted-foreground text-xs">{(file.size / 1024 / 1024).toFixed(1)}MB</span>
+                      <button
+                        type="button"
+                        onClick={() => setPdfPreviewIndex(pdfPreviewIndex === i ? null : i)}
+                        className="text-primary hover:text-primary/80"
+                        title="Visualizar"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (pdfPreviewIndex === i) setPdfPreviewIndex(null);
+                          setPdfFiles(prev => prev.filter((_, idx) => idx !== i));
+                        }}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    {pdfPreviewIndex === i && (
+                      <iframe
+                        src={URL.createObjectURL(file)}
+                        className="w-full border rounded-lg mt-1"
+                        style={{ height: "400px" }}
+                        title={file.name}
+                      />
+                    )}
                   </div>
                 ))}
               </div>

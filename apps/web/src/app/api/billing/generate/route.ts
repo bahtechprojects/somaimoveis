@@ -115,9 +115,25 @@ export async function POST(request: NextRequest) {
         // Total value charged to tenant = rent + condo + IPTU
         const totalValue = Math.round((contract.rentalValue + condoFee + iptuMonthly) * 100) / 100;
 
-        // Calculate split values (admin fee applies only to rental value)
+        // Check for active discounts on rent (CREDITO entries with category ALUGUEL or DESCONTO)
+        const discountEntries = await prisma.tenantEntry.findMany({
+          where: {
+            tenantId: contract.tenantId,
+            type: "CREDITO",
+            category: { in: ["ALUGUEL", "DESCONTO"] },
+            status: "PENDENTE",
+            dueDate: {
+              gte: new Date(targetYear, targetMonth, 1),
+              lt: new Date(targetYear, targetMonth + 1, 1),
+            },
+          },
+        });
+        const totalDiscount = discountEntries.reduce((sum, e) => sum + e.value, 0);
+        const effectiveRentalValue = Math.max(0, contract.rentalValue - totalDiscount);
+
+        // Calculate split values (admin fee applies to rental value minus discounts)
         const adminFee = contract.adminFeePercent || 10;
-        let splitAdminValue = Math.round(contract.rentalValue * (adminFee / 100) * 100) / 100;
+        let splitAdminValue = Math.round(effectiveRentalValue * (adminFee / 100) * 100) / 100;
 
         // Calculate intermediation fee installment if applicable
         let intermediationInstallmentValue = 0;
@@ -145,7 +161,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const splitOwnerValue = Math.round((contract.rentalValue - splitAdminValue) * 100) / 100;
+        const splitOwnerValue = Math.round((effectiveRentalValue - splitAdminValue) * 100) / 100;
 
         // Calculate IRRF on owner's gross income (rental - admin fee).
         // IRRF is calculated ONLY on the rental value (aluguel) minus admin fee.

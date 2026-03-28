@@ -244,6 +244,8 @@ export default function ContratoDetalhePage() {
   const [renewLoading, setRenewLoading] = useState(false);
   const [contractDocs, setContractDocs] = useState<ContractDocument[]>([]);
   const [docsLoading, setDocsLoading] = useState(false);
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfPreviewName, setPdfPreviewName] = useState<string>("");
 
   async function fetchContract() {
     setLoading(true);
@@ -957,6 +959,16 @@ export default function ContratoDetalhePage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <button
+                            onClick={() => {
+                              setPdfPreviewUrl(doc.url);
+                              setPdfPreviewName(doc.name);
+                            }}
+                            className="flex items-center gap-1 text-xs text-primary hover:underline"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Visualizar
+                          </button>
                           <a
                             href={doc.url}
                             download={doc.name}
@@ -1188,6 +1200,23 @@ export default function ContratoDetalhePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* PDF Preview Dialog */}
+      <Dialog open={!!pdfPreviewUrl} onOpenChange={(open) => { if (!open) setPdfPreviewUrl(null); }}>
+        <DialogContent className="sm:max-w-4xl sm:max-h-[90vh] p-0">
+          <DialogHeader className="p-4 pb-0">
+            <DialogTitle className="text-sm truncate">{pdfPreviewName}</DialogTitle>
+          </DialogHeader>
+          {pdfPreviewUrl && (
+            <iframe
+              src={pdfPreviewUrl}
+              className="w-full border-0 rounded-b-lg"
+              style={{ height: "80vh" }}
+              title={pdfPreviewName}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

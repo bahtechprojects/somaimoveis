@@ -47,6 +47,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Plus,
   Search,
@@ -162,6 +163,8 @@ function LancamentosContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<TenantEntry | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
   // Form state
   const [formTenantId, setFormTenantId] = useState("");
@@ -172,6 +175,7 @@ function LancamentosContent() {
   const [formDueDate, setFormDueDate] = useState("");
   const [formNotes, setFormNotes] = useState("");
   const [formInstallments, setFormInstallments] = useState("1");
+  const [formValueMode, setFormValueMode] = useState<"TOTAL" | "PARCELA">("TOTAL");
   const [formIsRecurring, setFormIsRecurring] = useState(false);
   const [formDestination, setFormDestination] = useState("");
 
@@ -248,6 +252,7 @@ function LancamentosContent() {
     setFormDueDate("");
     setFormNotes("");
     setFormInstallments("1");
+    setFormValueMode("TOTAL");
     setFormIsRecurring(false);
     setFormDestination("");
   }
@@ -263,6 +268,13 @@ function LancamentosContent() {
 
     setSubmitting(true);
     try {
+      // Se modo parcela, o valor total = valor da parcela * numero de parcelas
+      const numInstallments = parseInt(formInstallments) || 1;
+      const rawValue = parseFloat(formValue);
+      const totalValue = formValueMode === "PARCELA" && numInstallments > 1
+        ? rawValue * numInstallments
+        : rawValue;
+
       const response = await fetch("/api/tenant-entries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -271,10 +283,10 @@ function LancamentosContent() {
           type: formType,
           category: formCategory,
           description: formDescription || null,
-          value: parseFloat(formValue),
+          value: totalValue,
           dueDate: formDueDate,
           notes: formNotes || null,
-          installments: parseInt(formInstallments) || 1,
+          installments: numInstallments,
           isRecurring: formIsRecurring,
           destination: formDestination || null,
         }),
@@ -317,6 +329,41 @@ function LancamentosContent() {
       setDeleteDialogOpen(false);
       setEntryToDelete(null);
     }
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filteredEntries.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredEntries.map((e) => e.id)));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleBulkDelete() {
+    const ids = Array.from(selectedIds);
+    let errors = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetch(`/api/tenant-entries/${id}`, { method: "DELETE" });
+        if (!res.ok) errors++;
+      } catch {
+        errors++;
+      }
+    }
+    if (errors > 0) toast.error(`${errors} lançamento(s) não puderam ser excluídos`);
+    else toast.success(`${ids.length} lançamento(s) excluído(s)`);
+    setSelectedIds(new Set());
+    setBulkDeleteDialogOpen(false);
+    fetchEntries();
   }
 
   return (
@@ -393,7 +440,18 @@ function LancamentosContent() {
                     <SelectItem value="CANCELADO">Cancelado</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button size="sm" className="gap-1.5 h-10 sm:h-8 text-xs ml-auto" onClick={handleNewEntry}>
+                {selectedIds.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="gap-1.5 h-10 sm:h-8 text-xs ml-auto"
+                    onClick={() => setBulkDeleteDialogOpen(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Excluir {selectedIds.size} selecionado(s)
+                  </Button>
+                )}
+                <Button size="sm" className={cn("gap-1.5 h-10 sm:h-8 text-xs", selectedIds.size === 0 && "ml-auto")} onClick={handleNewEntry}>
                   <Plus className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Novo Lancamento</span>
                   <span className="sm:hidden">Novo</span>
@@ -433,6 +491,12 @@ function LancamentosContent() {
                     return (
                       <div key={entry.id} className="p-4">
                         <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center shrink-0 pt-0.5">
+                            <Checkbox
+                              checked={selectedIds.has(entry.id)}
+                              onCheckedChange={() => toggleSelect(entry.id)}
+                            />
+                          </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-semibold">{entry.tenant?.name || "N/A"}</p>
@@ -496,6 +560,12 @@ function LancamentosContent() {
                   <Table>
                     <TableHeader>
                       <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={filteredEntries.length > 0 && selectedIds.size === filteredEntries.length}
+                            onCheckedChange={toggleSelectAll}
+                          />
+                        </TableHead>
                         <TableHead className="text-xs">Data</TableHead>
                         <TableHead className="text-xs">Locatário</TableHead>
                         <TableHead className="text-xs">Tipo</TableHead>
@@ -514,6 +584,12 @@ function LancamentosContent() {
                         const isDebito = entry.type === "DEBITO";
                         return (
                           <TableRow key={entry.id}>
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedIds.has(entry.id)}
+                                onCheckedChange={() => toggleSelect(entry.id)}
+                              />
+                            </TableCell>
                             <TableCell className="text-xs">
                               {formatDate(entry.dueDate)}
                             </TableCell>
@@ -670,9 +746,28 @@ function LancamentosContent() {
               </Select>
             </div>
 
+            {parseInt(formInstallments) > 1 && (
+              <div className="space-y-2">
+                <Label>Tipo de Valor</Label>
+                <Select value={formValueMode} onValueChange={(v) => setFormValueMode(v as "TOTAL" | "PARCELA")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TOTAL">Valor Total (divide pelas parcelas)</SelectItem>
+                    <SelectItem value="PARCELA">Valor da Parcela</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="value">Valor Total (R$)</Label>
+                <Label htmlFor="value">
+                  {formValueMode === "PARCELA" && parseInt(formInstallments) > 1
+                    ? "Valor da Parcela (R$)"
+                    : "Valor Total (R$)"}
+                </Label>
                 <Input
                   id="value"
                   type="number"
@@ -683,9 +778,11 @@ function LancamentosContent() {
                   onChange={(e) => setFormValue(e.target.value)}
                   required
                 />
-                {parseInt(formInstallments) > 1 && (
+                {parseInt(formInstallments) > 1 && formValue && (
                   <p className="text-xs text-muted-foreground">
-                    Informe o valor total - será dividido automaticamente pelas parcelas
+                    {formValueMode === "TOTAL"
+                      ? `${parseInt(formInstallments)}x de ${formatCurrency(parseFloat(formValue) / parseInt(formInstallments))}`
+                      : `Total: ${formatCurrency(parseFloat(formValue) * parseInt(formInstallments))}`}
                   </p>
                 )}
               </div>
@@ -769,6 +866,27 @@ function LancamentosContent() {
               className="bg-destructive text-white hover:bg-destructive/90"
             >
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Lancamentos</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir <strong>{selectedIds.size}</strong> lancamento(s) selecionado(s)? Esta acao nao pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Excluir Todos
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
