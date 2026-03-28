@@ -88,7 +88,9 @@ export async function POST(request: NextRequest) {
   const installments = parseInt(body.installments) || 1;
   const isRecurring = body.isRecurring === true;
   const destination = body.destination || null;
-  const baseDueDate = body.dueDate ? new Date(body.dueDate) : null;
+  const baseDueDate = body.dueDate
+    ? new Date(String(body.dueDate).includes("T") ? body.dueDate : body.dueDate + "T12:00:00")
+    : null;
   const recurringDay = body.recurringDay
     ? parseInt(body.recurringDay)
     : baseDueDate

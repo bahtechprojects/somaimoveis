@@ -91,7 +91,9 @@ export async function POST(request: NextRequest) {
     // Create multiple installment entries
     const totalValue = parseFloat(value);
     const installmentValue = Math.round((totalValue / installments) * 100) / 100;
-    const baseDueDate = body.dueDate ? new Date(body.dueDate) : new Date();
+    const baseDueDate = body.dueDate
+      ? new Date(String(body.dueDate).includes("T") ? body.dueDate : body.dueDate + "T12:00:00")
+      : new Date();
 
     // Create first entry
     const firstDueDate = new Date(baseDueDate);
@@ -158,7 +160,9 @@ export async function POST(request: NextRequest) {
       description,
       value: parseFloat(value),
       ownerId,
-      dueDate: body.dueDate ? new Date(body.dueDate) : null,
+      dueDate: body.dueDate
+        ? new Date(String(body.dueDate).includes("T") ? body.dueDate : body.dueDate + "T12:00:00")
+        : null,
       contractId: body.contractId || null,
       propertyId: body.propertyId || null,
       status: body.status || "PENDENTE",
