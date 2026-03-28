@@ -3,6 +3,8 @@ import { requireAuth, isAuthError } from "@/lib/api-auth";
 import { isSicrediConfigured, sicrediAuth } from "@/lib/sicredi-client";
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
   return NextResponse.json({
     configured: isSicrediConfigured(),
     sandbox: process.env.SICREDI_SANDBOX === "true",

@@ -62,7 +62,10 @@ export async function PUT(
     if (data.adjustmentMonth !== undefined) data.adjustmentMonth = data.adjustmentMonth ? parseInt(data.adjustmentMonth as string) : null;
     if (data.intermediationInstallments !== undefined) data.intermediationInstallments = data.intermediationInstallments ? parseInt(data.intermediationInstallments as string) : 1;
     if (data.lastAdjustmentPercent !== undefined) data.lastAdjustmentPercent = data.lastAdjustmentPercent ? parseFloat(data.lastAdjustmentPercent as string) : null;
-    if (data.lastAdjustmentDate !== undefined) data.lastAdjustmentDate = data.lastAdjustmentDate ? new Date(data.lastAdjustmentDate as string) : null;
+    if (data.lastAdjustmentDate !== undefined) {
+      const d = String(data.lastAdjustmentDate);
+      data.lastAdjustmentDate = data.lastAdjustmentDate ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
+    }
 
     // Handle many-to-many guarantors
     const guarantorIds: string[] | undefined = data.guarantorIds as string[] | undefined;

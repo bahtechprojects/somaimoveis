@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       description: body.description || null,
       paymentMethod: body.paymentMethod || null,
       paidValue: body.paidValue ? parseFloat(body.paidValue) : null,
-      paidAt: body.paidAt ? new Date(body.paidAt) : null,
+      paidAt: body.paidAt ? new Date(String(body.paidAt).includes("T") ? body.paidAt : body.paidAt + "T12:00:00") : null,
       fineValue: body.fineValue ? parseFloat(body.fineValue) : null,
       interestValue: body.interestValue ? parseFloat(body.interestValue) : null,
       discountValue: body.discountValue ? parseFloat(body.discountValue) : null,

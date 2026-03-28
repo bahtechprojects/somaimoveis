@@ -103,7 +103,10 @@ export async function POST(request: NextRequest) {
 
   // Installments: create N entries with split value and incremented due dates
   if (installments > 1) {
-    const installmentValue = parseFloat(value) / installments;
+    const totalVal = parseFloat(value);
+    const installmentValue = Math.round((totalVal / installments) * 100) / 100;
+    // Last installment compensates rounding: total - (installmentValue * (N-1))
+    const lastInstallmentValue = Math.round((totalVal - installmentValue * (installments - 1)) * 100) / 100;
     const entries = [];
 
     // Create first entry
@@ -112,7 +115,7 @@ export async function POST(request: NextRequest) {
         type,
         category,
         description,
-        value: Math.round(installmentValue * 100) / 100,
+        value: installmentValue,
         tenantId,
         dueDate: baseDueDate,
         contractId: body.contractId || null,
@@ -141,7 +144,7 @@ export async function POST(request: NextRequest) {
           type,
           category,
           description,
-          value: Math.round(installmentValue * 100) / 100,
+          value: i === installments ? lastInstallmentValue : installmentValue,
           tenantId,
           dueDate: entryDueDate,
           contractId: body.contractId || null,

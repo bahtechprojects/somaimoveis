@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuth, isAuthError } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
   const cnpj = request.nextUrl.searchParams.get("cnpj");
   if (!cnpj) {
     return NextResponse.json({ error: "CNPJ não informado" }, { status: 400 });

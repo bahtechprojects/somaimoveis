@@ -112,8 +112,9 @@ export async function POST(request: NextRequest) {
           ? Math.round((contract.property.iptuValue / 12) * 100) / 100
           : 0;
 
-        // Total value charged to tenant = rent + condo + IPTU
-        const totalValue = Math.round((contract.rentalValue + condoFee + iptuMonthly) * 100) / 100;
+        // Total value charged to tenant = rent + condo + IPTU + bank fee
+        const bankFee = contract.bankFee || 0;
+        const totalValue = Math.round((contract.rentalValue + condoFee + iptuMonthly + bankFee) * 100) / 100;
 
         // Check for active discounts on rent (CREDITO entries with category ALUGUEL or DESCONTO)
         const discountEntries = await prisma.tenantEntry.findMany({

@@ -32,9 +32,33 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+
+    // Whitelist allowed fields to prevent mass assignment
+    const data: Record<string, unknown> = {};
+    if (body.status !== undefined) data.status = body.status;
+    if (body.description !== undefined) data.description = body.description || null;
+    if (body.paymentMethod !== undefined) data.paymentMethod = body.paymentMethod || null;
+    if (body.value !== undefined) data.value = parseFloat(body.value);
+    if (body.paidValue !== undefined) data.paidValue = body.paidValue ? parseFloat(body.paidValue) : null;
+    if (body.fineValue !== undefined) data.fineValue = body.fineValue ? parseFloat(body.fineValue) : null;
+    if (body.interestValue !== undefined) data.interestValue = body.interestValue ? parseFloat(body.interestValue) : null;
+    if (body.discountValue !== undefined) data.discountValue = body.discountValue ? parseFloat(body.discountValue) : null;
+    if (body.lateFee !== undefined) data.lateFee = body.lateFee ? parseFloat(body.lateFee) : null;
+    if (body.totalDue !== undefined) data.totalDue = body.totalDue ? parseFloat(body.totalDue) : null;
+    if (body.splitOwnerValue !== undefined) data.splitOwnerValue = body.splitOwnerValue ? parseFloat(body.splitOwnerValue) : null;
+    if (body.splitAdminValue !== undefined) data.splitAdminValue = body.splitAdminValue ? parseFloat(body.splitAdminValue) : null;
+    if (body.dueDate !== undefined) {
+      const d = String(body.dueDate);
+      data.dueDate = new Date(d.includes("T") ? d : d + "T12:00:00");
+    }
+    if (body.paidAt !== undefined) {
+      const d = String(body.paidAt);
+      data.paidAt = body.paidAt ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
+    }
+
     const payment = await prisma.payment.update({
       where: { id },
-      data: body,
+      data,
       include: { contract: true, tenant: true, owner: true },
     });
     return NextResponse.json(payment);

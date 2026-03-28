@@ -265,8 +265,8 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
 
       const payload = {
         ...data,
-        dueDate: new Date(data.dueDate).toISOString(),
-        paidAt: data.paidAt ? new Date(data.paidAt).toISOString() : null,
+        dueDate: data.dueDate + "T12:00:00",
+        paidAt: data.paidAt ? data.paidAt + "T12:00:00" : null,
         paidValue: data.paidValue || null,
         fineValue: data.fineValue || null,
         interestValue: data.interestValue || null,

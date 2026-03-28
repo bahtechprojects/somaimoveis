@@ -64,7 +64,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Atualizar o pagamento com dados da liquidacao
-    const paidAt = dataPagamento ? new Date(dataPagamento) : new Date();
+    const paidAt = dataPagamento
+      ? new Date(String(dataPagamento).includes("T") ? dataPagamento : dataPagamento + "T12:00:00")
+      : new Date();
 
     const updated = await prisma.payment.update({
       where: { id: payment.id },

@@ -36,8 +36,14 @@ export async function PUT(
     // Parse numeric and date fields if present
     const data: Record<string, unknown> = { ...body };
     if (data.value !== undefined) data.value = parseFloat(data.value as string);
-    if (data.dueDate !== undefined) data.dueDate = data.dueDate ? new Date(data.dueDate as string) : null;
-    if (data.paidAt !== undefined) data.paidAt = data.paidAt ? new Date(data.paidAt as string) : null;
+    if (data.dueDate !== undefined) {
+      const d = String(data.dueDate);
+      data.dueDate = data.dueDate ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
+    }
+    if (data.paidAt !== undefined) {
+      const d = String(data.paidAt);
+      data.paidAt = data.paidAt ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
+    }
     if (data.recurringDay !== undefined) data.recurringDay = data.recurringDay ? parseInt(data.recurringDay as string) : null;
     if (data.installmentNumber !== undefined) data.installmentNumber = data.installmentNumber ? parseInt(data.installmentNumber as string) : null;
     if (data.installmentTotal !== undefined) data.installmentTotal = data.installmentTotal ? parseInt(data.installmentTotal as string) : null;
