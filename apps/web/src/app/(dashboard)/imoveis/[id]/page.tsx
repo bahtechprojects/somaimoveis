@@ -153,6 +153,12 @@ interface Property {
   saleValue: number | null;
   condoFee: number | null;
   iptuValue: number | null;
+  registrationNumber: string | null;
+  iptuNumber: string | null;
+  energyMeter: string | null;
+  waterMeter: string | null;
+  gasMeter: string | null;
+  condoAdmin: string | null;
   ownerId: string;
   owner: Owner;
   notes: string | null;
