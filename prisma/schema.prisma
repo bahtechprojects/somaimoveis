@@ -23,6 +23,7 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([role])
   @@map("users")
 }
 
@@ -81,6 +82,7 @@ model Owner {
   payments        Payment[]
   entries         OwnerEntry[]
 
+  @@index([active])
   @@map("owners")
 }
 
@@ -126,6 +128,7 @@ model Tenant {
   payments  Payment[]
   entries   TenantEntry[]
 
+  @@index([active])
   @@map("tenants")
 }
 
@@ -423,6 +426,7 @@ model TenantEntry {
   @@index([tenantId])
   @@index([type])
   @@index([status])
+  @@index([dueDate])
   @@map("tenant_entries")
 }
 
@@ -551,6 +555,7 @@ model PasswordResetToken {
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
 
+  @@index([email])
   @@map("password_reset_tokens")
 }
 

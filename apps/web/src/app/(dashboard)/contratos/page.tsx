@@ -137,6 +137,7 @@ function ContratosContent() {
       }
     } catch (error) {
       console.error("Erro ao buscar contratos:", error);
+      toast.error("Erro ao carregar contratos");
     } finally {
       setLoading(false);
     }

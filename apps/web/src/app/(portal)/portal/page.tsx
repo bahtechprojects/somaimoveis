@@ -276,7 +276,7 @@ export default function PortalDashboardPage() {
                           {payment.code}
                         </TableCell>
                         <TableCell className="text-xs font-medium">
-                          {payment.contract.property?.title || "N/A"}
+                          {payment.contract?.property?.title || "N/A"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {payment.tenant?.name || "N/A"}

@@ -33,20 +33,26 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    // Parse numeric and date fields if present
-    const data: Record<string, unknown> = { ...body };
-    if (data.value !== undefined) data.value = parseFloat(data.value as string);
-    if (data.dueDate !== undefined) {
-      const d = String(data.dueDate);
-      data.dueDate = data.dueDate ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
+    // Whitelist allowed fields to prevent mass assignment
+    const data: Record<string, unknown> = {};
+    if (body.type !== undefined) data.type = body.type;
+    if (body.category !== undefined) data.category = body.category;
+    if (body.description !== undefined) data.description = body.description;
+    if (body.status !== undefined) data.status = body.status;
+    if (body.notes !== undefined) data.notes = body.notes;
+    if (body.isRecurring !== undefined) data.isRecurring = body.isRecurring;
+    if (body.value !== undefined) data.value = parseFloat(body.value as string);
+    if (body.dueDate !== undefined) {
+      const d = String(body.dueDate);
+      data.dueDate = body.dueDate ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
     }
-    if (data.paidAt !== undefined) {
-      const d = String(data.paidAt);
-      data.paidAt = data.paidAt ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
+    if (body.paidAt !== undefined) {
+      const d = String(body.paidAt);
+      data.paidAt = body.paidAt ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
     }
-    if (data.recurringDay !== undefined) data.recurringDay = data.recurringDay ? parseInt(data.recurringDay as string) : null;
-    if (data.installmentNumber !== undefined) data.installmentNumber = data.installmentNumber ? parseInt(data.installmentNumber as string) : null;
-    if (data.installmentTotal !== undefined) data.installmentTotal = data.installmentTotal ? parseInt(data.installmentTotal as string) : null;
+    if (body.recurringDay !== undefined) data.recurringDay = body.recurringDay ? parseInt(body.recurringDay as string) : null;
+    if (body.installmentNumber !== undefined) data.installmentNumber = body.installmentNumber ? parseInt(body.installmentNumber as string) : null;
+    if (body.installmentTotal !== undefined) data.installmentTotal = body.installmentTotal ? parseInt(body.installmentTotal as string) : null;
 
     const entry = await prisma.ownerEntry.update({
       where: { id },

@@ -90,7 +90,7 @@ const statusConfig: Record<
 const monthNames = [
   "Janeiro",
   "Fevereiro",
-  "Marco",
+  "Março",
   "Abril",
   "Maio",
   "Junho",
@@ -343,7 +343,7 @@ export default function PortalFinancialPage() {
                           {payment.code}
                         </TableCell>
                         <TableCell className="text-xs font-medium">
-                          {payment.contract.property?.title || "N/A"}
+                          {payment.contract?.property?.title || "N/A"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {payment.tenant?.name || "N/A"}

@@ -97,7 +97,9 @@ export default function DashboardPage() {
     fetch("/api/dashboard")
       .then((r) => r.json())
       .then(setDashboard)
-      .catch(() => {});
+      .catch((error) => {
+        console.error("Erro ao carregar dashboard:", error);
+      });
   }, []);
 
   const userName = session?.user?.name || "Usuário";

@@ -91,6 +91,7 @@ export async function POST(request: NextRequest) {
     // Create multiple installment entries
     const totalValue = parseFloat(value);
     const installmentValue = Math.round((totalValue / installments) * 100) / 100;
+    const lastInstallmentValue = Math.round((totalValue - installmentValue * (installments - 1)) * 100) / 100;
     const baseDueDate = body.dueDate
       ? new Date(String(body.dueDate).includes("T") ? body.dueDate : body.dueDate + "T12:00:00")
       : new Date();
@@ -124,12 +125,13 @@ export async function POST(request: NextRequest) {
       Array.from({ length: installments - 1 }, (_, idx) => {
         const dueDate = new Date(baseDueDate);
         dueDate.setMonth(dueDate.getMonth() + idx + 1);
+        const isLastInstallment = idx === installments - 2;
         return prisma.ownerEntry.create({
           data: {
             type,
             category,
             description,
-            value: installmentValue,
+            value: isLastInstallment ? lastInstallmentValue : installmentValue,
             ownerId,
             dueDate,
             contractId: body.contractId || null,

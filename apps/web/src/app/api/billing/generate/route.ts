@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
 
           if (contractMonthNumber >= 1 && contractMonthNumber <= contract.intermediationInstallments) {
             // intermediationFee is a percentage of the rental value
-            const totalIntermediationValue = contract.rentalValue * (contract.intermediationFee / 100);
+            const totalIntermediationValue = effectiveRentalValue * (contract.intermediationFee / 100);
             intermediationInstallmentValue = Math.round(
               (totalIntermediationValue / contract.intermediationInstallments) * 100
             ) / 100;
