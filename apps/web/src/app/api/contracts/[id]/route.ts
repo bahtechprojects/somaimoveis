@@ -46,6 +46,7 @@ export async function PUT(
     const data: Record<string, unknown> = { ...body };
     if (data.rentalValue !== undefined) data.rentalValue = parseFloat(data.rentalValue as string);
     if (data.adminFeePercent !== undefined) data.adminFeePercent = parseFloat(data.adminFeePercent as string);
+    if (data.bankFee !== undefined) data.bankFee = parseFloat(data.bankFee as string);
     if (data.intermediationFee !== undefined) data.intermediationFee = data.intermediationFee ? parseFloat(data.intermediationFee as string) : null;
     if (data.startDate !== undefined) {
       const sd = data.startDate as string;

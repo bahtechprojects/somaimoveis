@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
         type: body.type || "LOCACAO",
         status: body.status || "ATIVO",
         adminFeePercent: body.adminFeePercent ? parseFloat(String(body.adminFeePercent)) : 10,
+        bankFee: body.bankFee != null ? parseFloat(String(body.bankFee)) : 3.90,
         intermediationFee: body.intermediationFee ? parseFloat(String(body.intermediationFee)) : null,
         paymentDay: body.paymentDay ? parseInt(String(body.paymentDay)) : 10,
         guaranteeType: body.guaranteeType || null,

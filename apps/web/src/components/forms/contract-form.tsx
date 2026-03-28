@@ -39,6 +39,7 @@ const contractSchema = z.object({
   tenant2Id: z.string().optional(),
   rentalValue: z.coerce.number().min(0).optional(),
   adminFeePercent: z.coerce.number().min(0),
+  bankFee: z.coerce.number().min(0).default(3.90),
   intermediationFee: z.coerce.number().min(0).optional(),
   intermediationInstallments: z.coerce.number().int().min(1).default(1),
   paymentDay: z.coerce.number().int().min(1).max(31),
@@ -65,6 +66,7 @@ type ContractFormData = {
   tenant2Id?: string;
   rentalValue: number;
   adminFeePercent: number;
+  bankFee: number;
   intermediationFee?: number;
   intermediationInstallments: number;
   paymentDay: number;
@@ -130,6 +132,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       tenant2Id: "",
       rentalValue: undefined,
       adminFeePercent: 10,
+      bankFee: 3.90,
       intermediationFee: undefined,
       intermediationInstallments: 1,
       paymentDay: 5,
@@ -228,6 +231,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           tenant2Id: contract.tenant2Id || "",
           rentalValue: contract.rentalValue ?? undefined,
           adminFeePercent: contract.adminFeePercent ?? 10,
+          bankFee: contract.bankFee ?? 3.90,
           intermediationFee: contract.intermediationFee ?? undefined,
           intermediationInstallments: contract.intermediationInstallments ?? 1,
           paymentDay: contract.paymentDay ?? 5,
@@ -282,6 +286,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           tenant2Id: "",
           rentalValue: undefined,
           adminFeePercent: 10,
+          bankFee: 3.90,
           intermediationFee: undefined,
           intermediationInstallments: 1,
           paymentDay: 5,
@@ -656,6 +661,17 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                   step="0.1"
                   placeholder="10"
                   {...register("adminFeePercent")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bankFee">Taxa Bancaria (R$)</Label>
+                <Input
+                  id="bankFee"
+                  type="number"
+                  step="0.01"
+                  placeholder="3.90"
+                  {...register("bankFee")}
                 />
               </div>
 
