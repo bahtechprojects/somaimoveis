@@ -34,7 +34,7 @@ function formatCurrencyBRL(value: number): string {
 
 function formatDateBR(isoDate: string): string {
   const date = new Date(isoDate);
-  return date.toLocaleDateString("pt-BR");
+  return date.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
 export function UpcomingPayments({ payments }: UpcomingPaymentsProps) {

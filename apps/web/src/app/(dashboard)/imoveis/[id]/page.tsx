@@ -232,7 +232,7 @@ function formatCurrency(value: number | null | undefined): string {
 }
 
 function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString("pt-BR");
+  return new Date(dateString).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
 // --- Component ---

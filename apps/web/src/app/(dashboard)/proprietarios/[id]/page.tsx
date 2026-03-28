@@ -119,7 +119,7 @@ function formatCurrency(value: number): string {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("pt-BR");
+  return new Date(dateStr).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
 const contractStatusConfig: Record<string, { label: string; className: string }> = {

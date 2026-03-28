@@ -110,7 +110,7 @@ function formatCurrency(value: number | null): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "N/A";
-  return new Date(iso).toLocaleDateString("pt-BR");
+  return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 }
 
 export function ImportContractPdf({ open, onOpenChange, onSuccess }: ImportContractPdfProps) {
