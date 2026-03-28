@@ -50,6 +50,12 @@ export async function PUT(
     if (body.state !== undefined) data.state = body.state;
     if (body.zipCode !== undefined) data.zipCode = body.zipCode;
     if (body.notes !== undefined) data.notes = body.notes;
+    if (body.registrationNumber !== undefined) data.registrationNumber = body.registrationNumber || null;
+    if (body.iptuNumber !== undefined) data.iptuNumber = body.iptuNumber || null;
+    if (body.energyMeter !== undefined) data.energyMeter = body.energyMeter || null;
+    if (body.waterMeter !== undefined) data.waterMeter = body.waterMeter || null;
+    if (body.gasMeter !== undefined) data.gasMeter = body.gasMeter || null;
+    if (body.condoAdmin !== undefined) data.condoAdmin = body.condoAdmin || null;
     // Numeric fields (parseFloat)
     if (body.area !== undefined) data.area = body.area ? parseFloat(body.area) : null;
     if (body.rentalValue !== undefined) data.rentalValue = body.rentalValue ? parseFloat(body.rentalValue) : null;

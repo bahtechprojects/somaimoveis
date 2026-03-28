@@ -51,6 +51,7 @@ import {
   ImageOff,
   Plus,
   X,
+  ClipboardList,
 } from "lucide-react";
 import {
   Dialog,
@@ -681,6 +682,58 @@ export default function PropertyDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Codigos e Registros */}
+          {(property.registrationNumber || property.iptuNumber || property.energyMeter || property.waterMeter || property.gasMeter || property.condoAdmin) && (
+            <Card className="border-0 shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                  Codigos e Registros
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  {property.registrationNumber && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Matricula</p>
+                      <p className="text-sm font-medium">{property.registrationNumber}</p>
+                    </div>
+                  )}
+                  {property.iptuNumber && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">N do IPTU</p>
+                      <p className="text-sm font-medium">{property.iptuNumber}</p>
+                    </div>
+                  )}
+                  {property.energyMeter && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Medidor Energia</p>
+                      <p className="text-sm font-medium">{property.energyMeter}</p>
+                    </div>
+                  )}
+                  {property.waterMeter && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Medidor Agua</p>
+                      <p className="text-sm font-medium">{property.waterMeter}</p>
+                    </div>
+                  )}
+                  {property.gasMeter && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Medidor Gas</p>
+                      <p className="text-sm font-medium">{property.gasMeter}</p>
+                    </div>
+                  )}
+                  {property.condoAdmin && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Administradora</p>
+                      <p className="text-sm font-medium">{property.condoAdmin}</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Proprietário */}
           <Card className="border-0 shadow-sm">
