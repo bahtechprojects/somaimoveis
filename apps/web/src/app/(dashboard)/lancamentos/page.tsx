@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,8 @@ import {
   CheckCircle2,
   XCircle,
   Repeat,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -165,6 +167,7 @@ function LancamentosContent() {
   const [submitting, setSubmitting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Form state
   const [formTarget, setFormTarget] = useState<"locatario" | "proprietario">("locatario");
@@ -277,6 +280,95 @@ function LancamentosContent() {
       (entry.description || "").toLowerCase().includes(term)
     );
   });
+
+  // Group installments: entries with same parentEntryId or parent itself
+  interface EntryGroup {
+    key: string;
+    entries: EntryItem[];
+    personName: string;
+    category: string;
+    description: string | null;
+    type: "DEBITO" | "CREDITO";
+    entrySource: "tenant" | "owner";
+    totalValue: number;
+    installmentTotal: number;
+    isRecurring: boolean;
+    hasMultiple: boolean;
+    // Status summary
+    paidCount: number;
+    pendingCount: number;
+  }
+
+  const groupedEntries: EntryGroup[] = (() => {
+    const groupMap = new Map<string, EntryItem[]>();
+    const standalone: EntryItem[] = [];
+
+    for (const entry of filteredEntries) {
+      if (entry.installmentTotal && entry.installmentTotal > 1) {
+        // Has installments - group by parentEntryId or own id if it's the parent
+        const groupKey = entry.parentEntryId || entry.id;
+        if (!groupMap.has(groupKey)) groupMap.set(groupKey, []);
+        groupMap.get(groupKey)!.push(entry);
+      } else {
+        standalone.push(entry);
+      }
+    }
+
+    const result: EntryGroup[] = [];
+
+    // Add grouped installments
+    for (const [key, items] of groupMap) {
+      items.sort((a, b) => (a.installmentNumber || 0) - (b.installmentNumber || 0));
+      const first = items[0];
+      result.push({
+        key,
+        entries: items,
+        personName: first.personName,
+        category: first.category,
+        description: first.description,
+        type: first.type,
+        entrySource: first.entrySource,
+        totalValue: items.reduce((sum, e) => sum + e.value, 0),
+        installmentTotal: first.installmentTotal || items.length,
+        isRecurring: first.isRecurring,
+        hasMultiple: true,
+        paidCount: items.filter((e) => e.status === "PAGO").length,
+        pendingCount: items.filter((e) => e.status === "PENDENTE").length,
+      });
+    }
+
+    // Add standalone entries
+    for (const entry of standalone) {
+      result.push({
+        key: entry.id,
+        entries: [entry],
+        personName: entry.personName,
+        category: entry.category,
+        description: entry.description,
+        type: entry.type,
+        entrySource: entry.entrySource,
+        totalValue: entry.value,
+        installmentTotal: 1,
+        isRecurring: entry.isRecurring,
+        hasMultiple: false,
+        paidCount: entry.status === "PAGO" ? 1 : 0,
+        pendingCount: entry.status === "PENDENTE" ? 1 : 0,
+      });
+    }
+
+    // Sort by first entry's createdAt (most recent first)
+    result.sort((a, b) => new Date(b.entries[0].createdAt).getTime() - new Date(a.entries[0].createdAt).getTime());
+    return result;
+  })();
+
+  function toggleGroup(key: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   // Summary
   const totalDebitos = entries
@@ -558,84 +650,127 @@ function LancamentosContent() {
               <>
                 {/* Mobile card view */}
                 <div className="divide-y md:hidden">
-                  {filteredEntries.map((entry) => {
-                    const status = statusConfig[entry.status] || statusConfig.PENDENTE;
-                    const StatusIcon = status.icon;
-                    const isDebito = entry.type === "DEBITO";
-                    return (
-                      <div key={entry.id} className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-center shrink-0 pt-0.5">
-                            <Checkbox
-                              checked={selectedIds.has(entry.id)}
-                              onCheckedChange={() => toggleSelect(entry.id)}
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold">{entry.personName}</p>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "text-[10px] h-5 border",
-                                  entry.entrySource === "owner"
-                                    ? "bg-blue-50 text-blue-700 border-blue-200"
-                                    : "bg-slate-50 text-slate-600 border-slate-200"
-                                )}
-                              >
-                                {entry.entrySource === "owner" ? "Proprietario" : "Locatario"}
-                              </Badge>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "text-[10px] h-5 border",
-                                  isDebito
-                                    ? "bg-red-50 text-red-700 border-red-200"
-                                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                )}
-                              >
-                                {isDebito ? "Debito" : "Credito"}
-                              </Badge>
+                  {groupedEntries.map((group) => {
+                    const isExpanded = expandedGroups.has(group.key);
+                    const isDebito = group.type === "DEBITO";
+                    const firstEntry = group.entries[0];
+
+                    if (!group.hasMultiple) {
+                      const entry = firstEntry;
+                      const status = statusConfig[entry.status] || statusConfig.PENDENTE;
+                      const StatusIcon = status.icon;
+                      return (
+                        <div key={entry.id} className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center shrink-0 pt-0.5">
+                              <Checkbox checked={selectedIds.has(entry.id)} onCheckedChange={() => toggleSelect(entry.id)} />
                             </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {categoryLabels[entry.category] || entry.category}
-                              {entry.description ? ` - ${entry.description}` : ""}
-                            </p>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-semibold">{entry.personName}</p>
+                                <Badge variant="outline" className={cn("text-[10px] h-5 border", entry.entrySource === "owner" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-600 border-slate-200")}>
+                                  {entry.entrySource === "owner" ? "Prop." : "Loc."}
+                                </Badge>
+                                <Badge variant="outline" className={cn("text-[10px] h-5 border", isDebito ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200")}>
+                                  {isDebito ? "Debito" : "Credito"}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {categoryLabels[entry.category] || entry.category}{entry.description ? ` - ${entry.description}` : ""}
+                              </p>
+                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0"><MoreVertical className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(entry)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(entry)}>
-                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={cn("text-[10px] h-5 border gap-1", status.className)}>
-                              <StatusIcon className="h-3 w-3" />
-                              {status.label}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">Venc: {formatDate(entry.dueDate)}</span>
-                            {entry.installmentTotal && entry.installmentTotal > 1 && (
-                              <Badge variant="outline" className="text-[10px] h-5 border bg-blue-50 text-blue-700 border-blue-200">
-                                {entry.installmentNumber}/{entry.installmentTotal}
+                          <div className="mt-2 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className={cn("text-[10px] h-5 border gap-1", status.className)}>
+                                <StatusIcon className="h-3 w-3" />{status.label}
                               </Badge>
-                            )}
-                            {entry.isRecurring && (
-                              <span title="Recorrente"><Repeat className="h-3.5 w-3.5 text-purple-500" /></span>
-                            )}
+                              <span className="text-xs text-muted-foreground">Venc: {formatDate(entry.dueDate)}</span>
+                            </div>
+                            <span className={cn("font-semibold text-sm", isDebito ? "text-red-600" : "text-emerald-600")}>
+                              {isDebito ? "- " : "+ "}{formatCurrency(entry.value)}
+                            </span>
                           </div>
-                          <span className={cn("font-semibold text-sm", isDebito ? "text-red-600" : "text-emerald-600")}>
-                            {isDebito ? "- " : "+ "}{formatCurrency(entry.value)}
-                          </span>
                         </div>
-                      </div>
+                      );
+                    }
+
+                    // Grouped installments - mobile
+                    return (
+                      <React.Fragment key={group.key}>
+                        <div className="p-4 cursor-pointer" onClick={() => toggleGroup(group.key)}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center shrink-0 pt-0.5">
+                              {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-semibold">{group.personName}</p>
+                                <Badge variant="outline" className={cn("text-[10px] h-5 border", group.entrySource === "owner" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-600 border-slate-200")}>
+                                  {group.entrySource === "owner" ? "Prop." : "Loc."}
+                                </Badge>
+                                <Badge variant="outline" className="text-[10px] h-5 border bg-blue-50 text-blue-700 border-blue-200">
+                                  {group.entries.length}x parcelas
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {categoryLabels[group.category] || group.category}{group.description ? ` - ${group.description}` : ""}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {group.paidCount > 0 && group.paidCount < group.entries.length ? (
+                                <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-amber-50 text-amber-700 border-amber-200">
+                                  <Clock className="h-3 w-3" /> {group.paidCount}/{group.entries.length} pagos
+                                </Badge>
+                              ) : group.paidCount === group.entries.length ? (
+                                <Badge variant="outline" className={cn("text-[10px] h-5 border gap-1", statusConfig.PAGO.className)}>
+                                  <CheckCircle2 className="h-3 w-3" /> Pago
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className={cn("text-[10px] h-5 border gap-1", statusConfig.PENDENTE.className)}>
+                                  <Clock className="h-3 w-3" /> Pendente
+                                </Badge>
+                              )}
+                            </div>
+                            <span className={cn("font-semibold text-sm", isDebito ? "text-red-600" : "text-emerald-600")}>
+                              {isDebito ? "- " : "+ "}{formatCurrency(group.totalValue)}
+                            </span>
+                          </div>
+                        </div>
+                        {isExpanded && group.entries.map((entry) => {
+                          const status = statusConfig[entry.status] || statusConfig.PENDENTE;
+                          const StatusIcon = status.icon;
+                          return (
+                            <div key={entry.id} className="p-4 pl-10 bg-muted/30 border-l-2 border-blue-200">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <Checkbox checked={selectedIds.has(entry.id)} onCheckedChange={() => toggleSelect(entry.id)} />
+                                  <Badge variant="outline" className="text-[10px] h-5 border bg-blue-50 text-blue-700 border-blue-200">
+                                    {entry.installmentNumber}/{entry.installmentTotal}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">{formatDate(entry.dueDate)}</span>
+                                  <Badge variant="outline" className={cn("text-[10px] h-5 border gap-1", status.className)}>
+                                    <StatusIcon className="h-3 w-3" />{status.label}
+                                  </Badge>
+                                </div>
+                                <span className={cn("font-semibold text-sm", isDebito ? "text-red-600" : "text-emerald-600")}>
+                                  {isDebito ? "- " : "+ "}{formatCurrency(entry.value)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </React.Fragment>
                     );
                   })}
                 </div>
@@ -651,110 +786,227 @@ function LancamentosContent() {
                             onCheckedChange={toggleSelectAll}
                           />
                         </TableHead>
+                        <TableHead className="text-xs w-6"></TableHead>
                         <TableHead className="text-xs">Data</TableHead>
                         <TableHead className="text-xs">Pessoa</TableHead>
                         <TableHead className="text-xs">Tipo</TableHead>
                         <TableHead className="text-xs">Categoria</TableHead>
                         <TableHead className="text-xs">Descricao</TableHead>
-                        <TableHead className="text-xs">Parcela</TableHead>
+                        <TableHead className="text-xs">Parcelas</TableHead>
                         <TableHead className="text-xs text-right">Valor (R$)</TableHead>
                         <TableHead className="text-xs">Status</TableHead>
                         <TableHead className="text-xs w-10"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredEntries.map((entry) => {
-                        const status = statusConfig[entry.status] || statusConfig.PENDENTE;
-                        const StatusIcon = status.icon;
-                        const isDebito = entry.type === "DEBITO";
-                        return (
-                          <TableRow key={entry.id}>
-                            <TableCell>
-                              <Checkbox
-                                checked={selectedIds.has(entry.id)}
-                                onCheckedChange={() => toggleSelect(entry.id)}
-                              />
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              {formatDate(entry.dueDate)}
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              <div className="flex items-center gap-1.5">
-                                <span className="font-medium">{entry.personName}</span>
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    "text-[10px] h-4 border px-1",
-                                    entry.entrySource === "owner"
-                                      ? "bg-blue-50 text-blue-700 border-blue-200"
-                                      : "bg-slate-50 text-slate-600 border-slate-200"
-                                  )}
-                                >
-                                  {entry.entrySource === "owner" ? "Prop." : "Loc."}
+                      {groupedEntries.map((group) => {
+                        const isExpanded = expandedGroups.has(group.key);
+                        const isDebito = group.type === "DEBITO";
+                        const firstEntry = group.entries[0];
+
+                        if (!group.hasMultiple) {
+                          // Single entry - render normally
+                          const entry = firstEntry;
+                          const status = statusConfig[entry.status] || statusConfig.PENDENTE;
+                          const StatusIcon = status.icon;
+                          return (
+                            <TableRow key={entry.id}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedIds.has(entry.id)}
+                                  onCheckedChange={() => toggleSelect(entry.id)}
+                                />
+                              </TableCell>
+                              <TableCell></TableCell>
+                              <TableCell className="text-xs">
+                                {formatDate(entry.dueDate)}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-medium">{entry.personName}</span>
+                                  <Badge variant="outline" className={cn("text-[10px] h-4 border px-1", entry.entrySource === "owner" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-600 border-slate-200")}>
+                                    {entry.entrySource === "owner" ? "Prop." : "Loc."}
+                                  </Badge>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={cn("text-xs border", isDebito ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200")}>
+                                  {isDebito ? "Debito" : "Credito"}
                                 </Badge>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "text-xs border",
-                                  isDebito
-                                    ? "bg-red-50 text-red-700 border-red-200"
-                                    : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{categoryLabels[entry.category] || entry.category}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{entry.description || "-"}</TableCell>
+                              <TableCell className="text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-muted-foreground">-</span>
+                                  {entry.isRecurring && <span title="Recorrente"><Repeat className="h-3.5 w-3.5 text-purple-500" /></span>}
+                                </div>
+                              </TableCell>
+                              <TableCell className={cn("text-xs font-semibold text-right", isDebito ? "text-red-600" : "text-emerald-600")}>
+                                {isDebito ? "- " : "+ "}{formatCurrency(entry.value)}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={cn("text-xs border gap-1", status.className)}>
+                                  <StatusIcon className="h-3 w-3" />
+                                  {status.label}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                                      <MoreVertical className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(entry)}>
+                                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+
+                        // Group header row (installments grouped)
+                        const allIds = group.entries.map((e) => e.id);
+                        const allSelected = allIds.every((id) => selectedIds.has(id));
+                        return (
+                          <React.Fragment key={group.key}>
+                            <TableRow
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => toggleGroup(group.key)}
+                            >
+                              <TableCell onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={allSelected}
+                                  onCheckedChange={() => {
+                                    if (allSelected) {
+                                      setSelectedIds((prev) => {
+                                        const next = new Set(prev);
+                                        allIds.forEach((id) => next.delete(id));
+                                        return next;
+                                      });
+                                    } else {
+                                      setSelectedIds((prev) => {
+                                        const next = new Set(prev);
+                                        allIds.forEach((id) => next.add(id));
+                                        return next;
+                                      });
+                                    }
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell className="px-0">
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                 )}
-                              >
-                                {isDebito ? "Debito" : "Credito"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {categoryLabels[entry.category] || entry.category}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
-                              {entry.description || "-"}
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              <div className="flex items-center gap-1.5">
-                                {entry.installmentTotal && entry.installmentTotal > 1 ? (
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                {formatDate(firstEntry.dueDate)}
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-medium">{group.personName}</span>
+                                  <Badge variant="outline" className={cn("text-[10px] h-4 border px-1", group.entrySource === "owner" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-slate-50 text-slate-600 border-slate-200")}>
+                                    {group.entrySource === "owner" ? "Prop." : "Loc."}
+                                  </Badge>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className={cn("text-xs border", isDebito ? "bg-red-50 text-red-700 border-red-200" : "bg-emerald-50 text-emerald-700 border-emerald-200")}>
+                                  {isDebito ? "Debito" : "Credito"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">{categoryLabels[group.category] || group.category}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{group.description || "-"}</TableCell>
+                              <TableCell className="text-xs">
+                                <div className="flex items-center gap-1.5">
                                   <Badge variant="outline" className="text-xs border bg-blue-50 text-blue-700 border-blue-200">
-                                    {entry.installmentNumber}/{entry.installmentTotal}
+                                    {group.entries.length}x parcelas
+                                  </Badge>
+                                  {group.paidCount > 0 && (
+                                    <Badge variant="outline" className="text-[10px] h-4 border bg-emerald-50 text-emerald-700 border-emerald-200 px-1">
+                                      {group.paidCount} pago{group.paidCount > 1 ? "s" : ""}
+                                    </Badge>
+                                  )}
+                                  {group.isRecurring && <span title="Recorrente"><Repeat className="h-3.5 w-3.5 text-purple-500" /></span>}
+                                </div>
+                              </TableCell>
+                              <TableCell className={cn("text-xs font-semibold text-right", isDebito ? "text-red-600" : "text-emerald-600")}>
+                                {isDebito ? "- " : "+ "}{formatCurrency(group.totalValue)}
+                              </TableCell>
+                              <TableCell>
+                                {group.pendingCount === group.entries.length ? (
+                                  <Badge variant="outline" className={cn("text-xs border gap-1", statusConfig.PENDENTE.className)}>
+                                    <Clock className="h-3 w-3" /> Pendente
+                                  </Badge>
+                                ) : group.paidCount === group.entries.length ? (
+                                  <Badge variant="outline" className={cn("text-xs border gap-1", statusConfig.PAGO.className)}>
+                                    <CheckCircle2 className="h-3 w-3" /> Pago
                                   </Badge>
                                 ) : (
-                                  <span className="text-muted-foreground">-</span>
+                                  <Badge variant="outline" className="text-xs border gap-1 bg-amber-50 text-amber-700 border-amber-200">
+                                    <Clock className="h-3 w-3" /> {group.paidCount}/{group.entries.length}
+                                  </Badge>
                                 )}
-                                {entry.isRecurring && (
-                                  <span title="Recorrente"><Repeat className="h-3.5 w-3.5 text-purple-500" /></span>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell className={cn("text-xs font-semibold text-right", isDebito ? "text-red-600" : "text-emerald-600")}>
-                              {isDebito ? "- " : "+ "}{formatCurrency(entry.value)}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={cn("text-xs border gap-1", status.className)}>
-                                <StatusIcon className="h-3 w-3" />
-                                {status.label}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7">
-                                    <MoreVertical className="h-3.5 w-3.5" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    variant="destructive"
-                                    onClick={() => handleDeleteClick(entry)}
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                                    Excluir
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          </TableRow>
+                              </TableCell>
+                              <TableCell></TableCell>
+                            </TableRow>
+
+                            {/* Expanded installment rows */}
+                            {isExpanded && group.entries.map((entry) => {
+                              const status = statusConfig[entry.status] || statusConfig.PENDENTE;
+                              const StatusIcon = status.icon;
+                              return (
+                                <TableRow key={entry.id} className="bg-muted/30">
+                                  <TableCell>
+                                    <Checkbox
+                                      checked={selectedIds.has(entry.id)}
+                                      onCheckedChange={() => toggleSelect(entry.id)}
+                                    />
+                                  </TableCell>
+                                  <TableCell></TableCell>
+                                  <TableCell className="text-xs pl-8">{formatDate(entry.dueDate)}</TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">{entry.personName}</TableCell>
+                                  <TableCell></TableCell>
+                                  <TableCell></TableCell>
+                                  <TableCell></TableCell>
+                                  <TableCell className="text-xs">
+                                    <Badge variant="outline" className="text-xs border bg-blue-50 text-blue-700 border-blue-200">
+                                      {entry.installmentNumber}/{entry.installmentTotal}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className={cn("text-xs font-semibold text-right", isDebito ? "text-red-600" : "text-emerald-600")}>
+                                    {isDebito ? "- " : "+ "}{formatCurrency(entry.value)}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className={cn("text-xs border gap-1", status.className)}>
+                                      <StatusIcon className="h-3 w-3" />
+                                      {status.label}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                                          <MoreVertical className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                        <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(entry)}>
+                                          <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </React.Fragment>
                         );
                       })}
                     </TableBody>
