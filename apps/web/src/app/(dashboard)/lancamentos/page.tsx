@@ -63,9 +63,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface TenantEntry {
+interface EntryItem {
   id: string;
-  tenantId: string;
+  entrySource: "tenant" | "owner"; // qual API originou
+  tenantId?: string;
+  ownerId?: string;
   type: "DEBITO" | "CREDITO";
   category: string;
   description: string | null;
@@ -79,13 +81,10 @@ interface TenantEntry {
   parentEntryId: string | null;
   isRecurring: boolean;
   recurringDay: number | null;
-  tenant: {
-    id: string;
-    name: string;
-  };
+  personName: string; // nome do locatário ou proprietário
 }
 
-interface Tenant {
+interface Person {
   id: string;
   name: string;
 }
@@ -105,27 +104,25 @@ const categoryLabels: Record<string, string> = {
   GAS: "Gas",
   MULTA: "Multa",
   REPARO: "Reparo",
+  REPASSE: "Repasse",
   DESCONTO: "Desconto",
   SEGURO_FIANCA: "Seguro Fiança",
   SEGURO_INCENDIO: "Seguro Incêndio",
+  TAXA_BANCARIA: "Taxa Bancaria",
+  INTERMEDIACAO: "Intermediacao",
   ACORDO: "Acordo",
   OUTROS: "Outros",
 };
 
-const categories = [
-  "ALUGUEL",
-  "CONDOMINIO",
-  "IPTU",
-  "AGUA",
-  "LUZ",
-  "GAS",
-  "MULTA",
-  "REPARO",
-  "DESCONTO",
-  "SEGURO_FIANCA",
-  "SEGURO_INCENDIO",
-  "ACORDO",
-  "OUTROS",
+const tenantCategories = [
+  "ALUGUEL", "CONDOMINIO", "IPTU", "AGUA", "LUZ", "GAS",
+  "MULTA", "REPARO", "DESCONTO", "SEGURO_FIANCA", "SEGURO_INCENDIO",
+  "ACORDO", "OUTROS",
+];
+
+const ownerCategories = [
+  "REPASSE", "REPARO", "TAXA_BANCARIA", "IPTU", "CONDOMINIO",
+  "INTERMEDIACAO", "DESCONTO", "ACORDO", "OUTROS",
 ];
 
 function formatDate(dateString: string): string {
@@ -154,21 +151,24 @@ export default function LancamentosPage() {
 }
 
 function LancamentosContent() {
-  const [entries, setEntries] = useState<TenantEntry[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [entries, setEntries] = useState<EntryItem[]>([]);
+  const [tenants, setTenants] = useState<Person[]>([]);
+  const [owners, setOwners] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("todos");
   const [statusFilter, setStatusFilter] = useState("todos");
+  const [sourceFilter, setSourceFilter] = useState("todos"); // todos, locatario, proprietario
   const [formOpen, setFormOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [entryToDelete, setEntryToDelete] = useState<TenantEntry | null>(null);
+  const [entryToDelete, setEntryToDelete] = useState<EntryItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
 
   // Form state
-  const [formTenantId, setFormTenantId] = useState("");
+  const [formTarget, setFormTarget] = useState<"locatario" | "proprietario">("locatario");
+  const [formPersonId, setFormPersonId] = useState("");
   const [formType, setFormType] = useState<"DEBITO" | "CREDITO">("DEBITO");
   const [formCategory, setFormCategory] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -183,11 +183,38 @@ function LancamentosContent() {
   async function fetchEntries() {
     setLoading(true);
     try {
-      const response = await fetch("/api/tenant-entries");
-      if (response.ok) {
-        const data = await response.json();
-        setEntries(data);
+      const [tenantRes, ownerRes] = await Promise.all([
+        fetch("/api/tenant-entries"),
+        fetch("/api/owner-entries"),
+      ]);
+
+      const allEntries: EntryItem[] = [];
+
+      if (tenantRes.ok) {
+        const tenantData = await tenantRes.json();
+        for (const e of tenantData) {
+          allEntries.push({
+            ...e,
+            entrySource: "tenant" as const,
+            personName: e.tenant?.name || "N/A",
+          });
+        }
       }
+
+      if (ownerRes.ok) {
+        const ownerData = await ownerRes.json();
+        for (const e of ownerData) {
+          allEntries.push({
+            ...e,
+            entrySource: "owner" as const,
+            personName: e.owner?.name || "N/A",
+          });
+        }
+      }
+
+      // Ordenar por data de criacao (mais recente primeiro)
+      allEntries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setEntries(allEntries);
     } catch (error) {
       console.error("Erro ao buscar lancamentos:", error);
     } finally {
@@ -195,25 +222,40 @@ function LancamentosContent() {
     }
   }
 
-  async function fetchTenants() {
+  async function fetchPeople() {
     try {
-      const response = await fetch("/api/tenants");
-      if (response.ok) {
-        const data = await response.json();
+      const [tenantRes, ownerRes] = await Promise.all([
+        fetch("/api/tenants"),
+        fetch("/api/owners"),
+      ]);
+      if (tenantRes.ok) {
+        const data = await tenantRes.json();
         setTenants(data);
       }
+      if (ownerRes.ok) {
+        const data = await ownerRes.json();
+        setOwners(data);
+      }
     } catch (error) {
-      console.error("Erro ao buscar locatarios:", error);
+      console.error("Erro ao buscar pessoas:", error);
     }
   }
 
   useEffect(() => {
     fetchEntries();
-    fetchTenants();
+    fetchPeople();
   }, []);
 
+  // Filter by source (locatario/proprietario)
+  const filteredBySource = entries.filter((entry) => {
+    if (sourceFilter === "todos") return true;
+    if (sourceFilter === "locatario") return entry.entrySource === "tenant";
+    if (sourceFilter === "proprietario") return entry.entrySource === "owner";
+    return true;
+  });
+
   // Filter by type tab
-  const filteredByType = entries.filter((entry) => {
+  const filteredByType = filteredBySource.filter((entry) => {
     if (activeTab === "todos") return true;
     if (activeTab === "debitos") return entry.type === "DEBITO";
     if (activeTab === "creditos") return entry.type === "CREDITO";
@@ -231,7 +273,7 @@ function LancamentosContent() {
     if (!search) return true;
     const term = search.toLowerCase();
     return (
-      (entry.tenant?.name || "").toLowerCase().includes(term) ||
+      entry.personName.toLowerCase().includes(term) ||
       (entry.description || "").toLowerCase().includes(term)
     );
   });
@@ -245,7 +287,8 @@ function LancamentosContent() {
     .reduce((sum, e) => sum + e.value, 0);
 
   function resetForm() {
-    setFormTenantId("");
+    setFormTarget("locatario");
+    setFormPersonId("");
     setFormType("DEBITO");
     setFormCategory("");
     setFormDescription("");
@@ -265,7 +308,7 @@ function LancamentosContent() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!formTenantId || !formCategory || !formValue || !formDueDate) return;
+    if (!formPersonId || !formCategory || !formValue || !formDueDate) return;
 
     setSubmitting(true);
     try {
@@ -276,21 +319,37 @@ function LancamentosContent() {
         ? rawValue * numInstallments
         : rawValue;
 
-      const response = await fetch("/api/tenant-entries", {
+      const isOwner = formTarget === "proprietario";
+      const apiUrl = isOwner ? "/api/owner-entries" : "/api/tenant-entries";
+      const bodyData = isOwner
+        ? {
+            ownerId: formPersonId,
+            type: formType,
+            category: formCategory,
+            description: formDescription || null,
+            value: totalValue,
+            dueDate: formDueDate,
+            notes: formNotes || null,
+            installments: numInstallments,
+            isRecurring: formIsRecurring,
+          }
+        : {
+            tenantId: formPersonId,
+            type: formType,
+            category: formCategory,
+            description: formDescription || null,
+            value: totalValue,
+            dueDate: formDueDate,
+            notes: formNotes || null,
+            installments: numInstallments,
+            isRecurring: formIsRecurring,
+            destination: formDestination || null,
+          };
+
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tenantId: formTenantId,
-          type: formType,
-          category: formCategory,
-          description: formDescription || null,
-          value: totalValue,
-          dueDate: formDueDate,
-          notes: formNotes || null,
-          installments: numInstallments,
-          isRecurring: formIsRecurring,
-          destination: formDestination || null,
-        }),
+        body: JSON.stringify(bodyData),
       });
       if (!response.ok) {
         const error = await response.json();
@@ -307,7 +366,7 @@ function LancamentosContent() {
     }
   }
 
-  function handleDeleteClick(entry: TenantEntry) {
+  function handleDeleteClick(entry: EntryItem) {
     setEntryToDelete(entry);
     setDeleteDialogOpen(true);
   }
@@ -315,7 +374,8 @@ function LancamentosContent() {
   async function handleDeleteConfirm() {
     if (!entryToDelete) return;
     try {
-      const response = await fetch(`/api/tenant-entries/${entryToDelete.id}`, {
+      const apiBase = entryToDelete.entrySource === "owner" ? "/api/owner-entries" : "/api/tenant-entries";
+      const response = await fetch(`${apiBase}/${entryToDelete.id}`, {
         method: "DELETE",
       });
       if (!response.ok) {
@@ -354,7 +414,10 @@ function LancamentosContent() {
     let errors = 0;
     for (const id of ids) {
       try {
-        const res = await fetch(`/api/tenant-entries/${id}`, { method: "DELETE" });
+        // Find the entry to determine which API to call
+        const entry = entries.find((e) => e.id === id);
+        const apiBase = entry?.entrySource === "owner" ? "/api/owner-entries" : "/api/tenant-entries";
+        const res = await fetch(`${apiBase}/${id}`, { method: "DELETE" });
         if (!res.ok) errors++;
       } catch {
         errors++;
@@ -369,7 +432,7 @@ function LancamentosContent() {
 
   return (
     <div className="flex flex-col">
-      <Header title="Lançamentos" subtitle="Débitos e créditos dos locatários" />
+      <Header title="Lançamentos" subtitle="Debitos e creditos de locatarios e proprietarios" />
 
       <div className="p-4 sm:p-6 space-y-4">
         {/* Summary Cards */}
@@ -430,6 +493,16 @@ function LancamentosContent() {
                     <TabsTrigger value="creditos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Creditos</TabsTrigger>
                   </TabsList>
                 </Tabs>
+                <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                  <SelectTrigger className="h-10 sm:h-8 w-[150px] text-xs">
+                    <SelectValue placeholder="Pessoa" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="locatario">Locatarios</SelectItem>
+                    <SelectItem value="proprietario">Proprietarios</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="h-10 sm:h-8 w-[140px] text-xs">
                     <SelectValue placeholder="Status" />
@@ -461,7 +534,7 @@ function LancamentosContent() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar por locatario ou descricao..."
+                  placeholder="Buscar por nome ou descricao..."
                   className="pl-9 h-10 sm:h-8 w-full sm:w-[280px] text-sm sm:text-xs"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -500,7 +573,18 @@ function LancamentosContent() {
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="text-sm font-semibold">{entry.tenant?.name || "N/A"}</p>
+                              <p className="text-sm font-semibold">{entry.personName}</p>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] h-5 border",
+                                  entry.entrySource === "owner"
+                                    ? "bg-blue-50 text-blue-700 border-blue-200"
+                                    : "bg-slate-50 text-slate-600 border-slate-200"
+                                )}
+                              >
+                                {entry.entrySource === "owner" ? "Proprietario" : "Locatario"}
+                              </Badge>
                               <Badge
                                 variant="outline"
                                 className={cn(
@@ -568,7 +652,7 @@ function LancamentosContent() {
                           />
                         </TableHead>
                         <TableHead className="text-xs">Data</TableHead>
-                        <TableHead className="text-xs">Locatário</TableHead>
+                        <TableHead className="text-xs">Pessoa</TableHead>
                         <TableHead className="text-xs">Tipo</TableHead>
                         <TableHead className="text-xs">Categoria</TableHead>
                         <TableHead className="text-xs">Descricao</TableHead>
@@ -594,8 +678,21 @@ function LancamentosContent() {
                             <TableCell className="text-xs">
                               {formatDate(entry.dueDate)}
                             </TableCell>
-                            <TableCell className="text-xs font-medium">
-                              {entry.tenant?.name || "N/A"}
+                            <TableCell className="text-xs">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium">{entry.personName}</span>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    "text-[10px] h-4 border px-1",
+                                    entry.entrySource === "owner"
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                                      : "bg-slate-50 text-slate-600 border-slate-200"
+                                  )}
+                                >
+                                  {entry.entrySource === "owner" ? "Prop." : "Loc."}
+                                </Badge>
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Badge
@@ -677,15 +774,43 @@ function LancamentosContent() {
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="tenantId">Locatário</Label>
-              <Select value={formTenantId} onValueChange={setFormTenantId}>
-                <SelectTrigger id="tenantId">
-                  <SelectValue placeholder="Selecione o locatario" />
+              <Label>Para quem?</Label>
+              <Select
+                value={formTarget}
+                onValueChange={(v) => {
+                  setFormTarget(v as "locatario" | "proprietario");
+                  setFormPersonId("");
+                  setFormCategory("");
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {tenants.map((tenant) => (
-                    <SelectItem key={tenant.id} value={tenant.id}>
-                      {tenant.name}
+                  <SelectItem value="locatario">Locatario</SelectItem>
+                  <SelectItem value="proprietario">Proprietario</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="personId">
+                {formTarget === "proprietario" ? "Proprietario" : "Locatario"}
+              </Label>
+              <Select value={formPersonId} onValueChange={setFormPersonId}>
+                <SelectTrigger id="personId">
+                  <SelectValue
+                    placeholder={
+                      formTarget === "proprietario"
+                        ? "Selecione o proprietario"
+                        : "Selecione o locatario"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {(formTarget === "proprietario" ? owners : tenants).map((person) => (
+                    <SelectItem key={person.id} value={person.id}>
+                      {person.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -713,9 +838,9 @@ function LancamentosContent() {
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((cat) => (
+                    {(formTarget === "proprietario" ? ownerCategories : tenantCategories).map((cat) => (
                       <SelectItem key={cat} value={cat}>
-                        {categoryLabels[cat]}
+                        {categoryLabels[cat] || cat}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -733,19 +858,21 @@ function LancamentosContent() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="destination">Destino</Label>
-              <Select value={formDestination} onValueChange={setFormDestination}>
-                <SelectTrigger id="destination">
-                  <SelectValue placeholder="Para Imobiliária (padrão)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="IMOBILIARIA">Para Imobiliária</SelectItem>
-                  <SelectItem value="PROPRIETARIO">Para Proprietário</SelectItem>
-                  <SelectItem value="TERCEIRO">Para Terceiro</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {formTarget === "locatario" && (
+              <div className="space-y-2">
+                <Label htmlFor="destination">Destino</Label>
+                <Select value={formDestination} onValueChange={setFormDestination}>
+                  <SelectTrigger id="destination">
+                    <SelectValue placeholder="Para Imobiliária (padrão)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="IMOBILIARIA">Para Imobiliária</SelectItem>
+                    <SelectItem value="PROPRIETARIO">Para Proprietário</SelectItem>
+                    <SelectItem value="TERCEIRO">Para Terceiro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {parseInt(formInstallments) > 1 && (
               <div className="space-y-2">
@@ -842,7 +969,7 @@ function LancamentosContent() {
               <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={submitting || !formTenantId || !formCategory || !formValue || !formDueDate}>
+              <Button type="submit" disabled={submitting || !formPersonId || !formCategory || !formValue || !formDueDate}>
                 {submitting ? "Salvando..." : "Criar Lancamento"}
               </Button>
             </div>
@@ -857,7 +984,7 @@ function LancamentosContent() {
             <AlertDialogTitle>Excluir Lancamento</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir este lancamento de{" "}
-              <strong>{entryToDelete?.tenant?.name}</strong>? Esta acao nao pode ser desfeita.
+              <strong>{entryToDelete?.personName}</strong>? Esta acao nao pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -29,6 +29,7 @@ import {
   UsersRound,
   Receipt,
   Menu,
+  ArrowUpRight,
 } from "lucide-react";
 
 const navigation = [
@@ -61,6 +62,11 @@ const navigation = [
     label: "Financeiro",
     href: "/financeiro",
     icon: DollarSign,
+  },
+  {
+    label: "Repasses",
+    href: "/repasses",
+    icon: ArrowUpRight,
   },
   {
     label: "Lançamentos",
