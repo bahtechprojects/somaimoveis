@@ -906,10 +906,10 @@ export default function PropertyDetailPage() {
                           isComplete ? "text-emerald-600" : "text-amber-600"
                         )}
                       >
-                        {total.toFixed(1)}%
+                        {total.toFixed(2).replace(/\.?0+$/, "")}%
                         {!isComplete && (
                           <span className="text-xs font-normal ml-1">
-                            (faltam {(100 - total).toFixed(1)}%)
+                            (faltam {(100 - total).toFixed(2).replace(/\.?0+$/, "")}%)
                           </span>
                         )}
                       </span>

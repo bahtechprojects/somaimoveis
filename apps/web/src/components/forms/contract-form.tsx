@@ -558,9 +558,9 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                     </Select>
                     <Input
                       type="number"
-                      min={0.5}
+                      min={0.01}
                       max={100}
-                      step={0.5}
+                      step={0.01}
                       className="w-20"
                       placeholder="%"
                       value={co.percentage || ""}
@@ -578,11 +578,19 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                     </Button>
                   </div>
                 ))}
-                {coOwners.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Total: {coOwners.reduce((s, c) => s + (c.percentage || 0), 0).toFixed(1).replace(/\.0$/, "")}% para co-proprietários
-                  </p>
-                )}
+                {coOwners.length > 0 && (() => {
+                  const totalCo = coOwners.reduce((s, c) => s + (c.percentage || 0), 0);
+                  const total = Math.round(totalCo * 100) / 100;
+                  const isValid = Math.abs(total - 100) < 0.01;
+                  return (
+                    <div className="space-y-1">
+                      <p className={`text-xs font-medium ${isValid ? "text-emerald-600" : "text-red-600"}`}>
+                        Total: {total.toFixed(2).replace(/\.?0+$/, "")}%
+                        {isValid ? " ✓" : " (deve somar 100%)"}
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="space-y-2">
