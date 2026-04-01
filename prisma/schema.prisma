@@ -455,6 +455,7 @@ model OwnerEntry {
   owner       Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   contractId  String?
   propertyId  String?
+  destination String?  // IMOBILIARIA, PROPRIETARIO, INQUILINO, TERCEIRO (null = IMOBILIARIA)
   // Meta
   notes       String?
   createdAt   DateTime @default(now())

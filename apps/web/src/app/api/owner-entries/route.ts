@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
         installmentTotal: installments,
         isRecurring: body.isRecurring || false,
         recurringDay: body.recurringDay ? parseInt(body.recurringDay) : null,
+        destination: body.destination || null,
       },
       include: {
         owner: { select: { id: true, name: true } },
@@ -143,6 +144,7 @@ export async function POST(request: NextRequest) {
             parentEntryId: firstEntry.id,
             isRecurring: body.isRecurring || false,
             recurringDay: body.recurringDay ? parseInt(body.recurringDay) : null,
+            destination: body.destination || null,
           },
           include: {
             owner: { select: { id: true, name: true } },
@@ -171,6 +173,7 @@ export async function POST(request: NextRequest) {
       notes: body.notes || null,
       isRecurring: body.isRecurring || false,
       recurringDay: body.recurringDay ? parseInt(body.recurringDay) : null,
+      destination: body.destination || null,
     },
     include: {
       owner: { select: { id: true, name: true } },

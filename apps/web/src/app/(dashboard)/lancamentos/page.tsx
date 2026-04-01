@@ -424,6 +424,7 @@ function LancamentosContent() {
             notes: formNotes || null,
             installments: numInstallments,
             isRecurring: formIsRecurring,
+            destination: formDestination || null,
           }
         : {
             tenantId: formPersonId,
@@ -1110,21 +1111,20 @@ function LancamentosContent() {
               />
             </div>
 
-            {formTarget === "locatario" && (
-              <div className="space-y-2">
-                <Label htmlFor="destination">Destino</Label>
-                <Select value={formDestination} onValueChange={setFormDestination}>
-                  <SelectTrigger id="destination">
-                    <SelectValue placeholder="Para Imobiliária (padrão)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="IMOBILIARIA">Para Imobiliária</SelectItem>
-                    <SelectItem value="PROPRIETARIO">Para Proprietário</SelectItem>
-                    <SelectItem value="TERCEIRO">Para Terceiro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="destination">Destino</Label>
+              <Select value={formDestination} onValueChange={setFormDestination}>
+                <SelectTrigger id="destination">
+                  <SelectValue placeholder="Para Imobiliária (padrão)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="IMOBILIARIA">Para Imobiliária</SelectItem>
+                  <SelectItem value="PROPRIETARIO">Para Proprietário</SelectItem>
+                  <SelectItem value="INQUILINO">Para Inquilino</SelectItem>
+                  <SelectItem value="TERCEIRO">Para Terceiro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
             {parseInt(formInstallments) > 1 && (
               <div className="space-y-2">
