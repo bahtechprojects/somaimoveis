@@ -111,7 +111,10 @@ export async function POST(request: NextRequest) {
         // Pro-rata: calcular aluguel proporcional se contrato começa ou termina no meio do mês
         const contractStart = new Date(contract.startDate);
         const contractEnd = contract.endDate ? new Date(contract.endDate) : null;
-        const monthFirstDay = new Date(targetYear, targetMonth, 1);
+        // Normalizar para evitar problemas de timezone (usar UTC)
+        const csYear = contractStart.getUTCFullYear();
+        const csMonth = contractStart.getUTCMonth();
+        const csDay = contractStart.getUTCDate();
         const monthLastDay = new Date(targetYear, targetMonth + 1, 0);
         const daysInMonth = monthLastDay.getDate();
 
@@ -119,20 +122,24 @@ export async function POST(request: NextRequest) {
         let isProrata = false;
 
         // Primeiro mês do contrato: início no meio do mês
-        if (contractStart.getFullYear() === targetYear && contractStart.getMonth() === targetMonth && contractStart.getDate() > 1) {
-          prorataDays = daysInMonth - contractStart.getDate() + 1;
+        if (csYear === targetYear && csMonth === targetMonth && csDay > 1) {
+          prorataDays = daysInMonth - csDay + 1;
           isProrata = true;
         }
 
         // Último mês do contrato: término no meio do mês
-        if (contractEnd && contractEnd.getFullYear() === targetYear && contractEnd.getMonth() === targetMonth && contractEnd.getDate() < daysInMonth) {
-          const endDay = contractEnd.getDate();
-          if (isProrata) {
-            // Começou e terminou no mesmo mês
-            prorataDays = endDay - contractStart.getDate() + 1;
-          } else {
-            prorataDays = endDay;
-            isProrata = true;
+        if (contractEnd) {
+          const ceYear = contractEnd.getUTCFullYear();
+          const ceMonth = contractEnd.getUTCMonth();
+          const ceDay = contractEnd.getUTCDate();
+          if (ceYear === targetYear && ceMonth === targetMonth && ceDay < daysInMonth) {
+            if (isProrata) {
+              // Começou e terminou no mesmo mês
+              prorataDays = ceDay - csDay + 1;
+            } else {
+              prorataDays = ceDay;
+              isProrata = true;
+            }
           }
         }
 
@@ -140,6 +147,10 @@ export async function POST(request: NextRequest) {
         const prorataRentalValue = isProrata
           ? Math.round(dailyRate * prorataDays * 100) / 100
           : contract.rentalValue;
+
+        if (isProrata) {
+          console.log(`[Billing] Pro-rata ${contract.code}: início=${csDay}/${csMonth + 1}/${csYear}, dias=${prorataDays}, aluguel=${contract.rentalValue} → ${prorataRentalValue}`);
+        }
 
         // Calculate condominium and IPTU values
         const condoFee = contract.property?.condoFee || 0;
