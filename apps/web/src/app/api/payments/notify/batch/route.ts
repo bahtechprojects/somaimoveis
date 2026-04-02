@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Delay de 5 segundos entre envios para evitar banimento no WhatsApp
-      await new Promise(r => setTimeout(r, 5000));
+      // Delay de 36 segundos entre envios (~100 cobranças em 1 hora)
+      await new Promise(r => setTimeout(r, 36000));
     }
 
     return NextResponse.json({
