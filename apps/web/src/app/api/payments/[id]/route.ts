@@ -82,7 +82,7 @@ export async function DELETE(
 
     const payment = await prisma.payment.findUnique({
       where: { id },
-      select: { id: true, contractId: true, dueDate: true, nossoNumero: true },
+      select: { id: true, contractId: true, tenantId: true, dueDate: true, nossoNumero: true },
     });
     if (!payment) {
       return NextResponse.json({ error: "Pagamento não encontrado" }, { status: 404 });
@@ -113,6 +113,21 @@ export async function DELETE(
         status: "PENDENTE",
       },
     });
+
+    // Restaurar lançamentos do locatário (créditos/débitos) para PENDENTE
+    if (payment.tenantId && payment.dueDate) {
+      const dueMonth = new Date(payment.dueDate);
+      const mStart = new Date(dueMonth.getFullYear(), dueMonth.getMonth(), 1);
+      const mEnd = new Date(dueMonth.getFullYear(), dueMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+      await prisma.tenantEntry.updateMany({
+        where: {
+          tenantId: payment.tenantId,
+          status: "PAGO",
+          dueDate: { gte: mStart, lte: mEnd },
+        },
+        data: { status: "PENDENTE" },
+      });
+    }
 
     // Deletar o pagamento
     await prisma.payment.delete({ where: { id } });

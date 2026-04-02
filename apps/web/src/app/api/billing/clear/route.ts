@@ -25,7 +25,7 @@ export async function DELETE(request: NextRequest) {
         dueDate: { gte: monthStart, lte: monthEnd },
         status: "PENDENTE",
       },
-      select: { id: true, contractId: true, dueDate: true, nossoNumero: true },
+      select: { id: true, contractId: true, tenantId: true, dueDate: true, nossoNumero: true },
     });
 
     if (payments.length === 0) {
@@ -63,6 +63,18 @@ export async function DELETE(request: NextRequest) {
             status: "PENDENTE",
           },
         });
+
+        // Restore tenant entries (credits/debits) back to PENDENTE so they can be reapplied
+        if (payment.tenantId) {
+          await prisma.tenantEntry.updateMany({
+            where: {
+              tenantId: payment.tenantId,
+              status: "PAGO",
+              dueDate: { gte: monthStart, lte: monthEnd },
+            },
+            data: { status: "PENDENTE" },
+          });
+        }
 
         // Delete payment
         await prisma.payment.delete({ where: { id: payment.id } });

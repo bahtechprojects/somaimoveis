@@ -627,6 +627,21 @@ function FinanceiroContent() {
                               IPTU
                             </Badge>
                           )}
+                          {breakdown && (breakdown.seguroFianca ?? 0) > 0 && (
+                            <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-cyan-50 text-cyan-700 border-cyan-200">
+                              Seguro
+                            </Badge>
+                          )}
+                          {breakdown && (breakdown.desconto ?? 0) > 0 && (
+                            <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-green-50 text-green-700 border-green-200">
+                              -Desc
+                            </Badge>
+                          )}
+                          {breakdown && (breakdown.debitos ?? 0) > 0 && (
+                            <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-red-50 text-red-700 border-red-200">
+                              +Déb
+                            </Badge>
+                          )}
                           <span className="text-xs text-muted-foreground">Venc: {formatDate(payment.dueDate)}</span>
                         </div>
                         <span className="font-semibold text-sm">{formatCurrency(payment.value)}</span>
@@ -739,38 +754,42 @@ function FinanceiroContent() {
                           {formatCurrency(payment.value)}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {breakdown && breakdown.condominio > 0 && (
-                              <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-orange-50 text-orange-700 border-orange-200" title={`Condominio: ${formatCurrency(breakdown.condominio)}`}>
-                                <Building2 className="h-3 w-3" />
-                                Cond.
-                              </Badge>
-                            )}
-                            {breakdown && breakdown.iptu > 0 && (
-                              <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-purple-50 text-purple-700 border-purple-200" title={`IPTU mensal: ${formatCurrency(breakdown.iptu)}`}>
-                                <Landmark className="h-3 w-3" />
-                                IPTU
-                              </Badge>
-                            )}
-                            {breakdown && (breakdown.seguroFianca ?? 0) > 0 && (
-                              <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-cyan-50 text-cyan-700 border-cyan-200" title={`Seguro Fiança: ${formatCurrency(breakdown.seguroFianca!)}`}>
-                                Seguro
-                              </Badge>
-                            )}
-                            {breakdown && (breakdown.desconto ?? 0) > 0 && (
-                              <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-green-50 text-green-700 border-green-200" title={`Desconto: -${formatCurrency(breakdown.desconto!)}`}>
-                                -Desc
-                              </Badge>
-                            )}
-                            {breakdown && (breakdown.debitos ?? 0) > 0 && (
-                              <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-red-50 text-red-700 border-red-200" title={`Débitos extras: +${formatCurrency(breakdown.debitos!)}`}>
-                                +Déb
-                              </Badge>
-                            )}
-                            {(!breakdown || (breakdown.condominio === 0 && breakdown.iptu === 0 && !(breakdown.seguroFianca ?? 0) && !(breakdown.desconto ?? 0) && !(breakdown.debitos ?? 0))) && (
-                              <span className="text-xs text-muted-foreground">-</span>
-                            )}
-                          </div>
+                          {breakdown ? (
+                            <div className="space-y-0.5 min-w-[180px]">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-[10px] text-muted-foreground">Aluguel: {formatCurrency(breakdown.aluguelComDesconto ?? breakdown.aluguel)}</span>
+                                {breakdown.condominio > 0 && (
+                                  <span className="text-[10px] text-orange-600">+ Cond: {formatCurrency(breakdown.condominio)}</span>
+                                )}
+                                {breakdown.iptu > 0 && (
+                                  <span className="text-[10px] text-purple-600">+ IPTU: {formatCurrency(breakdown.iptu)}</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {(breakdown.seguroFianca ?? 0) > 0 && (
+                                  <span className="text-[10px] text-cyan-600">+ Seguro: {formatCurrency(breakdown.seguroFianca!)}</span>
+                                )}
+                                {(breakdown.taxaBancaria ?? 0) > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">+ Tx Banc: {formatCurrency(breakdown.taxaBancaria!)}</span>
+                                )}
+                                {(breakdown.desconto ?? 0) > 0 && (
+                                  <span className="text-[10px] text-green-600">- Desc: {formatCurrency(breakdown.desconto!)}</span>
+                                )}
+                                {(breakdown.debitos ?? 0) > 0 && (
+                                  <span className="text-[10px] text-red-600">+ Déb: {formatCurrency(breakdown.debitos!)}</span>
+                                )}
+                              </div>
+                              {breakdown.lancamentos && breakdown.lancamentos.length > 0 && (
+                                <div className="text-[9px] text-muted-foreground/70">
+                                  {breakdown.lancamentos.map((l, i) => (
+                                    <span key={i}>{l.tipo === "CREDITO" ? "(-) " : "(+) "}{l.descricao}: {formatCurrency(l.valor)}{i < breakdown.lancamentos!.length - 1 ? " | " : ""}</span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs">
                           {formatDate(payment.dueDate)}
