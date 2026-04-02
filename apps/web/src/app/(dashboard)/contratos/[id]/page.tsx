@@ -85,6 +85,10 @@ interface Payment {
   grossToOwner: number | null;
   netToOwner: number | null;
   notes: string | null;
+  nossoNumero: string | null;
+  linhaDigitavel: string | null;
+  codigoBarras: string | null;
+  boletoStatus: string | null;
 }
 
 interface Contract {
@@ -772,6 +776,7 @@ export default function ContratoDetalhePage() {
                         <TableHead className="text-xs">Data Pgto.</TableHead>
                         <TableHead className="text-xs">Valor Pago</TableHead>
                         <TableHead className="text-xs">Status</TableHead>
+                        <TableHead className="text-xs">Boleto</TableHead>
                         <TableHead className="text-xs">Metodo</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -807,6 +812,39 @@ export default function ContratoDetalhePage() {
                               >
                                 {pStatus.label}
                               </Badge>
+                            </TableCell>
+                            <TableCell className="text-xs">
+                              {payment.boletoStatus === "EMITIDO" ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs gap-1 text-primary hover:text-primary"
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch(`/api/payments/${payment.id}/boleto`);
+                                      if (!res.ok) throw new Error("Erro ao baixar boleto");
+                                      const blob = await res.blob();
+                                      const url = URL.createObjectURL(blob);
+                                      const a = document.createElement("a");
+                                      a.href = url;
+                                      a.download = `boleto-${payment.code}.pdf`;
+                                      a.click();
+                                      URL.revokeObjectURL(url);
+                                    } catch {
+                                      toast.error("Erro ao baixar PDF do boleto");
+                                    }
+                                  }}
+                                >
+                                  <Download className="h-3 w-3" />
+                                  PDF
+                                </Button>
+                              ) : payment.nossoNumero ? (
+                                <Badge variant="outline" className="text-xs">
+                                  {payment.boletoStatus || "—"}
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               {payment.paymentMethod || "-"}
