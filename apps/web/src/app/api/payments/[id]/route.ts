@@ -62,6 +62,43 @@ export async function PUT(
       data,
       include: { contract: true, tenant: true, owner: true },
     });
+
+    // Quando pagamento é confirmado (PAGO), marcar lançamentos do locatário como PAGO
+    if (body.status === "PAGO" && payment.notes) {
+      try {
+        const breakdown = JSON.parse(payment.notes);
+        if (breakdown.lancamentos && Array.isArray(breakdown.lancamentos)) {
+          const entryIds = breakdown.lancamentos.map((l: { id?: string }) => l.id).filter(Boolean);
+          if (entryIds.length > 0) {
+            await prisma.tenantEntry.updateMany({
+              where: { id: { in: entryIds } },
+              data: { status: "PAGO" },
+            });
+          }
+        }
+      } catch {
+        // notes não é JSON válido, ignorar
+      }
+    }
+
+    // Quando pagamento volta para PENDENTE, restaurar lançamentos
+    if (body.status === "PENDENTE" && payment.notes) {
+      try {
+        const breakdown = JSON.parse(payment.notes);
+        if (breakdown.lancamentos && Array.isArray(breakdown.lancamentos)) {
+          const entryIds = breakdown.lancamentos.map((l: { id?: string }) => l.id).filter(Boolean);
+          if (entryIds.length > 0) {
+            await prisma.tenantEntry.updateMany({
+              where: { id: { in: entryIds } },
+              data: { status: "PENDENTE" },
+            });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     return NextResponse.json(payment);
   } catch (error: any) {
     if (error?.code === "P2025") {
@@ -82,7 +119,7 @@ export async function DELETE(
 
     const payment = await prisma.payment.findUnique({
       where: { id },
-      select: { id: true, contractId: true, tenantId: true, dueDate: true, nossoNumero: true },
+      select: { id: true, contractId: true, tenantId: true, dueDate: true, nossoNumero: true, notes: true },
     });
     if (!payment) {
       return NextResponse.json({ error: "Pagamento não encontrado" }, { status: 404 });
@@ -114,19 +151,22 @@ export async function DELETE(
       },
     });
 
-    // Restaurar lançamentos do locatário (créditos/débitos) para PENDENTE
-    if (payment.tenantId && payment.dueDate) {
-      const dueMonth = new Date(payment.dueDate);
-      const mStart = new Date(dueMonth.getFullYear(), dueMonth.getMonth(), 1);
-      const mEnd = new Date(dueMonth.getFullYear(), dueMonth.getMonth() + 1, 0, 23, 59, 59, 999);
-      await prisma.tenantEntry.updateMany({
-        where: {
-          tenantId: payment.tenantId,
-          status: "PAGO",
-          dueDate: { gte: mStart, lte: mEnd },
-        },
-        data: { status: "PENDENTE" },
-      });
+    // Restaurar lançamentos vinculados ao pagamento para PENDENTE
+    if (payment.notes) {
+      try {
+        const breakdown = JSON.parse(payment.notes as string);
+        if (breakdown.lancamentos && Array.isArray(breakdown.lancamentos)) {
+          const entryIds = breakdown.lancamentos.map((l: { id?: string }) => l.id).filter(Boolean);
+          if (entryIds.length > 0) {
+            await prisma.tenantEntry.updateMany({
+              where: { id: { in: entryIds } },
+              data: { status: "PENDENTE" },
+            });
+          }
+        }
+      } catch {
+        // ignore
+      }
     }
 
     // Deletar o pagamento

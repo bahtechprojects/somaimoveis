@@ -214,6 +214,7 @@ export async function POST(request: NextRequest) {
         // Detail of each tenant entry applied
         if (tenantEntries.length > 0) {
           breakdown.lancamentos = tenantEntries.map(e => ({
+            id: e.id,
             tipo: e.type,
             categoria: e.category,
             descricao: e.description,
@@ -243,11 +244,14 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Marcar lancamentos (creditos e debitos) como aplicados
-        if (tenantEntries.length > 0) {
+        // Lançamentos NÃO são marcados como PAGO aqui.
+        // Serão marcados quando o pagamento for confirmado (status PAGO).
+        // Para entries sem dueDate, definir o dueDate para o mês alvo para evitar dupla aplicação.
+        const nullDateEntries = tenantEntries.filter(e => !e.dueDate);
+        if (nullDateEntries.length > 0) {
           await prisma.tenantEntry.updateMany({
-            where: { id: { in: tenantEntries.map(e => e.id) } },
-            data: { status: "PAGO" },
+            where: { id: { in: nullDateEntries.map(e => e.id) } },
+            data: { dueDate: new Date(targetYear, targetMonth, 1, 12, 0, 0) },
           });
         }
 
