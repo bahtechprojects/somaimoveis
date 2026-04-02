@@ -114,10 +114,6 @@ export async function POST(request: NextRequest) {
           ? Math.round((contract.property.iptuValue / 12) * 100) / 100
           : 0;
 
-        // Total value charged to tenant = rent + condo + IPTU + bank fee
-        const bankFee = contract.bankFee || 0;
-        const totalValue = Math.round((contract.rentalValue + condoFee + iptuMonthly + bankFee) * 100) / 100;
-
         // Check for active discounts on rent (CREDITO entries with category ALUGUEL or DESCONTO)
         const discountEntries = await prisma.tenantEntry.findMany({
           where: {
@@ -133,6 +129,10 @@ export async function POST(request: NextRequest) {
         });
         const totalDiscount = discountEntries.reduce((sum, e) => sum + e.value, 0);
         const effectiveRentalValue = Math.max(0, contract.rentalValue - totalDiscount);
+
+        // Total value charged to tenant = rent (with discount) + condo + IPTU + bank fee
+        const bankFee = contract.bankFee || 0;
+        const totalValue = Math.round((effectiveRentalValue + condoFee + iptuMonthly + bankFee) * 100) / 100;
 
         // Calculate split values (admin fee applies to rental value minus discounts)
         const adminFee = contract.adminFeePercent || 10;
@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
         // Build description with breakdown
         const mLabel = `${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`;
         const descParts = [`Aluguel ${mLabel} - ${contract.code}`];
+        if (totalDiscount > 0) descParts.push(`Desconto: -R$ ${totalDiscount.toFixed(2)}`);
         if (condoFee > 0) descParts.push(`Condominio: R$ ${condoFee.toFixed(2)}`);
         if (iptuMonthly > 0) descParts.push(`IPTU: R$ ${iptuMonthly.toFixed(2)}`);
         if (intermediationNote) descParts.push(intermediationNote);
@@ -189,6 +190,8 @@ export async function POST(request: NextRequest) {
         // Store structured breakdown in notes for programmatic access
         const breakdown: Record<string, unknown> = {
           aluguel: contract.rentalValue,
+          desconto: totalDiscount,
+          aluguelComDesconto: effectiveRentalValue,
           condominio: condoFee,
           iptu: iptuMonthly,
           total: totalValue,
@@ -204,6 +207,7 @@ export async function POST(request: NextRequest) {
             tenantId: contract.tenantId!,
             ownerId: contract.ownerId,
             value: totalValue,
+            discountValue: totalDiscount > 0 ? totalDiscount : null,
             dueDate,
             status: "PENDENTE",
             splitAdminValue,
@@ -217,6 +221,14 @@ export async function POST(request: NextRequest) {
             notes: JSON.stringify(breakdown),
           },
         });
+
+        // Marcar lancamentos de desconto como aplicados
+        if (discountEntries.length > 0) {
+          await prisma.tenantEntry.updateMany({
+            where: { id: { in: discountEntries.map(e => e.id) } },
+            data: { status: "PAGO" },
+          });
+        }
 
         // Create owner entry records split by PropertyOwner percentages
         if (contract.property?.id) {
