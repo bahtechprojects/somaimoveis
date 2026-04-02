@@ -64,7 +64,8 @@ export async function DELETE(request: NextRequest) {
           },
         });
 
-        // Restaurar lançamentos vinculados para PENDENTE (caso já tenham sido marcados PAGO)
+        // Restaurar lançamentos vinculados para PENDENTE
+        let restoredByIds = false;
         if (payment.notes) {
           try {
             const breakdown = JSON.parse(payment.notes as string);
@@ -75,11 +76,23 @@ export async function DELETE(request: NextRequest) {
                   where: { id: { in: entryIds } },
                   data: { status: "PENDENTE" },
                 });
+                restoredByIds = true;
               }
             }
           } catch {
             // ignore
           }
+        }
+        // Fallback: restaurar por locatário+mês (para cobranças antigas sem IDs no notes)
+        if (!restoredByIds && payment.tenantId) {
+          await prisma.tenantEntry.updateMany({
+            where: {
+              tenantId: payment.tenantId,
+              status: "PAGO",
+              dueDate: { gte: monthStart, lte: monthEnd },
+            },
+            data: { status: "PENDENTE" },
+          });
         }
 
         // Delete payment
