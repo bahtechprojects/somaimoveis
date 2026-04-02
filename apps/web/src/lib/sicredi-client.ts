@@ -154,6 +154,15 @@ export async function sicrediAuth(): Promise<string> {
       body: body.toString(),
     });
 
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      const text = await response.text();
+      console.error(`[Sicredi] Resposta nao-JSON na auth (${response.status}):`, text.slice(0, 200));
+      throw new Error(
+        `Sicredi retornou resposta invalida (${response.status}). Verifique as credenciais (API Key, Username, Password).`
+      );
+    }
+
     const data = await response.json();
 
     if (!response.ok) {
@@ -222,6 +231,19 @@ export async function sicrediCreateBoleto(
       body: JSON.stringify(body),
     });
 
+    const responseContentType = response.headers.get("content-type") || "";
+    if (!responseContentType.includes("application/json")) {
+      const text = await response.text();
+      console.error(`[Sicredi] Resposta nao-JSON ao criar boleto (${response.status}):`, text.slice(0, 200));
+      return {
+        nossoNumero: "",
+        linhaDigitavel: "",
+        codigoBarras: "",
+        success: false,
+        error: `Sicredi retornou resposta invalida (${response.status}). Verifique as credenciais.`,
+      };
+    }
+
     const data = await response.json();
 
     if (!response.ok) {
@@ -282,6 +304,16 @@ export async function sicrediQueryBoleto(nossoNumero: string): Promise<any> {
       method: "GET",
       headers: commonHeaders(token),
     });
+
+    const queryContentType = response.headers.get("content-type") || "";
+    if (!queryContentType.includes("application/json")) {
+      const text = await response.text();
+      console.error(`[Sicredi] Resposta nao-JSON ao consultar boleto (${response.status}):`, text.slice(0, 200));
+      return {
+        success: false,
+        error: `Sicredi retornou resposta invalida (${response.status}). Verifique as credenciais.`,
+      };
+    }
 
     const data = await response.json();
 
