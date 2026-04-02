@@ -1,10 +1,17 @@
 // ==================================================
 // Templates de mensagens WhatsApp para notificacoes
+// Variacao de textos para evitar bloqueio por spam
 // ==================================================
 
 interface TemplateResult {
   subject: string;
   message: string;
+}
+
+// Seleciona variante baseada no dia do mes (distribui uniformemente)
+function variant(options: string[]): string {
+  const dayOfMonth = new Date().getDate();
+  return options[dayOfMonth % options.length];
 }
 
 // ---- Locatario: Lembrete de pagamento proximo do vencimento ----
@@ -17,9 +24,15 @@ interface PaymentReminderParams {
 }
 
 export function paymentReminder(params: PaymentReminderParams): TemplateResult {
+  const greeting = variant(["Ola", "Oi", "Bom dia"]);
+  const closing = variant([
+    "Pague em dia para evitar multa e juros.",
+    "Evite encargos realizando o pagamento ate a data.",
+    "Mantenha seu aluguel em dia e evite acrescimos.",
+  ]);
   return {
     subject: `Lembrete de pagamento - ${params.propertyTitle}`,
-    message: `Ola ${params.tenantName}! Lembrete: seu aluguel de ${params.value} referente ao imovel ${params.propertyTitle} vence em ${params.daysUntilDue} dia(s), no dia ${params.dueDate}. Pague em dia para evitar multa e juros.`,
+    message: `${greeting} ${params.tenantName}! Lembrete: seu aluguel de ${params.value} referente ao imovel ${params.propertyTitle} vence em ${params.daysUntilDue} dia(s), no dia ${params.dueDate}. ${closing}`,
   };
 }
 
@@ -33,9 +46,15 @@ interface PaymentOverdueParams {
 }
 
 export function paymentOverdue(params: PaymentOverdueParams): TemplateResult {
+  const greeting = variant(["Ola", "Prezado(a)", "Oi"]);
+  const action = variant([
+    "Entre em contato para regularizar.",
+    "Regularize o quanto antes para evitar maiores encargos.",
+    "Por favor, entre em contato com a Somma Imoveis.",
+  ]);
   return {
     subject: `Pagamento em atraso - ${params.propertyTitle}`,
-    message: `Ola ${params.tenantName}, seu aluguel de ${params.value} referente ao imovel ${params.propertyTitle} esta vencido desde ${params.dueDate}. Valor atualizado com multa e juros: ${params.totalValue}. Entre em contato para regularizar.`,
+    message: `${greeting} ${params.tenantName}, seu aluguel de ${params.value} referente ao imovel ${params.propertyTitle} esta vencido desde ${params.dueDate}. Valor atualizado com multa e juros: ${params.totalValue}. ${action}`,
   };
 }
 
@@ -47,9 +66,10 @@ interface PaymentReceivedParams {
 }
 
 export function paymentReceived(params: PaymentReceivedParams): TemplateResult {
+  const thanks = variant(["Obrigado!", "Agradecemos!", "Muito obrigado!"]);
   return {
     subject: `Pagamento confirmado - ${params.propertyTitle}`,
-    message: `Ola ${params.tenantName}! Confirmamos o recebimento do pagamento de ${params.value} referente ao aluguel do imovel ${params.propertyTitle}. Obrigado!`,
+    message: `Ola ${params.tenantName}! Confirmamos o recebimento do pagamento de ${params.value} referente ao aluguel do imovel ${params.propertyTitle}. ${thanks}`,
   };
 }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 import { calculateIRRF } from "@/lib/fiscal";
+import { nextBusinessDay } from "@/lib/business-days";
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
@@ -104,7 +105,9 @@ export async function POST(request: NextRequest) {
         const lastDayOfMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
         if (paymentDay > lastDayOfMonth) paymentDay = lastDayOfMonth;
 
-        const dueDate = new Date(targetYear, targetMonth, paymentDay, 12, 0, 0);
+        // Se vencimento cair em final de semana ou feriado, mover para proximo dia util
+        const rawDueDate = new Date(targetYear, targetMonth, paymentDay, 12, 0, 0);
+        const dueDate = nextBusinessDay(rawDueDate);
 
         // Calculate condominium and IPTU values
         const condoFee = contract.property?.condoFee || 0;

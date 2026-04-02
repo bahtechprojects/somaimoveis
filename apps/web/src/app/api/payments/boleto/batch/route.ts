@@ -106,6 +106,24 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      // Validar dados obrigatórios do pagador (Sicredi exige)
+      const missingFields: string[] = [];
+      if (!tenant.cpfCnpj) missingFields.push("CPF/CNPJ do locatário");
+      if (!tenant.name) missingFields.push("Nome do locatário");
+      if (!tenant.city) missingFields.push("Cidade do locatário");
+      if (!tenant.state) missingFields.push("UF do locatário");
+      if (!tenant.zipCode) missingFields.push("CEP do locatário");
+      if (!owner.cpfCnpj) missingFields.push("CPF/CNPJ do proprietário");
+
+      if (missingFields.length > 0) {
+        erros.push({
+          paymentId: payment.id,
+          code: payment.code,
+          error: `Dados incompletos: ${missingFields.join(", ")}`,
+        });
+        continue;
+      }
+
       try {
         const boletoParams: CreateBoletoParams = {
           pagador: {

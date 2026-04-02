@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     // Buscar pagamento pelo nossoNumero
     const payment = await prisma.payment.findFirst({
       where: { nossoNumero },
-      include: { owner: true },
+      include: { owner: true, contract: { select: { id: true } } },
     });
 
     if (!payment) {
@@ -95,6 +95,37 @@ export async function POST(request: NextRequest) {
     console.log(
       `[Sicredi Webhook] Pagamento ${payment.code} atualizado para LIQUIDADO`
     );
+
+    // Atualizar OwnerEntries de REPASSE vinculados a este contrato/mes
+    try {
+      const paymentDueDate = new Date(payment.dueDate);
+      const monthStart = new Date(paymentDueDate.getFullYear(), paymentDueDate.getMonth(), 1);
+      const monthEnd = new Date(paymentDueDate.getFullYear(), paymentDueDate.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const updatedEntries = await prisma.ownerEntry.updateMany({
+        where: {
+          contractId: payment.contractId,
+          category: "REPASSE",
+          status: "PENDENTE",
+          dueDate: { gte: monthStart, lte: monthEnd },
+        },
+        data: {
+          status: "PAGO",
+          paidAt: paidAt,
+        },
+      });
+
+      if (updatedEntries.count > 0) {
+        console.log(
+          `[Sicredi Webhook] ${updatedEntries.count} OwnerEntry(s) de repasse marcado(s) como PAGO`
+        );
+      }
+    } catch (ownerEntryError) {
+      console.error(
+        "[Sicredi Webhook] Erro ao atualizar OwnerEntries (nao-critico):",
+        ownerEntryError
+      );
+    }
 
     if (!payment.owner) {
       console.warn("[Sicredi Webhook] Payment has no owner linked:", payment.id);

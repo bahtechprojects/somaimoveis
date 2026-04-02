@@ -6,8 +6,25 @@
 const UAZAPI_URL = process.env.UAZAPI_URL;
 const UAZAPI_TOKEN = process.env.UAZAPI_TOKEN;
 
-// Delay entre mensagens (ms) para evitar rate limit da Uazapi
-const MESSAGE_DELAY_MS = 1500;
+// Delay entre mensagens (ms) para evitar rate limit e banimento
+const MESSAGE_DELAY_MS = 3000;
+
+// Rate limit: maximo de mensagens por hora para evitar bloqueio do numero
+const MAX_MESSAGES_PER_HOUR = 30;
+const messageTimestamps: number[] = [];
+
+function checkHourlyLimit(): boolean {
+  const oneHourAgo = Date.now() - 60 * 60 * 1000;
+  // Remove timestamps antigos
+  while (messageTimestamps.length > 0 && messageTimestamps[0] < oneHourAgo) {
+    messageTimestamps.shift();
+  }
+  return messageTimestamps.length < MAX_MESSAGES_PER_HOUR;
+}
+
+function recordMessage(): void {
+  messageTimestamps.push(Date.now());
+}
 
 // Fila simples para envio sequencial com delay
 let sendQueue: Promise<void> = Promise.resolve();
@@ -15,8 +32,14 @@ let sendQueue: Promise<void> = Promise.resolve();
 function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     sendQueue = sendQueue.then(async () => {
+      // Verificar rate limit por hora
+      if (!checkHourlyLimit()) {
+        reject(new Error(`Rate limit: máximo de ${MAX_MESSAGES_PER_HOUR} mensagens por hora atingido. Tente novamente mais tarde.`));
+        return;
+      }
       try {
         const result = await fn();
+        recordMessage();
         resolve(result);
       } catch (err) {
         reject(err);

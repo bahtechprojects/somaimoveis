@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { renderTemplate } from "@/lib/whatsapp-templates";
-import { sendWhatsAppMessage } from "@/lib/whatsapp-sender";
+import { sendWhatsAppMessage, sendEmailMessage } from "@/lib/whatsapp-sender";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 import { loadBillingRules } from "@/lib/billing-rules";
 
@@ -31,13 +31,13 @@ export async function POST(_request: NextRequest) {
   try {
     const rules = await loadBillingRules();
 
-    if (!rules.notifyByWhatsapp) {
+    if (!rules.notifyByWhatsapp && !rules.notifyByEmail) {
       return NextResponse.json({
         sent: 0,
         skipped: 0,
         errors: 0,
         details: [],
-        message: "Notificações por WhatsApp estão desativadas nas regras de cobrança.",
+        message: "Notificações por WhatsApp e Email estão desativadas nas regras de cobrança.",
       });
     }
 
@@ -75,7 +75,7 @@ export async function POST(_request: NextRequest) {
         },
         include: {
           contract: { include: { property: { select: { title: true } } } },
-          tenant: { select: { id: true, name: true, phone: true } },
+          tenant: { select: { id: true, name: true, phone: true, email: true } },
         },
       });
 
@@ -104,14 +104,17 @@ export async function POST(_request: NextRequest) {
           continue;
         }
 
-        if (!payment.tenant?.phone) {
+        const tenantPhone = payment.tenant?.phone;
+        const tenantEmail = (payment.tenant as any)?.email as string | undefined;
+
+        if (!tenantPhone && !tenantEmail) {
           skipped++;
           details.push({
             paymentId: payment.id,
             paymentCode: payment.code,
             tenantName: payment.tenant?.name || "N/A",
             action: "payment_reminder",
-            result: "sem_telefone",
+            result: "sem_telefone_e_email",
           });
           continue;
         }
@@ -125,48 +128,99 @@ export async function POST(_request: NextRequest) {
             dueDate: formatDate(new Date(payment.dueDate)),
           });
 
-          const sendResult = await sendWhatsAppMessage({
-            to: payment.tenant?.phone,
-            message: rendered.message,
-          });
+          // Enviar WhatsApp
+          if (rules.notifyByWhatsapp && tenantPhone) {
+            const sendResult = await sendWhatsAppMessage({
+              to: tenantPhone,
+              message: rendered.message,
+            });
 
-          await prisma.notification.create({
-            data: {
-              type: "WHATSAPP",
-              channel: "whatsapp",
-              recipientName: payment.tenant?.name || "N/A",
-              recipientPhone: payment.tenant?.phone,
-              templateKey: "payment_reminder",
+            await prisma.notification.create({
+              data: {
+                type: "WHATSAPP",
+                channel: "whatsapp",
+                recipientName: payment.tenant?.name || "N/A",
+                recipientPhone: tenantPhone,
+                templateKey: "payment_reminder",
+                subject: rendered.subject,
+                message: rendered.message,
+                status: sendResult.success ? "ENVIADO" : "FALHA",
+                sentAt: sendResult.success ? new Date() : null,
+                errorMessage: sendResult.error || null,
+                paymentId: payment.id,
+                contractId: payment.contractId,
+                tenantId: payment.tenantId,
+                metadata: JSON.stringify({ messageId: sendResult.messageId, daysBefore }),
+              },
+            });
+
+            if (sendResult.success) {
+              sent++;
+              details.push({
+                paymentId: payment.id,
+                paymentCode: payment.code,
+                tenantName: payment.tenant?.name || "N/A",
+                action: "payment_reminder",
+                result: "whatsapp_enviado",
+              });
+            } else {
+              errors++;
+              details.push({
+                paymentId: payment.id,
+                paymentCode: payment.code,
+                tenantName: payment.tenant?.name || "N/A",
+                action: "payment_reminder",
+                result: `whatsapp_falha: ${sendResult.error}`,
+              });
+            }
+          }
+
+          // Enviar Email
+          if (rules.notifyByEmail && tenantEmail) {
+            const emailResult = await sendEmailMessage({
+              to: tenantEmail,
               subject: rendered.subject,
               message: rendered.message,
-              status: sendResult.success ? "ENVIADO" : "FALHA",
-              sentAt: sendResult.success ? new Date() : null,
-              errorMessage: sendResult.error || null,
-              paymentId: payment.id,
-              contractId: payment.contractId,
-              tenantId: payment.tenantId,
-              metadata: JSON.stringify({ messageId: sendResult.messageId, daysBefore }),
-            },
-          });
+            });
 
-          if (sendResult.success) {
-            sent++;
-            details.push({
-              paymentId: payment.id,
-              paymentCode: payment.code,
-              tenantName: payment.tenant?.name || "N/A",
-              action: "payment_reminder",
-              result: "enviado",
+            await prisma.notification.create({
+              data: {
+                type: "EMAIL",
+                channel: "email",
+                recipientName: payment.tenant?.name || "N/A",
+                recipientEmail: tenantEmail,
+                templateKey: "payment_reminder",
+                subject: rendered.subject,
+                message: rendered.message,
+                status: emailResult.success ? "ENVIADO" : "FALHA",
+                sentAt: emailResult.success ? new Date() : null,
+                errorMessage: emailResult.error || null,
+                paymentId: payment.id,
+                contractId: payment.contractId,
+                tenantId: payment.tenantId,
+                metadata: JSON.stringify({ messageId: emailResult.messageId, daysBefore }),
+              },
             });
-          } else {
-            errors++;
-            details.push({
-              paymentId: payment.id,
-              paymentCode: payment.code,
-              tenantName: payment.tenant?.name || "N/A",
-              action: "payment_reminder",
-              result: `falha: ${sendResult.error}`,
-            });
+
+            if (emailResult.success) {
+              sent++;
+              details.push({
+                paymentId: payment.id,
+                paymentCode: payment.code,
+                tenantName: payment.tenant?.name || "N/A",
+                action: "payment_reminder",
+                result: "email_enviado",
+              });
+            } else {
+              errors++;
+              details.push({
+                paymentId: payment.id,
+                paymentCode: payment.code,
+                tenantName: payment.tenant?.name || "N/A",
+                action: "payment_reminder",
+                result: `email_falha: ${emailResult.error}`,
+              });
+            }
           }
         } catch (err) {
           errors++;
@@ -194,7 +248,7 @@ export async function POST(_request: NextRequest) {
             property: { select: { title: true } },
           },
         },
-        tenant: { select: { id: true, name: true, phone: true } },
+        tenant: { select: { id: true, name: true, phone: true, email: true } },
         owner: { select: { id: true, name: true, phone: true } },
       },
     });
@@ -205,13 +259,15 @@ export async function POST(_request: NextRequest) {
         (now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
       );
 
-      // Encontrar o step de escalation aplicavel baseado nos dias de atraso
-      const whatsappSteps = rules.escalationSteps.filter(
-        (step) => step.action === "whatsapp_reminder" && daysOverdue >= step.daysAfterDue
+      // Encontrar steps de escalation aplicaveis (whatsapp ou email)
+      const applicableSteps = rules.escalationSteps.filter(
+        (step) =>
+          (step.action === "whatsapp_reminder" || step.action === "email_reminder") &&
+          daysOverdue >= step.daysAfterDue
       );
 
-      if (whatsappSteps.length === 0) {
-        // Ainda nao esta no momento de enviar WhatsApp para este pagamento
+      if (applicableSteps.length === 0) {
+        // Ainda nao esta no momento de enviar notificacao para este pagamento
         continue;
       }
 
@@ -240,9 +296,20 @@ export async function POST(_request: NextRequest) {
       }
 
       // ---- Enviar notificacao para o locatario ----
-      if (payment.tenant?.phone) {
+      const overduePhone = payment.tenant?.phone;
+      const overdueEmail = (payment.tenant as any)?.email as string | undefined;
+
+      if (!overduePhone && !overdueEmail) {
+        skipped++;
+        details.push({
+          paymentId: payment.id,
+          paymentCode: payment.code,
+          tenantName: payment.tenant?.name || "N/A",
+          action: "payment_overdue",
+          result: "sem_telefone_e_email",
+        });
+      } else {
         try {
-          // Calcular valor atualizado com multa e juros
           const fineValue = payment.fineValue || 0;
           const interestValue = payment.interestValue || 0;
           const totalValue = payment.value + fineValue + interestValue;
@@ -255,51 +322,99 @@ export async function POST(_request: NextRequest) {
             totalValue: formatCurrency(totalValue),
           });
 
-          const sendResult = await sendWhatsAppMessage({
-            to: payment.tenant?.phone,
-            message: rendered.message,
-          });
+          // WhatsApp
+          if (rules.notifyByWhatsapp && overduePhone) {
+            const sendResult = await sendWhatsAppMessage({
+              to: overduePhone,
+              message: rendered.message,
+            });
 
-          await prisma.notification.create({
-            data: {
-              type: "WHATSAPP",
-              channel: "whatsapp",
-              recipientName: payment.tenant?.name || "N/A",
-              recipientPhone: payment.tenant?.phone,
-              templateKey: "payment_overdue",
+            await prisma.notification.create({
+              data: {
+                type: "WHATSAPP",
+                channel: "whatsapp",
+                recipientName: payment.tenant?.name || "N/A",
+                recipientPhone: overduePhone,
+                templateKey: "payment_overdue",
+                subject: rendered.subject,
+                message: rendered.message,
+                status: sendResult.success ? "ENVIADO" : "FALHA",
+                sentAt: sendResult.success ? new Date() : null,
+                errorMessage: sendResult.error || null,
+                paymentId: payment.id,
+                contractId: payment.contractId,
+                tenantId: payment.tenantId,
+                metadata: JSON.stringify({ messageId: sendResult.messageId, daysOverdue }),
+              },
+            });
+
+            if (sendResult.success) {
+              sent++;
+              details.push({
+                paymentId: payment.id,
+                paymentCode: payment.code,
+                tenantName: payment.tenant?.name || "N/A",
+                action: "payment_overdue",
+                result: "whatsapp_enviado",
+              });
+            } else {
+              errors++;
+              details.push({
+                paymentId: payment.id,
+                paymentCode: payment.code,
+                tenantName: payment.tenant?.name || "N/A",
+                action: "payment_overdue",
+                result: `whatsapp_falha: ${sendResult.error}`,
+              });
+            }
+          }
+
+          // Email
+          if (rules.notifyByEmail && overdueEmail) {
+            const emailResult = await sendEmailMessage({
+              to: overdueEmail,
               subject: rendered.subject,
               message: rendered.message,
-              status: sendResult.success ? "ENVIADO" : "FALHA",
-              sentAt: sendResult.success ? new Date() : null,
-              errorMessage: sendResult.error || null,
-              paymentId: payment.id,
-              contractId: payment.contractId,
-              tenantId: payment.tenantId,
-              metadata: JSON.stringify({
-                messageId: sendResult.messageId,
-                daysOverdue,
-              }),
-            },
-          });
+            });
 
-          if (sendResult.success) {
-            sent++;
-            details.push({
-              paymentId: payment.id,
-              paymentCode: payment.code,
-              tenantName: payment.tenant?.name || "N/A",
-              action: "payment_overdue",
-              result: "enviado",
+            await prisma.notification.create({
+              data: {
+                type: "EMAIL",
+                channel: "email",
+                recipientName: payment.tenant?.name || "N/A",
+                recipientEmail: overdueEmail,
+                templateKey: "payment_overdue",
+                subject: rendered.subject,
+                message: rendered.message,
+                status: emailResult.success ? "ENVIADO" : "FALHA",
+                sentAt: emailResult.success ? new Date() : null,
+                errorMessage: emailResult.error || null,
+                paymentId: payment.id,
+                contractId: payment.contractId,
+                tenantId: payment.tenantId,
+                metadata: JSON.stringify({ messageId: emailResult.messageId, daysOverdue }),
+              },
             });
-          } else {
-            errors++;
-            details.push({
-              paymentId: payment.id,
-              paymentCode: payment.code,
-              tenantName: payment.tenant?.name || "N/A",
-              action: "payment_overdue",
-              result: `falha: ${sendResult.error}`,
-            });
+
+            if (emailResult.success) {
+              sent++;
+              details.push({
+                paymentId: payment.id,
+                paymentCode: payment.code,
+                tenantName: payment.tenant?.name || "N/A",
+                action: "payment_overdue",
+                result: "email_enviado",
+              });
+            } else {
+              errors++;
+              details.push({
+                paymentId: payment.id,
+                paymentCode: payment.code,
+                tenantName: payment.tenant?.name || "N/A",
+                action: "payment_overdue",
+                result: `email_falha: ${emailResult.error}`,
+              });
+            }
           }
         } catch (err) {
           errors++;
@@ -311,15 +426,6 @@ export async function POST(_request: NextRequest) {
             result: `erro: ${(err as Error).message}`,
           });
         }
-      } else {
-        skipped++;
-        details.push({
-          paymentId: payment.id,
-          paymentCode: payment.code,
-          tenantName: payment.tenant?.name || "N/A",
-          action: "payment_overdue",
-          result: "sem_telefone_locatario",
-        });
       }
 
       // ---- Notificar o proprietario sobre o atraso ----
@@ -403,7 +509,7 @@ export async function POST(_request: NextRequest) {
         },
         include: {
           property: { select: { title: true } },
-          tenant: { select: { id: true, name: true, phone: true } },
+          tenant: { select: { id: true, name: true, phone: true, email: true } },
         },
       });
 
