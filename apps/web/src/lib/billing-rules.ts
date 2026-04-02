@@ -25,6 +25,7 @@ export const DEFAULT_RULES: BillingRules = {
   dailyInterestPercent: 0.033,
   escalationSteps: [
     { daysAfterDue: 1, action: "email_reminder", description: "Enviar lembrete por email" },
+    { daysAfterDue: 3, action: "whatsapp_reminder", description: "Enviar lembrete por WhatsApp" },
     { daysAfterDue: 5, action: "sms_reminder", description: "Enviar SMS de cobranca" },
     { daysAfterDue: 10, action: "whatsapp_reminder", description: "Enviar cobranca por WhatsApp" },
     { daysAfterDue: 15, action: "phone_contact", description: "Contato telefonico" },

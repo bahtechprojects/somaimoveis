@@ -54,6 +54,27 @@ export async function GET(request: NextRequest) {
     orderBy: { dueDate: "asc" },
   });
 
+  // Buscar debitos pendentes dos proprietarios para descontar
+  const entryOwnerIds = [...new Set(entries.map((e) => e.ownerId))];
+  const debitEntries = entryOwnerIds.length > 0
+    ? await prisma.ownerEntry.findMany({
+        where: {
+          type: "DEBITO",
+          status: "PENDENTE",
+          ownerId: { in: entryOwnerIds },
+        },
+        select: { ownerId: true, value: true, id: true },
+      })
+    : [];
+
+  // Somar debitos por proprietario
+  const debitsByOwner: Record<string, { total: number; ids: string[] }> = {};
+  for (const d of debitEntries) {
+    if (!debitsByOwner[d.ownerId]) debitsByOwner[d.ownerId] = { total: 0, ids: [] };
+    debitsByOwner[d.ownerId].total += d.value;
+    debitsByOwner[d.ownerId].ids.push(d.id);
+  }
+
   // Group by owner and sum values
   const grouped: Record<
     string,
@@ -66,15 +87,17 @@ export async function GET(request: NextRequest) {
       chavePix: string;
       tipoChavePix: string;
       valor: number;
+      valorBruto: number;
+      valorDebitos: number;
       descricao: string;
       entryIds: string[];
+      debitIds: string[];
     }
   > = {};
 
   for (const entry of entries) {
     const oid = entry.ownerId;
     if (!grouped[oid]) {
-      // Use third-party data if available, otherwise owner data
       const o = entry.owner;
       const useThirdParty = !!o.thirdPartyName;
       grouped[oid] = {
@@ -94,18 +117,24 @@ export async function GET(request: NextRequest) {
           ? o.thirdPartyPixKeyType || ""
           : o.bankPixType || "",
         valor: 0,
+        valorBruto: 0,
+        valorDebitos: debitsByOwner[oid]?.total || 0,
         descricao: "",
         entryIds: [],
+        debitIds: debitsByOwner[oid]?.ids || [],
       };
     }
-    grouped[oid].valor += entry.value;
+    grouped[oid].valorBruto += entry.value;
     grouped[oid].entryIds.push(entry.id);
   }
 
+  // Valor liquido = repasse - debitos pendentes
   const rows = Object.values(grouped).map((g) => ({
     ...g,
-    valor: Math.round(g.valor * 100) / 100,
-    descricao: `Repasse aluguel${month ? ` ${month}` : ""}`,
+    valorBruto: Math.round(g.valorBruto * 100) / 100,
+    valorDebitos: Math.round(g.valorDebitos * 100) / 100,
+    valor: Math.round((g.valorBruto - g.valorDebitos) * 100) / 100,
+    descricao: `Repasse aluguel${month ? ` ${month}` : ""}${g.valorDebitos > 0 ? ` (debitos: -R$${g.valorDebitos.toFixed(2)})` : ""}`,
   }));
 
   if (format === "json") {

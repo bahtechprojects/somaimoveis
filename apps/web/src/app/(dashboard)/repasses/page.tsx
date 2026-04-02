@@ -82,8 +82,11 @@ interface OwnerEntry {
 interface OwnerGroup {
   owner: OwnerData;
   entries: OwnerEntry[];
+  debitEntries?: OwnerEntry[];
   totalPendente: number;
   totalPago: number;
+  totalDebitos?: number;
+  totalLiquido?: number;
 }
 
 function formatCurrency(value: number): string {
@@ -181,6 +184,8 @@ export default function RepassesPage() {
   // Summary
   const totalPendente = groups.reduce((sum, g) => sum + g.totalPendente, 0);
   const totalPago = groups.reduce((sum, g) => sum + g.totalPago, 0);
+  const totalDebitos = groups.reduce((sum, g) => sum + (g.totalDebitos || 0), 0);
+  const totalLiquido = groups.reduce((sum, g) => sum + (g.totalLiquido ?? g.totalPendente), 0);
   const totalProprietarios = groups.length;
   const totalEntries = groups.reduce((sum, g) => sum + g.entries.length, 0);
 
@@ -397,10 +402,15 @@ export default function RepassesPage() {
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">A Repassar</p>
+                  <p className="text-xs font-medium text-muted-foreground">A Repassar (Liquido)</p>
                   <p className="text-2xl font-bold mt-1">
-                    {loading ? "..." : formatCurrency(totalPendente)}
+                    {loading ? "..." : formatCurrency(totalLiquido)}
                   </p>
+                  {totalDebitos > 0 && (
+                    <p className="text-xs text-red-500 mt-0.5">
+                      Bruto: {formatCurrency(totalPendente)} | Debitos: -{formatCurrency(totalDebitos)}
+                    </p>
+                  )}
                 </div>
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-100">
                   <Clock className="h-5 w-5 text-yellow-600" />
@@ -651,7 +661,12 @@ export default function RepassesPage() {
                               <div className="text-right">
                                 {group.totalPendente > 0 && (
                                   <p className="text-sm font-bold text-yellow-600">
-                                    {formatCurrency(group.totalPendente)}
+                                    {formatCurrency(group.totalLiquido ?? group.totalPendente)}
+                                  </p>
+                                )}
+                                {(group.totalDebitos ?? 0) > 0 && (
+                                  <p className="text-[11px] text-red-500">
+                                    Debitos: -{formatCurrency(group.totalDebitos!)}
                                   </p>
                                 )}
                                 {group.totalPago > 0 && (
@@ -742,6 +757,41 @@ export default function RepassesPage() {
                                 </div>
                               </div>
                             ))}
+
+                            {/* Debitos pendentes */}
+                            {(group.debitEntries?.length ?? 0) > 0 && (
+                              <div className="border-t bg-red-50/50">
+                                <div className="px-4 py-1.5 text-[11px] font-semibold text-red-600 uppercase">
+                                  Debitos a descontar
+                                </div>
+                                {group.debitEntries!.map((debit) => (
+                                  <div
+                                    key={debit.id}
+                                    className="px-4 py-2 border-t border-red-100 flex items-center justify-between"
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-xs truncate text-red-700">{debit.description}</p>
+                                      <p className="text-[11px] text-red-400">
+                                        {debit.category} | {formatDate(debit.dueDate)}
+                                      </p>
+                                    </div>
+                                    <span className="text-sm font-semibold text-red-600">
+                                      -{formatCurrency(debit.value)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Valor liquido */}
+                            {(group.totalDebitos ?? 0) > 0 && (
+                              <div className="px-4 py-2 border-t bg-muted/50 flex items-center justify-between">
+                                <span className="text-xs font-semibold">Valor Liquido</span>
+                                <span className="text-sm font-bold">
+                                  {formatCurrency(group.totalLiquido ?? group.totalPendente)}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -825,9 +875,16 @@ export default function RepassesPage() {
                               )}
                             </div>
 
+                            {(group.totalDebitos ?? 0) > 0 && (
+                              <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
+                                Debitos: -{formatCurrency(group.totalDebitos!)}
+                              </Badge>
+                            )}
                             {group.totalPendente > 0 && (
                               <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
-                                {formatCurrency(group.totalPendente)}
+                                {(group.totalDebitos ?? 0) > 0
+                                  ? `Liq: ${formatCurrency(group.totalLiquido ?? group.totalPendente)}`
+                                  : formatCurrency(group.totalPendente)}
                               </Badge>
                             )}
                             {group.totalPago > 0 && (
@@ -912,6 +969,48 @@ export default function RepassesPage() {
                                 ))}
                               </TableBody>
                             </Table>
+
+                            {/* Debitos a descontar */}
+                            {(group.debitEntries?.length ?? 0) > 0 && (
+                              <div className="border-t bg-red-50/50">
+                                <div className="px-6 py-1.5 text-[11px] font-semibold text-red-600 uppercase border-b border-red-100">
+                                  Debitos a descontar do repasse
+                                </div>
+                                <Table>
+                                  <TableBody>
+                                    {group.debitEntries!.map((debit) => (
+                                      <TableRow key={debit.id} className="hover:bg-red-50">
+                                        {activeTab === "pendentes" && <TableCell className="w-10" />}
+                                        <TableCell className="text-xs text-red-700">
+                                          {debit.description}
+                                        </TableCell>
+                                        <TableCell className="text-xs text-red-500">
+                                          {formatDate(debit.dueDate)}
+                                        </TableCell>
+                                        <TableCell>
+                                          <Badge variant="outline" className="text-[10px] h-5 border bg-red-100 text-red-700 border-red-200">
+                                            {debit.category}
+                                          </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right text-xs font-semibold text-red-600">
+                                          -{formatCurrency(debit.value)}
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            )}
+
+                            {/* Valor liquido */}
+                            {(group.totalDebitos ?? 0) > 0 && (
+                              <div className="px-6 py-2 border-t bg-muted/40 flex items-center justify-between">
+                                <span className="text-xs font-semibold">Valor Liquido do Repasse</span>
+                                <span className="text-sm font-bold">
+                                  {formatCurrency(group.totalLiquido ?? group.totalPendente)}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>

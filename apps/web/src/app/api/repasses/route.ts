@@ -10,49 +10,68 @@ export async function GET(request: NextRequest) {
   const month = searchParams.get("month"); // YYYY-MM
   const status = searchParams.get("status"); // PENDENTE, PAGO, all
 
-  const where: Record<string, unknown> = {
+  const creditWhere: Record<string, unknown> = {
     type: "CREDITO",
     category: "REPASSE",
   };
 
   if (status && status !== "all") {
-    where.status = status;
+    creditWhere.status = status;
   }
 
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [y, m] = month.split("-").map(Number);
-    where.dueDate = {
+    creditWhere.dueDate = {
       gte: new Date(y, m - 1, 1),
       lt: new Date(y, m, 1),
     };
   }
 
+  const ownerSelect = {
+    id: true,
+    name: true,
+    cpfCnpj: true,
+    phone: true,
+    email: true,
+    bankName: true,
+    bankAgency: true,
+    bankAccount: true,
+    bankPix: true,
+    bankPixType: true,
+    thirdPartyName: true,
+    thirdPartyDocument: true,
+    thirdPartyBank: true,
+    thirdPartyAgency: true,
+    thirdPartyAccount: true,
+    thirdPartyPixKeyType: true,
+    thirdPartyPix: true,
+    paymentDay: true,
+  };
+
   const entries = await prisma.ownerEntry.findMany({
-    where,
-    include: {
-      owner: {
-        select: {
-          id: true,
-          name: true,
-          cpfCnpj: true,
-          phone: true,
-          email: true,
-          bankName: true,
-          bankAgency: true,
-          bankAccount: true,
-          bankPix: true,
-          bankPixType: true,
-          thirdPartyName: true,
-          thirdPartyDocument: true,
-          thirdPartyBank: true,
-          thirdPartyAgency: true,
-          thirdPartyAccount: true,
-          thirdPartyPixKeyType: true,
-          thirdPartyPix: true,
-          paymentDay: true,
-        },
-      },
-    },
+    where: creditWhere,
+    include: { owner: { select: ownerSelect } },
+    orderBy: { dueDate: "asc" },
+  });
+
+  // Buscar debitos PENDENTES dos proprietarios para descontar do repasse
+  const ownerIds = [...new Set(entries.map((e) => e.ownerId))];
+  const debitWhere: Record<string, unknown> = {
+    type: "DEBITO",
+    status: "PENDENTE",
+    ownerId: { in: ownerIds },
+  };
+  // Se filtro de mes, pegar debitos do mesmo mes ou anteriores (acumulados)
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    const [y, m] = month.split("-").map(Number);
+    debitWhere.OR = [
+      { dueDate: { lt: new Date(y, m, 1) } },
+      { dueDate: null },
+    ];
+  }
+  const debitEntries = await prisma.ownerEntry.findMany({
+    where: debitWhere,
+    include: { owner: { select: { id: true, name: true } } },
     orderBy: { dueDate: "asc" },
   });
 
@@ -62,8 +81,11 @@ export async function GET(request: NextRequest) {
     {
       owner: (typeof entries)[0]["owner"];
       entries: typeof entries;
+      debitEntries: typeof debitEntries;
       totalPendente: number;
       totalPago: number;
+      totalDebitos: number;
+      totalLiquido: number;
     }
   > = {};
 
@@ -73,8 +95,11 @@ export async function GET(request: NextRequest) {
       grouped[oid] = {
         owner: entry.owner,
         entries: [],
+        debitEntries: [],
         totalPendente: 0,
         totalPago: 0,
+        totalDebitos: 0,
+        totalLiquido: 0,
       };
     }
     grouped[oid].entries.push(entry);
@@ -85,13 +110,25 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Adicionar debitos aos grupos
+  for (const debit of debitEntries) {
+    const oid = debit.ownerId;
+    if (grouped[oid]) {
+      grouped[oid].debitEntries.push(debit);
+      grouped[oid].totalDebitos += debit.value;
+    }
+  }
+
+  // Calcular valor liquido (repasse - debitos)
   const result = Object.values(grouped)
     .map((g) => ({
       ...g,
       totalPendente: Math.round(g.totalPendente * 100) / 100,
       totalPago: Math.round(g.totalPago * 100) / 100,
+      totalDebitos: Math.round(g.totalDebitos * 100) / 100,
+      totalLiquido: Math.round((g.totalPendente - g.totalDebitos) * 100) / 100,
     }))
-    .sort((a, b) => b.totalPendente - a.totalPendente);
+    .sort((a, b) => b.totalLiquido - a.totalLiquido);
 
   return NextResponse.json(result);
 }

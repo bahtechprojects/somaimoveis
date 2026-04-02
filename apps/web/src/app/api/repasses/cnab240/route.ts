@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { month, ownerIds, formaPagamento } = body;
+    const { month, ownerIds: requestOwnerIds, formaPagamento } = body;
 
     if (!isCnab240Configured()) {
       return NextResponse.json(
@@ -41,8 +41,8 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    if (Array.isArray(ownerIds) && ownerIds.length > 0) {
-      where.ownerId = { in: ownerIds };
+    if (Array.isArray(requestOwnerIds) && requestOwnerIds.length > 0) {
+      where.ownerId = { in: requestOwnerIds };
     }
 
     const entries = await prisma.ownerEntry.findMany({
@@ -100,12 +100,43 @@ export async function POST(request: NextRequest) {
       grouped[oid].refs.push(entry.id);
     }
 
+    // Buscar debitos pendentes para descontar do repasse
+    const groupedOwnerIds = Object.keys(grouped);
+    const debitEntries = groupedOwnerIds.length > 0
+      ? await prisma.ownerEntry.findMany({
+          where: {
+            type: "DEBITO",
+            status: "PENDENTE",
+            ownerId: { in: groupedOwnerIds },
+          },
+          select: { ownerId: true, value: true, id: true },
+        })
+      : [];
+
+    // Descontar debitos do valor do repasse
+    for (const debit of debitEntries) {
+      if (grouped[debit.ownerId]) {
+        grouped[debit.ownerId].valor -= debit.value;
+        grouped[debit.ownerId].refs.push(debit.id); // Incluir ref do debito
+      }
+    }
+
     // Montar pagamentos CNAB
     const pagamentos: CnabPagamento[] = [];
     const erros: { proprietario: string; motivo: string }[] = [];
 
     for (const [, group] of Object.entries(grouped)) {
       const o = group.owner;
+
+      // Pular se valor liquido <= 0 (debitos superam creditos)
+      if (group.valor <= 0) {
+        erros.push({
+          proprietario: o.name,
+          motivo: `Valor liquido R$ ${group.valor.toFixed(2)} (debitos superam repasse). Repasse nao gerado.`,
+        });
+        continue;
+      }
+
       const useThirdParty = !!o.thirdPartyName;
 
       // Validar dados bancarios
