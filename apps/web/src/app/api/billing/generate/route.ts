@@ -114,11 +114,10 @@ export async function POST(request: NextRequest) {
           ? Math.round((contract.property.iptuValue / 12) * 100) / 100
           : 0;
 
-        // Check for active discounts (any CREDITO entries pending for this month)
-        const discountEntries = await prisma.tenantEntry.findMany({
+        // Check for pending tenant entries (CREDITO = discount, DEBITO = extra charge)
+        const tenantEntries = await prisma.tenantEntry.findMany({
           where: {
             tenantId: contract.tenantId,
-            type: "CREDITO",
             status: "PENDENTE",
             dueDate: {
               gte: new Date(targetYear, targetMonth, 1),
@@ -126,13 +125,16 @@ export async function POST(request: NextRequest) {
             },
           },
         });
+        const discountEntries = tenantEntries.filter(e => e.type === "CREDITO");
+        const chargeEntries = tenantEntries.filter(e => e.type === "DEBITO");
         const totalDiscount = discountEntries.reduce((sum, e) => sum + e.value, 0);
+        const totalExtraCharges = chargeEntries.reduce((sum, e) => sum + e.value, 0);
         const effectiveRentalValue = Math.max(0, contract.rentalValue - totalDiscount);
 
-        // Total value charged to tenant = rent (with discount) + condo + IPTU + bank fee + seguro fianca
+        // Total value charged to tenant = rent (with discount) + condo + IPTU + bank fee + seguro fianca + extra charges
         const bankFee = contract.bankFee || 0;
         const insuranceFee = contract.insuranceFee || 0;
-        const totalValue = Math.round((effectiveRentalValue + condoFee + iptuMonthly + bankFee + insuranceFee) * 100) / 100;
+        const totalValue = Math.round((effectiveRentalValue + condoFee + iptuMonthly + bankFee + insuranceFee + totalExtraCharges) * 100) / 100;
 
         // Calculate split values (admin fee applies to rental value minus discounts)
         const adminFee = contract.adminFeePercent || 10;
@@ -183,23 +185,36 @@ export async function POST(request: NextRequest) {
         const mLabel = `${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`;
         const descParts = [`Aluguel ${mLabel} - ${contract.code}`];
         if (totalDiscount > 0) descParts.push(`Desconto: -R$ ${totalDiscount.toFixed(2)}`);
+        if (totalExtraCharges > 0) descParts.push(`Débitos: +R$ ${totalExtraCharges.toFixed(2)}`);
         if (condoFee > 0) descParts.push(`Condominio: R$ ${condoFee.toFixed(2)}`);
         if (iptuMonthly > 0) descParts.push(`IPTU: R$ ${iptuMonthly.toFixed(2)}`);
         if (insuranceFee > 0) descParts.push(`Seguro Fianca: R$ ${insuranceFee.toFixed(2)}`);
+        if (bankFee > 0) descParts.push(`Taxa Bancaria: R$ ${bankFee.toFixed(2)}`);
         if (intermediationNote) descParts.push(intermediationNote);
 
         // Store structured breakdown in notes for programmatic access
         const breakdown: Record<string, unknown> = {
           aluguel: contract.rentalValue,
           desconto: totalDiscount,
+          debitos: totalExtraCharges,
           aluguelComDesconto: effectiveRentalValue,
           condominio: condoFee,
           iptu: iptuMonthly,
           seguroFianca: insuranceFee,
+          taxaBancaria: bankFee,
           total: totalValue,
         };
         if (intermediationInstallmentValue > 0) {
           breakdown.intermediacao = intermediationInstallmentValue;
+        }
+        // Detail of each tenant entry applied
+        if (tenantEntries.length > 0) {
+          breakdown.lancamentos = tenantEntries.map(e => ({
+            tipo: e.type,
+            categoria: e.category,
+            descricao: e.description,
+            valor: e.value,
+          }));
         }
 
         await prisma.payment.create({
@@ -224,10 +239,10 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        // Marcar lancamentos de desconto como aplicados
-        if (discountEntries.length > 0) {
+        // Marcar lancamentos (creditos e debitos) como aplicados
+        if (tenantEntries.length > 0) {
           await prisma.tenantEntry.updateMany({
-            where: { id: { in: discountEntries.map(e => e.id) } },
+            where: { id: { in: tenantEntries.map(e => e.id) } },
             data: { status: "PAGO" },
           });
         }
