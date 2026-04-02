@@ -49,6 +49,8 @@ import {
   Receipt,
   Building2,
   Landmark,
+  Download,
+  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PaymentForm } from "@/components/forms/payment-form";
@@ -157,6 +159,7 @@ function FinanceiroContent() {
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [boletoLoading, setBoletoLoading] = useState<Record<string, boolean>>({});
+  const [notifyLoading, setNotifyLoading] = useState<Record<string, boolean>>({});
 
   async function fetchPayments() {
     setLoading(true);
@@ -347,6 +350,37 @@ function FinanceiroContent() {
       fetchPayments();
     } catch (err: any) {
       toast.error(err.message || "Erro ao emitir boletos");
+    }
+  };
+
+  const handleSendNotify = async (paymentId: string, channels: string[]) => {
+    setNotifyLoading(prev => ({ ...prev, [paymentId]: true }));
+    try {
+      const res = await fetch(`/api/payments/${paymentId}/notify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channels }),
+      });
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Erro do servidor (${res.status}).`);
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao enviar cobranca");
+      const successResults = data.results?.filter((r: any) => r.success) || [];
+      const failResults = data.results?.filter((r: any) => !r.success) || [];
+      if (successResults.length > 0) {
+        toast.success(`Cobranca enviada via ${successResults.map((r: any) => r.channel).join(", ")}`);
+      }
+      if (failResults.length > 0) {
+        for (const f of failResults) {
+          toast.error(`${f.channel}: ${f.error}`);
+        }
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao enviar cobranca");
+    } finally {
+      setNotifyLoading(prev => ({ ...prev, [paymentId]: false }));
     }
   };
 
@@ -591,6 +625,43 @@ function FinanceiroContent() {
                           {payment.paymentMethod ? ` via ${methodLabels[payment.paymentMethod] || payment.paymentMethod}` : ""}
                         </p>
                       )}
+                      {payment.nossoNumero && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-3 text-xs gap-1 text-blue-600 border-blue-200"
+                            onClick={(e) => { e.stopPropagation(); handleDownloadBoleto(payment.id, payment.code); }}
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            PDF
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-3 text-xs gap-1 text-green-600 border-green-200"
+                                disabled={notifyLoading[payment.id]}
+                              >
+                                <Send className="h-3.5 w-3.5" />
+                                {notifyLoading[payment.id] ? "Enviando..." : "Cobrar"}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start">
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSendNotify(payment.id, ["whatsapp"]); }}>
+                                WhatsApp
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSendNotify(payment.id, ["email"]); }}>
+                                Email
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSendNotify(payment.id, ["whatsapp", "email"]); }}>
+                                WhatsApp + Email
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -610,6 +681,7 @@ function FinanceiroContent() {
                     <TableHead className="text-xs">Pagamento</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs">Metodo</TableHead>
+                    <TableHead className="text-xs">Boleto</TableHead>
                     <TableHead className="text-xs w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -675,6 +747,60 @@ function FinanceiroContent() {
                         </TableCell>
                         <TableCell className="text-xs">
                           {payment.paymentMethod ? (methodLabels[payment.paymentMethod] || payment.paymentMethod) : "-"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                          {payment.nossoNumero ? (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs gap-1 text-blue-600 hover:text-blue-800"
+                                onClick={(e) => { e.stopPropagation(); handleDownloadBoleto(payment.id, payment.code); }}
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                                PDF
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs gap-1 text-green-600 hover:text-green-800"
+                                    disabled={notifyLoading[payment.id]}
+                                  >
+                                    <Send className="h-3.5 w-3.5" />
+                                    {notifyLoading[payment.id] ? "..." : "Cobrar"}
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSendNotify(payment.id, ["whatsapp"]); }}>
+                                    WhatsApp
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSendNotify(payment.id, ["email"]); }}>
+                                    Email
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSendNotify(payment.id, ["whatsapp", "email"]); }}>
+                                    WhatsApp + Email
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </>
+                          ) : !payment.nossoNumero && (payment.status === "PENDENTE" || payment.status === "ATRASADO") ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs gap-1 text-muted-foreground"
+                              disabled={boletoLoading[payment.id]}
+                              onClick={(e) => { e.stopPropagation(); handleEmitBoleto(payment.id); }}
+                            >
+                              <Receipt className="h-3.5 w-3.5" />
+                              {boletoLoading[payment.id] ? "..." : "Emitir"}
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
