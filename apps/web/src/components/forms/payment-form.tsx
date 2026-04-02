@@ -5,10 +5,11 @@ import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -62,7 +63,11 @@ interface ContractOption {
   adminFeePercent: number;
   tenantId: string;
   ownerId: string;
-  property: { id: string; title: string };
+  condoFee?: number;
+  iptuValue?: number;
+  bankFee?: number;
+  insuranceFee?: number;
+  property: { id: string; title: string; condoFee?: number; iptuValue?: number };
   tenant: { id: string; name: string };
   owner: { id: string; name: string };
 }
@@ -72,11 +77,27 @@ interface PersonOption {
   name: string;
 }
 
+interface TenantEntry {
+  id: string;
+  type: "CREDITO" | "DEBITO";
+  category: string;
+  description: string;
+  value: number;
+  status: string;
+  dueDate?: string;
+}
+
+function formatBRL(v: number): string {
+  return v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentFormProps) {
   const [loading, setLoading] = useState(false);
   const [contracts, setContracts] = useState<ContractOption[]>([]);
   const [owners, setOwners] = useState<PersonOption[]>([]);
   const [tenants, setTenants] = useState<PersonOption[]>([]);
+  const [entries, setEntries] = useState<TenantEntry[]>([]);
+  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
   const isEditing = !!payment;
 
   const {
@@ -147,8 +168,30 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
 
     if (open) {
       fetchData();
+      setEntries([]);
+      setSelectedEntryIds(new Set());
     }
   }, [open]);
+
+  // Fetch tenant entries when contract/tenant changes
+  useEffect(() => {
+    async function fetchEntries() {
+      if (!selectedTenantId || isEditing) return;
+      try {
+        const res = await fetch(`/api/tenant-entries?tenantId=${selectedTenantId}&status=PENDENTE`);
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : data.data || [];
+          setEntries(list);
+          // Select all by default
+          setSelectedEntryIds(new Set(list.map((e: TenantEntry) => e.id)));
+        }
+      } catch {
+        setEntries([]);
+      }
+    }
+    fetchEntries();
+  }, [selectedTenantId, isEditing]);
 
   // Auto-generate code for new payments
   useEffect(() => {
@@ -171,7 +214,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     }
   }, [open, isEditing, setValue]);
 
-  // Auto-fill tenant, owner, and value when a contract is selected
+  // Auto-fill tenant, owner, and recalculate value when contract is selected
   useEffect(() => {
     if (!selectedContractId || isEditing) return;
 
@@ -179,30 +222,86 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     if (contract) {
       setValue("tenantId", contract.tenantId);
       setValue("ownerId", contract.ownerId);
-      setValue("value", contract.rentalValue);
-
-      // Calculate split values
-      const adminPercent = contract.adminFeePercent || 10;
-      const adminValue = contract.rentalValue * (adminPercent / 100);
-      const ownerValue = contract.rentalValue - adminValue;
-      setValue("splitAdminValue", Math.round(adminValue * 100) / 100);
-      setValue("splitOwnerValue", Math.round(ownerValue * 100) / 100);
+      recalculateValue(contract, selectedEntryIds);
     }
   }, [selectedContractId, contracts, isEditing, setValue]);
 
-  // Recalculate split when value changes (only if contract selected)
+  // Recalculate when entries selection changes
   useEffect(() => {
-    if (!selectedContractId || !watchValue) return;
-
+    if (!selectedContractId || isEditing) return;
     const contract = contracts.find((c) => c.id === selectedContractId);
     if (contract) {
-      const adminPercent = contract.adminFeePercent || 10;
-      const adminValue = watchValue * (adminPercent / 100);
-      const ownerValue = watchValue - adminValue;
-      setValue("splitAdminValue", Math.round(adminValue * 100) / 100);
-      setValue("splitOwnerValue", Math.round(ownerValue * 100) / 100);
+      recalculateValue(contract, selectedEntryIds);
     }
-  }, [watchValue, selectedContractId, contracts, setValue]);
+  }, [selectedEntryIds]);
+
+  function recalculateValue(contract: ContractOption, entryIds: Set<string>) {
+    const condoFee = contract.property?.condoFee || 0;
+    const iptuMonthly = contract.property?.iptuValue
+      ? Math.round((contract.property.iptuValue / 12) * 100) / 100
+      : 0;
+    const bankFee = (contract as any).bankFee || 0;
+    const insuranceFee = (contract as any).insuranceFee || 0;
+
+    const selectedEntries = entries.filter(e => entryIds.has(e.id));
+    const totalDebits = selectedEntries.filter(e => e.type === "DEBITO").reduce((s, e) => s + e.value, 0);
+    const totalCredits = selectedEntries.filter(e => e.type === "CREDITO").reduce((s, e) => s + e.value, 0);
+
+    const total = Math.max(0, Math.round((contract.rentalValue + condoFee + iptuMonthly + bankFee + insuranceFee + totalDebits - totalCredits) * 100) / 100);
+    setValue("value", total);
+
+    const adminPercent = contract.adminFeePercent || 10;
+    const adminValue = Math.round(contract.rentalValue * (adminPercent / 100) * 100) / 100;
+    const ownerValue = Math.round((contract.rentalValue - adminValue) * 100) / 100;
+    setValue("splitAdminValue", adminValue);
+    setValue("splitOwnerValue", ownerValue);
+
+    if (totalCredits > 0) {
+      setValue("discountValue", totalCredits);
+    }
+
+    // Build breakdown for notes
+    const breakdown: Record<string, unknown> = {
+      aluguel: contract.rentalValue,
+      creditos: totalCredits,
+      debitos: totalDebits,
+      condominio: condoFee,
+      iptu: iptuMonthly,
+      seguroFianca: insuranceFee,
+      taxaBancaria: bankFee,
+      total,
+    };
+    if (selectedEntries.length > 0) {
+      breakdown.lancamentos = selectedEntries.map(e => ({
+        id: e.id,
+        tipo: e.type,
+        categoria: e.category,
+        descricao: e.description,
+        valor: e.value,
+      }));
+    }
+    setValue("notes", JSON.stringify(breakdown));
+  }
+
+  function toggleEntry(id: string) {
+    setSelectedEntryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllEntries() {
+    if (selectedEntryIds.size === entries.length) {
+      setSelectedEntryIds(new Set());
+    } else {
+      setSelectedEntryIds(new Set(entries.map(e => e.id)));
+    }
+  }
 
   // Reset form when opening
   useEffect(() => {
@@ -299,6 +398,9 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     }
   }
 
+  const debitEntries = entries.filter(e => e.type === "DEBITO");
+  const creditEntries = entries.filter(e => e.type === "CREDITO");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl sm:max-h-[90vh]" preventOutsideClose>
@@ -387,6 +489,60 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
               </div>
             </div>
           </div>
+
+          {/* Lançamentos do Locatário */}
+          {!isEditing && entries.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-foreground border-b pb-2 flex items-center justify-between">
+                <span>Lançamentos Pendentes</span>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  onClick={toggleAllEntries}
+                >
+                  {selectedEntryIds.size === entries.length ? "Desmarcar todos" : "Selecionar todos"}
+                </button>
+              </h3>
+
+              {debitEntries.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-red-600">Débitos (+)</p>
+                  {debitEntries.map(entry => (
+                    <label
+                      key={entry.id}
+                      className="flex items-center gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50 text-xs"
+                    >
+                      <Checkbox
+                        checked={selectedEntryIds.has(entry.id)}
+                        onCheckedChange={() => toggleEntry(entry.id)}
+                      />
+                      <span className="flex-1">{entry.description}</span>
+                      <span className="font-medium text-red-600">+ R$ {formatBRL(entry.value)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {creditEntries.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-green-600">Créditos (-)</p>
+                  {creditEntries.map(entry => (
+                    <label
+                      key={entry.id}
+                      className="flex items-center gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50 text-xs"
+                    >
+                      <Checkbox
+                        checked={selectedEntryIds.has(entry.id)}
+                        onCheckedChange={() => toggleEntry(entry.id)}
+                      />
+                      <span className="flex-1">{entry.description}</span>
+                      <span className="font-medium text-green-600">- R$ {formatBRL(entry.value)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Valores */}
           <div className="space-y-4">
