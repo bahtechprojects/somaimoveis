@@ -328,6 +328,20 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     }
   }
 
+  // Update notes breakdown when value changes during editing
+  const watchNotes = watch("notes");
+  useEffect(() => {
+    if (!isEditing || !watchValue) return;
+    try {
+      const current = watchNotes ? JSON.parse(watchNotes) : {};
+      if (current.total !== watchValue) {
+        current.total = watchValue;
+        current.aluguel = watchValue - (current.condominio || 0) - (current.iptu || 0) - (current.seguroFianca || 0) - (current.taxaBancaria || 0) - (current.debitos || 0) + (current.creditos || 0);
+        setValue("notes", JSON.stringify(current));
+      }
+    } catch { /* not JSON notes */ }
+  }, [watchValue, isEditing]);
+
   function toggleEntry(id: string) {
     setSelectedEntryIds(prev => {
       const next = new Set(prev);

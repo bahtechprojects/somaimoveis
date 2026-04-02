@@ -56,6 +56,12 @@ export async function PUT(
       const d = String(body.paidAt);
       data.paidAt = body.paidAt ? new Date(d.includes("T") ? d : d + "T12:00:00") : null;
     }
+    if (body.notes !== undefined) data.notes = body.notes || null;
+    if (body.intermediationFee !== undefined) data.intermediationFee = body.intermediationFee ? parseFloat(body.intermediationFee) : null;
+    if (body.irrfValue !== undefined) data.irrfValue = body.irrfValue ? parseFloat(body.irrfValue) : null;
+    if (body.irrfRate !== undefined) data.irrfRate = body.irrfRate ? parseFloat(body.irrfRate) : null;
+    if (body.grossToOwner !== undefined) data.grossToOwner = body.grossToOwner ? parseFloat(body.grossToOwner) : null;
+    if (body.netToOwner !== undefined) data.netToOwner = body.netToOwner ? parseFloat(body.netToOwner) : null;
 
     const payment = await prisma.payment.update({
       where: { id },
