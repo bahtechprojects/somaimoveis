@@ -65,23 +65,39 @@ export async function POST(
       );
     }
 
+    // Validar dados obrigatórios do pagador (Sicredi exige)
+    const missingFields: string[] = [];
+    if (!tenant.cpfCnpj) missingFields.push("CPF/CNPJ do locatário");
+    if (!tenant.name) missingFields.push("Nome do locatário");
+    if (!tenant.city) missingFields.push("Cidade do locatário");
+    if (!tenant.state) missingFields.push("UF do locatário");
+    if (!tenant.zipCode) missingFields.push("CEP do locatário");
+    if (!owner.cpfCnpj) missingFields.push("CPF/CNPJ do proprietário");
+
+    if (missingFields.length > 0) {
+      return NextResponse.json(
+        { error: `Dados incompletos para emissão: ${missingFields.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
     const boletoParams: CreateBoletoParams = {
       pagador: {
         nome: tenant.name,
-        documento: tenant.cpfCnpj || "",
+        documento: (tenant.cpfCnpj || "").replace(/\D/g, ""),
         endereco: `${tenant.street || ""} ${tenant.number || ""}`.trim(),
         cidade: tenant.city || "",
         uf: tenant.state || "",
-        cep: tenant.zipCode || "",
+        cep: (tenant.zipCode || "").replace(/\D/g, ""),
         tipoPessoa: tipoPessoa(tenant.cpfCnpj || ""),
       },
       beneficiarioFinal: {
         nome: owner.name,
-        documento: owner.cpfCnpj || "",
+        documento: (owner.cpfCnpj || "").replace(/\D/g, ""),
         logradouro: `${owner.street || ""} ${owner.number || ""}`.trim(),
         cidade: owner.city || "",
         uf: owner.state || "",
-        cep: owner.zipCode || "",
+        cep: (owner.zipCode || "").replace(/\D/g, ""),
         tipoPessoa: tipoPessoa(owner.cpfCnpj || ""),
       },
       valor: payment.value,
