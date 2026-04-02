@@ -161,7 +161,7 @@ export async function POST(
       if (!boletoResult.success) {
         return NextResponse.json(
           { error: `Erro ao emitir boleto: ${boletoResult.error || "Erro Sicredi"}` },
-          { status: 502 }
+          { status: 400 }
         );
       }
 

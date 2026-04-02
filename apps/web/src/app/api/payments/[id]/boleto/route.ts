@@ -164,7 +164,7 @@ export async function POST(
     if (!result.success) {
       return NextResponse.json(
         { error: result.error || "Erro ao criar boleto no Sicredi" },
-        { status: 502 }
+        { status: 400 }
       );
     }
 

@@ -317,12 +317,8 @@ function FinanceiroContent() {
     setBoletoLoading(prev => ({ ...prev, [paymentId]: true }));
     try {
       const res = await fetch(`/api/payments/${paymentId}/boleto`, { method: "POST" });
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        throw new Error(`Erro do servidor (${res.status}). Verifique as credenciais do Sicredi.`);
-      }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao emitir boleto");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Erro ao emitir boleto (${res.status})`);
       toast.success("Boleto emitido com sucesso!");
       fetchPayments();
     } catch (err: any) {
@@ -356,12 +352,8 @@ function FinanceiroContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        throw new Error(`Erro do servidor (${res.status}). Verifique as credenciais do Sicredi.`);
-      }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao emitir boletos");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Erro ao emitir boletos (${res.status})`);
       if (data.emitidos > 0) {
         toast.success(`${data.emitidos} boleto(s) emitido(s)`);
       }
