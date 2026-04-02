@@ -114,12 +114,11 @@ export async function POST(request: NextRequest) {
           ? Math.round((contract.property.iptuValue / 12) * 100) / 100
           : 0;
 
-        // Check for active discounts on rent (CREDITO entries with category ALUGUEL or DESCONTO)
+        // Check for active discounts (any CREDITO entries pending for this month)
         const discountEntries = await prisma.tenantEntry.findMany({
           where: {
             tenantId: contract.tenantId,
             type: "CREDITO",
-            category: { in: ["ALUGUEL", "DESCONTO"] },
             status: "PENDENTE",
             dueDate: {
               gte: new Date(targetYear, targetMonth, 1),
@@ -130,9 +129,10 @@ export async function POST(request: NextRequest) {
         const totalDiscount = discountEntries.reduce((sum, e) => sum + e.value, 0);
         const effectiveRentalValue = Math.max(0, contract.rentalValue - totalDiscount);
 
-        // Total value charged to tenant = rent (with discount) + condo + IPTU + bank fee
+        // Total value charged to tenant = rent (with discount) + condo + IPTU + bank fee + seguro fianca
         const bankFee = contract.bankFee || 0;
-        const totalValue = Math.round((effectiveRentalValue + condoFee + iptuMonthly + bankFee) * 100) / 100;
+        const insuranceFee = contract.insuranceFee || 0;
+        const totalValue = Math.round((effectiveRentalValue + condoFee + iptuMonthly + bankFee + insuranceFee) * 100) / 100;
 
         // Calculate split values (admin fee applies to rental value minus discounts)
         const adminFee = contract.adminFeePercent || 10;
@@ -185,6 +185,7 @@ export async function POST(request: NextRequest) {
         if (totalDiscount > 0) descParts.push(`Desconto: -R$ ${totalDiscount.toFixed(2)}`);
         if (condoFee > 0) descParts.push(`Condominio: R$ ${condoFee.toFixed(2)}`);
         if (iptuMonthly > 0) descParts.push(`IPTU: R$ ${iptuMonthly.toFixed(2)}`);
+        if (insuranceFee > 0) descParts.push(`Seguro Fianca: R$ ${insuranceFee.toFixed(2)}`);
         if (intermediationNote) descParts.push(intermediationNote);
 
         // Store structured breakdown in notes for programmatic access
@@ -194,6 +195,7 @@ export async function POST(request: NextRequest) {
           aluguelComDesconto: effectiveRentalValue,
           condominio: condoFee,
           iptu: iptuMonthly,
+          seguroFianca: insuranceFee,
           total: totalValue,
         };
         if (intermediationInstallmentValue > 0) {

@@ -129,6 +129,7 @@ export async function POST(request: NextRequest) {
         status: body.status || "ATIVO",
         adminFeePercent: body.adminFeePercent ? parseFloat(String(body.adminFeePercent)) : 10,
         bankFee: body.bankFee != null ? parseFloat(String(body.bankFee)) : 3.90,
+        insuranceFee: body.insuranceFee ? parseFloat(String(body.insuranceFee)) : null,
         intermediationFee: body.intermediationFee ? parseFloat(String(body.intermediationFee)) : null,
         paymentDay: body.paymentDay ? parseInt(String(body.paymentDay)) : 10,
         guaranteeType: body.guaranteeType || null,

@@ -237,6 +237,7 @@ model Contract {
   rentalValue    Float    @default(0)
   adminFeePercent Float   @default(10) // Taxa de administracao %
   bankFee         Float   @default(3.90) // Taxa bancaria cobrada do inquilino
+  insuranceFee    Float?  // Seguro fianca mensal cobrado do inquilino
   // Datas
   startDate      DateTime @default(now())
   endDate        DateTime @default(now())

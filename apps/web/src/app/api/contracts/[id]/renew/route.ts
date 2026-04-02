@@ -77,6 +77,7 @@ export async function POST(
           rentalValue: newRentalValue,
           adminFeePercent: existing.adminFeePercent,
           bankFee: existing.bankFee,
+          insuranceFee: existing.insuranceFee,
           paymentDay: existing.paymentDay,
           startDate: newStartDate,
           endDate: newEndDate,

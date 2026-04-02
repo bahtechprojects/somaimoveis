@@ -40,6 +40,7 @@ const contractSchema = z.object({
   rentalValue: z.coerce.number().min(0).optional(),
   adminFeePercent: z.coerce.number().min(0),
   bankFee: z.coerce.number().min(0).default(3.90),
+  insuranceFee: z.coerce.number().min(0).optional(),
   intermediationFee: z.coerce.number().min(0).optional(),
   intermediationInstallments: z.coerce.number().int().min(1).default(1),
   paymentDay: z.coerce.number().int().min(1).max(31),
@@ -67,6 +68,7 @@ type ContractFormData = {
   rentalValue: number;
   adminFeePercent: number;
   bankFee: number;
+  insuranceFee?: number;
   intermediationFee?: number;
   intermediationInstallments: number;
   paymentDay: number;
@@ -134,6 +136,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       rentalValue: undefined,
       adminFeePercent: 10,
       bankFee: 3.90,
+      insuranceFee: undefined,
       intermediationFee: undefined,
       intermediationInstallments: 1,
       paymentDay: 5,
@@ -233,6 +236,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           rentalValue: contract.rentalValue ?? undefined,
           adminFeePercent: contract.adminFeePercent ?? 10,
           bankFee: contract.bankFee ?? 3.90,
+          insuranceFee: contract.insuranceFee ?? undefined,
           intermediationFee: contract.intermediationFee ?? undefined,
           intermediationInstallments: contract.intermediationInstallments ?? 1,
           paymentDay: contract.paymentDay ?? 5,
@@ -681,6 +685,17 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                   step="0.01"
                   placeholder="3.90"
                   {...register("bankFee")}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="insuranceFee">Seguro Fiança (R$)</Label>
+                <Input
+                  id="insuranceFee"
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  {...register("insuranceFee")}
                 />
               </div>
 
