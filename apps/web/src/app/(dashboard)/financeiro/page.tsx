@@ -628,11 +628,11 @@ function FinanceiroContent() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditPayment(payment); }}>
                               <Pencil className="h-3.5 w-3.5 mr-2" /> Editar
                             </DropdownMenuItem>
                             {payment.status !== "PAGO" && (
-                              <DropdownMenuItem onClick={() => handleMarkAsPaid(payment)}>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(payment); }}>
                                 <CheckCircle2 className="h-3.5 w-3.5 mr-2" /> Marcar como Pago
                               </DropdownMenuItem>
                             )}
@@ -949,12 +949,12 @@ function FinanceiroContent() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEditPayment(payment)}>
+                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEditPayment(payment); }}>
                                 <Pencil className="h-3.5 w-3.5 mr-2" />
                                 Editar
                               </DropdownMenuItem>
                               {payment.status !== "PAGO" && (
-                                <DropdownMenuItem onClick={() => handleMarkAsPaid(payment)}>
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMarkAsPaid(payment); }}>
                                   <CheckCircle2 className="h-3.5 w-3.5 mr-2" />
                                   Marcar como Pago
                                 </DropdownMenuItem>
