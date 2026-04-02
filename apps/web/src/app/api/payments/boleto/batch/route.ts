@@ -18,6 +18,36 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function formatBRL(v: number): string {
+  return v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function buildInformativos(notes: string | null): string[] {
+  if (!notes) return [];
+  try {
+    const b = JSON.parse(notes);
+    const lines: string[] = [];
+    let line1 = `Aluguel: R$ ${formatBRL(b.aluguel || 0)}`;
+    if ((b.taxaBancaria || 0) > 0) line1 += ` | Tx Banc: R$ ${formatBRL(b.taxaBancaria)}`;
+    lines.push(line1);
+    const parts2: string[] = [];
+    if ((b.condominio || 0) > 0) parts2.push(`Cond: R$ ${formatBRL(b.condominio)}`);
+    if ((b.iptu || 0) > 0) parts2.push(`IPTU: R$ ${formatBRL(b.iptu)}`);
+    if ((b.seguroFianca || 0) > 0) parts2.push(`Seguro: R$ ${formatBRL(b.seguroFianca)}`);
+    if (parts2.length > 0) lines.push(parts2.join(" | "));
+    if (b.lancamentos && Array.isArray(b.lancamentos) && b.lancamentos.length > 0) {
+      const debitos = b.lancamentos.filter((l: any) => l.tipo === "DEBITO");
+      const creditos = b.lancamentos.filter((l: any) => l.tipo === "CREDITO");
+      if (debitos.length > 0) lines.push(debitos.map((l: any) => `(+) ${l.descricao}: R$ ${formatBRL(l.valor)}`).join(" | ").slice(0, 80));
+      if (creditos.length > 0) lines.push(creditos.map((l: any) => `(-) ${l.descricao}: R$ ${formatBRL(l.valor)}`).join(" | ").slice(0, 80));
+    }
+    if ((b.total || 0) > 0) lines.push(`TOTAL: R$ ${formatBRL(b.total)}`);
+    return lines.slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
 // POST - Emitir boletos em lote
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
@@ -148,6 +178,7 @@ export async function POST(request: NextRequest) {
           dataVencimento: formatDate(payment.dueDate),
           seuNumero: payment.code,
           tipoCobranca: "HIBRIDO",
+          informativos: buildInformativos(payment.notes),
         };
 
         const result = await sicrediCreateBoleto(boletoParams);
