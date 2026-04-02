@@ -422,12 +422,8 @@ function FinanceiroContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channels }),
       });
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        throw new Error(`Erro do servidor (${res.status}).`);
-      }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao enviar cobranca");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Erro ao enviar cobrança (${res.status})`);
       const successResults = data.results?.filter((r: any) => r.success) || [];
       const failResults = data.results?.filter((r: any) => !r.success) || [];
       if (successResults.length > 0) {

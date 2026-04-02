@@ -235,13 +235,13 @@ export async function sicrediCreateBoleto(
     const responseContentType = response.headers.get("content-type") || "";
     if (!responseContentType.includes("application/json")) {
       const text = await response.text();
-      console.error(`[Sicredi] Resposta nao-JSON ao criar boleto (${response.status}):`, text.slice(0, 200));
+      console.error(`[Sicredi] Resposta nao-JSON ao criar boleto (${response.status}):`, text.slice(0, 500));
       return {
         nossoNumero: "",
         linhaDigitavel: "",
         codigoBarras: "",
         success: false,
-        error: `Sicredi retornou resposta invalida (${response.status}). Verifique as credenciais.`,
+        error: `Sicredi indisponível (${response.status}). Tente novamente em alguns minutos.`,
       };
     }
 
