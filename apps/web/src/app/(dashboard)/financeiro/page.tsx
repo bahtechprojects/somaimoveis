@@ -380,17 +380,36 @@ function FinanceiroContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      const contentType = res.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        throw new Error(`Erro do servidor (${res.status}).`);
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || `Erro ao enviar cobranças (${res.status})`);
+      toast.success(data.message, { duration: 10000 });
+
+      // Poll progress if processing in background
+      if (data.processing) {
+        const pollInterval = setInterval(async () => {
+          try {
+            const progressRes = await fetch("/api/payments/notify/batch");
+            const progress = await progressRes.json();
+            if (progress.done) {
+              clearInterval(pollInterval);
+              setBatchNotifyLoading(false);
+              toast.success(`Envio concluído: ${progress.sent} enviado(s), ${progress.failed} falha(s)`, { duration: 15000 });
+              if (progress.errors?.length > 0) {
+                for (const e of progress.errors) {
+                  toast.error(`${e.code}: ${e.error}`, { duration: 15000 });
+                }
+              }
+              fetchPayments();
+            } else {
+              toast.info(`Progresso: ${progress.sent + progress.failed}/${progress.total} processado(s)...`, { duration: 5000 });
+            }
+          } catch { /* ignore poll errors */ }
+        }, 30000); // Check every 30 seconds
+      } else {
+        setBatchNotifyLoading(false);
       }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao enviar cobranças");
-      toast.success(data.message);
-      fetchPayments();
     } catch (err: any) {
-      toast.error(err.message || "Erro ao enviar cobranças em lote");
-    } finally {
+      toast.error(err.message || "Erro ao enviar cobranças em lote", { duration: 15000 });
       setBatchNotifyLoading(false);
     }
   };
