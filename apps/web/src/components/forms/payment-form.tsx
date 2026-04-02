@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 
 const paymentSchema = z.object({
-  code: z.string().min(1, "Código é obrigatório"),
+  code: z.string().default("AUTO"),
   contractId: z.string().min(1, "Contrato é obrigatório"),
   tenantId: z.string().min(1, "Locatário é obrigatório"),
   ownerId: z.string().min(1, "Proprietário é obrigatório"),
@@ -98,6 +98,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
   const [tenants, setTenants] = useState<PersonOption[]>([]);
   const [entries, setEntries] = useState<TenantEntry[]>([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
+  const [prorataDias, setProrataDias] = useState(30);
   const isEditing = !!payment;
 
   const {
@@ -170,6 +171,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
       fetchData();
       setEntries([]);
       setSelectedEntryIds(new Set());
+      setProrataDias(30);
     }
   }, [open]);
 
@@ -214,14 +216,55 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     }
   }, [selectedContractId, contracts, isEditing, setValue]);
 
-  // Recalculate when entries selection or dueDate changes
+  // Auto-detect pro-rata days when contract or dueDate changes
+  useEffect(() => {
+    if (!selectedContractId || isEditing || !watchDueDate) return;
+    const contract = contracts.find((c) => c.id === selectedContractId);
+    if (!contract) return;
+
+    const dueDate = new Date(watchDueDate + "T12:00:00");
+    const targetYear = dueDate.getFullYear();
+    const targetMonth = dueDate.getMonth();
+    const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+
+    const contractStart = new Date(contract.startDate);
+    const csYear = contractStart.getUTCFullYear();
+    const csMonth = contractStart.getUTCMonth();
+    const csDay = contractStart.getUTCDate();
+
+    let days = 30;
+
+    // Primeiro mês do contrato: início no meio do mês
+    if (csYear === targetYear && csMonth === targetMonth && csDay > 1) {
+      days = daysInMonth - csDay + 1;
+    }
+
+    // Último mês do contrato
+    if (contract.endDate) {
+      const contractEnd = new Date(contract.endDate);
+      const ceYear = contractEnd.getUTCFullYear();
+      const ceMonth = contractEnd.getUTCMonth();
+      const ceDay = contractEnd.getUTCDate();
+      if (ceYear === targetYear && ceMonth === targetMonth && ceDay < daysInMonth) {
+        if (days < 30) {
+          days = ceDay - csDay + 1;
+        } else {
+          days = ceDay;
+        }
+      }
+    }
+
+    setProrataDias(days);
+  }, [selectedContractId, contracts, watchDueDate, isEditing]);
+
+  // Recalculate when entries selection or prorataDias changes
   useEffect(() => {
     if (!selectedContractId || isEditing) return;
     const contract = contracts.find((c) => c.id === selectedContractId);
     if (contract) {
       recalculateValue(contract, selectedEntryIds);
     }
-  }, [selectedEntryIds, watchDueDate]);
+  }, [selectedEntryIds, prorataDias]);
 
   function recalculateValue(contract: ContractOption, entryIds: Set<string>) {
     const condoFee = contract.property?.condoFee || 0;
@@ -231,49 +274,11 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     const bankFee = contract.bankFee || 0;
     const insuranceFee = contract.insuranceFee || 0;
 
-    // Pro-rata: calcular aluguel proporcional baseado na data de vencimento vs início do contrato
-    let rentalValue = contract.rentalValue;
-    let isProrata = false;
-    let prorataDays = 30;
-
-    if (watchDueDate) {
-      const dueDate = new Date(watchDueDate + "T12:00:00");
-      const targetYear = dueDate.getFullYear();
-      const targetMonth = dueDate.getMonth();
-      const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-
-      const contractStart = new Date(contract.startDate);
-      const csYear = contractStart.getUTCFullYear();
-      const csMonth = contractStart.getUTCMonth();
-      const csDay = contractStart.getUTCDate();
-
-      // Primeiro mês do contrato: início no meio do mês
-      if (csYear === targetYear && csMonth === targetMonth && csDay > 1) {
-        prorataDays = daysInMonth - csDay + 1;
-        isProrata = true;
-      }
-
-      // Último mês do contrato
-      if (contract.endDate) {
-        const contractEnd = new Date(contract.endDate);
-        const ceYear = contractEnd.getUTCFullYear();
-        const ceMonth = contractEnd.getUTCMonth();
-        const ceDay = contractEnd.getUTCDate();
-        if (ceYear === targetYear && ceMonth === targetMonth && ceDay < daysInMonth) {
-          if (isProrata) {
-            prorataDays = ceDay - csDay + 1;
-          } else {
-            prorataDays = ceDay;
-            isProrata = true;
-          }
-        }
-      }
-
-      if (isProrata) {
-        const dailyRate = contract.rentalValue / 30;
-        rentalValue = Math.round(dailyRate * prorataDays * 100) / 100;
-      }
-    }
+    const isProrata = prorataDias < 30;
+    const dailyRate = contract.rentalValue / 30;
+    const rentalValue = isProrata
+      ? Math.round(dailyRate * prorataDias * 100) / 100
+      : contract.rentalValue;
 
     const selectedEntries = entries.filter(e => entryIds.has(e.id));
     const totalDebits = selectedEntries.filter(e => e.type === "DEBITO").reduce((s, e) => s + e.value, 0);
@@ -297,7 +302,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
       aluguel: rentalValue,
       aluguelOriginal: isProrata ? contract.rentalValue : undefined,
       isProrata,
-      prorataDias: isProrata ? prorataDays : undefined,
+      prorataDias: isProrata ? prorataDias : undefined,
       creditos: totalCredits,
       debitos: totalDebits,
       condominio: condoFee,
@@ -318,11 +323,9 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     setValue("notes", JSON.stringify(breakdown));
 
     // Update description
-    const descParts: string[] = [];
     if (isProrata) {
-      descParts.push(`Aluguel pro-rata (${prorataDays} dias): R$ ${formatBRL(rentalValue)}`);
+      setValue("description", `Aluguel pro-rata (${prorataDias} dias): R$ ${formatBRL(rentalValue)}`);
     }
-    setValue("description", descParts.length > 0 ? descParts.join(" | ") : "");
   }
 
   function toggleEntry(id: string) {
@@ -583,6 +586,39 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Dias de aluguel (pro-rata) */}
+          {!isEditing && selectedContractId && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-foreground border-b pb-2">
+                Dias de Aluguel
+              </h3>
+              <div className="flex items-center gap-4">
+                <div className="space-y-2 w-32">
+                  <Label htmlFor="prorataDias">Dias</Label>
+                  <Input
+                    id="prorataDias"
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={prorataDias}
+                    onChange={(e) => setProrataDias(Math.max(1, Math.min(30, parseInt(e.target.value) || 30)))}
+                  />
+                </div>
+                <div className="text-xs text-muted-foreground pt-5">
+                  {prorataDias < 30 ? (
+                    <span className="text-orange-600 font-medium">
+                      Pro-rata: {prorataDias}/30 dias = R$ {formatBRL(
+                        Math.round((contracts.find(c => c.id === selectedContractId)?.rentalValue || 0) / 30 * prorataDias * 100) / 100
+                      )} (original: R$ {formatBRL(contracts.find(c => c.id === selectedContractId)?.rentalValue || 0)})
+                    </span>
+                  ) : (
+                    <span>Mês completo (30 dias)</span>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
