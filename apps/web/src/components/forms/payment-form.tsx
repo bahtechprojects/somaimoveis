@@ -425,6 +425,14 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
   async function onSubmit(data: PaymentFormData) {
     setLoading(true);
     try {
+      // Validar data
+      const dueDateObj = new Date(data.dueDate + "T12:00:00");
+      if (isNaN(dueDateObj.getTime()) || dueDateObj.getFullYear() < 2020 || dueDateObj.getFullYear() > 2100) {
+        toast.error("Data de vencimento inválida. Verifique o ano.");
+        setLoading(false);
+        return;
+      }
+
       const url = isEditing ? `/api/payments/${payment.id}` : "/api/payments";
       const method = isEditing ? "PUT" : "POST";
 
