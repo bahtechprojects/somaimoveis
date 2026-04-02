@@ -83,6 +83,7 @@ interface EntryItem {
   parentEntryId: string | null;
   isRecurring: boolean;
   recurringDay: number | null;
+  destination: string | null;
   personName: string; // nome do locatário ou proprietário
 }
 
@@ -182,6 +183,8 @@ function LancamentosContent() {
   const [formValueMode, setFormValueMode] = useState<"TOTAL" | "PARCELA">("TOTAL");
   const [formIsRecurring, setFormIsRecurring] = useState(false);
   const [formDestination, setFormDestination] = useState("");
+  const [editingEntry, setEditingEntry] = useState<EntryItem | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   async function fetchEntries() {
     setLoading(true);
@@ -395,7 +398,125 @@ function LancamentosContent() {
 
   function handleNewEntry() {
     resetForm();
+    setEditingEntry(null);
     setFormOpen(true);
+  }
+
+  function handleEditEntry(entry: EntryItem) {
+    setEditingEntry(entry);
+    setFormTarget(entry.entrySource === "owner" ? "proprietario" : "locatario");
+    setFormPersonId(entry.ownerId || entry.tenantId || "");
+    setFormType(entry.type);
+    setFormCategory(entry.category);
+    setFormDescription(entry.description || "");
+    setFormValue(String(entry.value));
+    setFormDueDate(entry.dueDate ? entry.dueDate.split("T")[0] : "");
+    setFormNotes(entry.notes || "");
+    setFormInstallments("1");
+    setFormValueMode("TOTAL");
+    setFormIsRecurring(entry.isRecurring);
+    setFormDestination(entry.destination || "");
+    setEditOpen(true);
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingEntry) return;
+    setSubmitting(true);
+    try {
+      const apiBase = editingEntry.entrySource === "owner" ? "/api/owner-entries" : "/api/tenant-entries";
+      const response = await fetch(`${apiBase}/${editingEntry.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: formType,
+          category: formCategory,
+          description: formDescription || null,
+          value: parseFloat(formValue),
+          dueDate: formDueDate,
+          notes: formNotes || null,
+          isRecurring: formIsRecurring,
+          destination: formDestination || null,
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || "Erro ao atualizar lancamento");
+        return;
+      }
+      toast.success("Lançamento atualizado");
+      setEditOpen(false);
+      setEditingEntry(null);
+      fetchEntries();
+    } catch {
+      toast.error("Erro ao atualizar lancamento");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleMarkAsPaid(entry: EntryItem) {
+    try {
+      const apiBase = entry.entrySource === "owner" ? "/api/owner-entries" : "/api/tenant-entries";
+      const response = await fetch(`${apiBase}/${entry.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "PAGO",
+          paidAt: new Date().toISOString(),
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || "Erro ao marcar como pago");
+        return;
+      }
+      toast.success(`Lançamento de ${entry.personName} marcado como pago`);
+      fetchEntries();
+    } catch {
+      toast.error("Erro ao marcar como pago");
+    }
+  }
+
+  async function handleMarkAsPending(entry: EntryItem) {
+    try {
+      const apiBase = entry.entrySource === "owner" ? "/api/owner-entries" : "/api/tenant-entries";
+      const response = await fetch(`${apiBase}/${entry.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "PENDENTE",
+          paidAt: null,
+        }),
+      });
+      if (!response.ok) {
+        toast.error("Erro ao reverter status");
+        return;
+      }
+      toast.success("Status revertido para pendente");
+      fetchEntries();
+    } catch {
+      toast.error("Erro ao reverter status");
+    }
+  }
+
+  async function handleCancel(entry: EntryItem) {
+    try {
+      const apiBase = entry.entrySource === "owner" ? "/api/owner-entries" : "/api/tenant-entries";
+      const response = await fetch(`${apiBase}/${entry.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELADO" }),
+      });
+      if (!response.ok) {
+        toast.error("Erro ao cancelar lançamento");
+        return;
+      }
+      toast.success("Lançamento cancelado");
+      fetchEntries();
+    } catch {
+      toast.error("Erro ao cancelar lançamento");
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -521,6 +642,34 @@ function LancamentosContent() {
     setSelectedIds(new Set());
     setBulkDeleteDialogOpen(false);
     fetchEntries();
+  }
+
+  function renderEntryActions(entry: EntryItem) {
+    return (
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => handleEditEntry(entry)}>
+          <Pencil className="h-3.5 w-3.5 mr-2" /> Editar
+        </DropdownMenuItem>
+        {entry.status === "PENDENTE" && (
+          <DropdownMenuItem onClick={() => handleMarkAsPaid(entry)}>
+            <CheckCircle2 className="h-3.5 w-3.5 mr-2 text-emerald-600" /> Marcar como Pago
+          </DropdownMenuItem>
+        )}
+        {entry.status === "PAGO" && (
+          <DropdownMenuItem onClick={() => handleMarkAsPending(entry)}>
+            <Clock className="h-3.5 w-3.5 mr-2 text-amber-600" /> Reverter p/ Pendente
+          </DropdownMenuItem>
+        )}
+        {entry.status !== "CANCELADO" && (
+          <DropdownMenuItem onClick={() => handleCancel(entry)}>
+            <XCircle className="h-3.5 w-3.5 mr-2 text-gray-500" /> Cancelar
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(entry)}>
+          <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    );
   }
 
   return (
@@ -684,9 +833,7 @@ function LancamentosContent() {
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0"><MoreVertical className="h-4 w-4" /></Button>
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(entry)}><Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir</DropdownMenuItem>
-                              </DropdownMenuContent>
+                              {renderEntryActions(entry)}
                             </DropdownMenu>
                           </div>
                           <div className="mt-2 flex items-center justify-between">
@@ -859,11 +1006,7 @@ function LancamentosContent() {
                                       <MoreVertical className="h-3.5 w-3.5" />
                                     </Button>
                                   </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                    <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(entry)}>
-                                      <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
-                                    </DropdownMenuItem>
-                                  </DropdownMenuContent>
+                                  {renderEntryActions(entry)}
                                 </DropdownMenu>
                               </TableCell>
                             </TableRow>
@@ -997,11 +1140,7 @@ function LancamentosContent() {
                                           <MoreVertical className="h-3.5 w-3.5" />
                                         </Button>
                                       </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(entry)}>
-                                          <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
+                                      {renderEntryActions(entry)}
                                     </DropdownMenu>
                                   </TableCell>
                                 </TableRow>
@@ -1271,6 +1410,94 @@ function LancamentosContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Entry Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Lancamento</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Pessoa</Label>
+              <Input value={editingEntry?.personName || ""} disabled className="bg-muted" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={formType} onValueChange={(v) => setFormType(v as "DEBITO" | "CREDITO")}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DEBITO">Debito</SelectItem>
+                    <SelectItem value="CREDITO">Credito</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Categoria</Label>
+                <Select value={formCategory} onValueChange={setFormCategory}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {(formTarget === "proprietario" ? ownerCategories : tenantCategories).map((cat) => (
+                      <SelectItem key={cat} value={cat}>{categoryLabels[cat] || cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Descricao</Label>
+              <Input value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="Descricao do lancamento" />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Destino</Label>
+              <Select value={formDestination} onValueChange={setFormDestination}>
+                <SelectTrigger><SelectValue placeholder="Para Imobiliária (padrão)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="IMOBILIARIA">Para Imobiliaria</SelectItem>
+                  <SelectItem value="PROPRIETARIO">Para Proprietario</SelectItem>
+                  <SelectItem value="INQUILINO">Para Inquilino</SelectItem>
+                  <SelectItem value="TERCEIRO">Para Terceiro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Valor (R$)</Label>
+                <Input type="number" step="0.01" min="0" value={formValue} onChange={(e) => setFormValue(e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label>Data de Vencimento</Label>
+                <Input type="date" value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)} required />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Recorrente</Label>
+              <div className="flex items-center h-10">
+                <Switch checked={formIsRecurring} onCheckedChange={setFormIsRecurring} />
+                <span className="ml-2 text-sm text-muted-foreground">{formIsRecurring ? "Sim" : "Nao"}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Observacoes</Label>
+              <Input value={formNotes} onChange={(e) => setFormNotes(e.target.value)} placeholder="Observacoes adicionais (opcional)" />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={submitting || !formCategory || !formValue || !formDueDate}>
+                {submitting ? "Salvando..." : "Salvar Alteracoes"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

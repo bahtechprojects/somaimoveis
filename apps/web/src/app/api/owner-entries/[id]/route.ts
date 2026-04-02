@@ -41,6 +41,7 @@ export async function PUT(
     if (body.status !== undefined) data.status = body.status;
     if (body.notes !== undefined) data.notes = body.notes;
     if (body.isRecurring !== undefined) data.isRecurring = body.isRecurring;
+    if (body.destination !== undefined) data.destination = body.destination;
     if (body.value !== undefined) data.value = parseFloat(body.value as string);
     if (body.dueDate !== undefined) {
       const d = String(body.dueDate);
