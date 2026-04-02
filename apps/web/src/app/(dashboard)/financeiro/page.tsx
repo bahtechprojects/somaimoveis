@@ -326,7 +326,7 @@ function FinanceiroContent() {
       toast.success("Boleto emitido com sucesso!");
       fetchPayments();
     } catch (err: any) {
-      toast.error(err.message || "Erro ao emitir boleto");
+      toast.error(err.message || "Erro ao emitir boleto", { duration: 15000 });
     } finally {
       setBoletoLoading(prev => ({ ...prev, [paymentId]: false }));
     }
@@ -362,7 +362,14 @@ function FinanceiroContent() {
       }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao emitir boletos");
-      toast.success(`${data.emitidos} boleto(s) emitido(s), ${data.erros?.length || 0} erro(s)`);
+      if (data.emitidos > 0) {
+        toast.success(`${data.emitidos} boleto(s) emitido(s)`);
+      }
+      if (data.erros && data.erros.length > 0) {
+        for (const e of data.erros) {
+          toast.error(`${e.code}: ${e.error}`, { duration: 15000 });
+        }
+      }
       fetchPayments();
     } catch (err: any) {
       toast.error(err.message || "Erro ao emitir boletos");
