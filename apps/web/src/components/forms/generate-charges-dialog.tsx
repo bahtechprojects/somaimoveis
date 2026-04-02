@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { toast } from "sonner"
-import { CalendarPlusIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon } from "lucide-react"
+import { CalendarPlusIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon, Trash2Icon } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -84,6 +84,7 @@ export function GenerateChargesDialog({
   const [preview, setPreview] = useState<PreviewData | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [clearing, setClearing] = useState(false)
   const [result, setResult] = useState<GenerateResult | null>(null)
 
   const loadPreview = useCallback(async (month: string) => {
@@ -137,6 +138,31 @@ export function GenerateChargesDialog({
       toast.error("Erro ao gerar cobrancas")
     } finally {
       setGenerating(false)
+    }
+  }
+
+  async function handleClearPending() {
+    if (!confirm(`Tem certeza que deseja excluir TODAS as cobranças pendentes de ${preview?.month || selectedMonth}? Esta ação não pode ser desfeita.`)) {
+      return
+    }
+    setClearing(true)
+    try {
+      const res = await fetch(`/api/billing/clear?month=${selectedMonth}`, {
+        method: "DELETE",
+      })
+      const data = await res.json()
+      if (res.ok) {
+        toast.success(data.message)
+        onSuccess()
+        // Reload preview
+        loadPreview(selectedMonth)
+      } else {
+        toast.error(data.error || "Erro ao excluir cobranças")
+      }
+    } catch {
+      toast.error("Erro ao excluir cobranças")
+    } finally {
+      setClearing(false)
     }
   }
 
@@ -212,9 +238,25 @@ export function GenerateChargesDialog({
             )}
 
             {existingContracts.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                {existingContracts.length} contrato(s) ja possuem cobranca para este mes.
-              </p>
+              <div className="flex items-center justify-between gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 p-3">
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  {existingContracts.length} contrato(s) ja possuem cobranca para este mes.
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="shrink-0 text-xs h-7"
+                  onClick={handleClearPending}
+                  disabled={clearing || generating}
+                >
+                  {clearing ? (
+                    <Loader2Icon className="size-3 animate-spin" />
+                  ) : (
+                    <Trash2Icon className="size-3" />
+                  )}
+                  Excluir pendentes
+                </Button>
+              </div>
             )}
 
             {pendingContracts.length === 0 && existingContracts.length === 0 && (
@@ -224,8 +266,28 @@ export function GenerateChargesDialog({
             )}
 
             {pendingContracts.length === 0 && existingContracts.length > 0 && (
-              <div className="text-center py-6 text-muted-foreground text-sm">
-                Todas as cobrancas ja foram geradas para este mes.
+              <div className="text-center py-6 space-y-3">
+                <p className="text-muted-foreground text-sm">
+                  Todas as cobrancas ja foram geradas para este mes.
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleClearPending}
+                  disabled={clearing || generating}
+                >
+                  {clearing ? (
+                    <>
+                      <Loader2Icon className="size-4 animate-spin" />
+                      Excluindo...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2Icon className="size-4" />
+                      Excluir todas pendentes e regerar
+                    </>
+                  )}
+                </Button>
               </div>
             )}
           </div>
