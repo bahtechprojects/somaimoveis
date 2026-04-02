@@ -115,14 +115,20 @@ export async function POST(request: NextRequest) {
           : 0;
 
         // Check for pending tenant entries (CREDITO = discount, DEBITO = extra charge)
+        // Include entries with dueDate in target month OR entries without dueDate (applied to next billing)
         const tenantEntries = await prisma.tenantEntry.findMany({
           where: {
             tenantId: contract.tenantId,
             status: "PENDENTE",
-            dueDate: {
-              gte: new Date(targetYear, targetMonth, 1),
-              lt: new Date(targetYear, targetMonth + 1, 1),
-            },
+            OR: [
+              {
+                dueDate: {
+                  gte: new Date(targetYear, targetMonth, 1),
+                  lt: new Date(targetYear, targetMonth + 1, 1),
+                },
+              },
+              { dueDate: null },
+            ],
           },
         });
         const discountEntries = tenantEntries.filter(e => e.type === "CREDITO");
