@@ -62,16 +62,12 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
-        onInteractOutside={preventOutsideClose ? (e) => e.preventDefault() : undefined}
-        onEscapeKeyDown={preventOutsideClose ? (e) => e.preventDefault() : undefined}
         className={cn(
-          "fixed z-50 grid w-full bg-background shadow-lg duration-200 outline-none",
-          // Mobile: full-screen bottom sheet
-          "inset-0 max-w-full gap-3 rounded-none border-0 p-4 overflow-y-auto data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom",
-          // Desktop: centered dialog
-          "sm:inset-auto sm:top-[50%] sm:left-[50%] sm:max-w-lg sm:max-h-[90vh] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:gap-4 sm:rounded-lg sm:border sm:p-6 sm:overflow-y-auto sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:slide-in-from-bottom-0 sm:data-[state=open]:zoom-in-95",
+          "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className
         )}
+        onPointerDownOutside={preventOutsideClose ? (e) => e.preventDefault() : undefined}
+        onInteractOutside={preventOutsideClose ? (e) => e.preventDefault() : undefined}
         {...props}
       >
         {children}
@@ -111,7 +107,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&>button]:h-11 [&>button]:sm:h-9 [&>button]:sm:w-auto",
+        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
         className
       )}
       {...props}

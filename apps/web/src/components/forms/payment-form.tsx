@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Trash2, Plus } from "lucide-react";
+import { Loader2, Trash2, Plus, ChevronsUpDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 const paymentSchema = z.object({
   code: z.string().default("AUTO"),
@@ -99,6 +113,9 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
   const [entries, setEntries] = useState<TenantEntry[]>([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
   const [prorataDias, setProrataDias] = useState(30);
+  const [manualProrata, setManualProrata] = useState(false);
+  const [contractSearchOpen, setContractSearchOpen] = useState(false);
+  const [contractSearch, setContractSearch] = useState("");
   const isEditing = !!payment;
 
   const {
@@ -172,6 +189,8 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
       setEntries([]);
       setSelectedEntryIds(new Set());
       setProrataDias(30);
+      setManualProrata(false);
+      setContractSearch("");
     }
   }, [open]);
 
@@ -216,9 +235,9 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     }
   }, [selectedContractId, contracts, isEditing, setValue]);
 
-  // Auto-detect pro-rata days when contract or dueDate changes
+  // Auto-detect pro-rata days when contract or dueDate changes (only if user hasn't manually set)
   useEffect(() => {
-    if (!selectedContractId || isEditing || !watchDueDate) return;
+    if (!selectedContractId || isEditing || !watchDueDate || manualProrata) return;
     const contract = contracts.find((c) => c.id === selectedContractId);
     if (!contract) return;
 
@@ -255,7 +274,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     }
 
     setProrataDias(days);
-  }, [selectedContractId, contracts, watchDueDate, isEditing]);
+  }, [selectedContractId, contracts, watchDueDate, isEditing, manualProrata]);
 
   // Recalculate when entries, selection, or prorataDias changes
   useEffect(() => {
@@ -498,21 +517,60 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="contractId">Contrato *</Label>
-                <Select
-                  value={selectedContractId}
-                  onValueChange={(value) => setValue("contractId", value)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione o contrato" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {contracts.map((contract) => (
-                      <SelectItem key={contract.id} value={contract.id}>
-                        {contract.code} - {contract.property?.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={contractSearchOpen} onOpenChange={setContractSearchOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={contractSearchOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {selectedContractId
+                        ? (() => {
+                            const c = contracts.find((c) => c.id === selectedContractId);
+                            return c ? `${c.code} - ${c.property?.title} (${c.tenant?.name})` : "Selecione o contrato";
+                          })()
+                        : "Selecione o contrato"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput
+                        placeholder="Buscar contrato, imóvel ou inquilino..."
+                        value={contractSearch}
+                        onValueChange={setContractSearch}
+                      />
+                      <CommandList>
+                        <CommandEmpty>Nenhum contrato encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          {contracts.map((contract) => (
+                            <CommandItem
+                              key={contract.id}
+                              value={`${contract.code} ${contract.property?.title} ${contract.tenant?.name}`}
+                              onSelect={() => {
+                                setValue("contractId", contract.id);
+                                setContractSearchOpen(false);
+                                setContractSearch("");
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  selectedContractId === contract.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              <div className="flex flex-col">
+                                <span>{contract.code} - {contract.property?.title}</span>
+                                <span className="text-xs text-muted-foreground">{contract.tenant?.name} | R$ {formatBRL(contract.rentalValue)}</span>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 {errors.contractId && (
                   <p className="text-xs text-destructive">{errors.contractId.message}</p>
                 )}
@@ -633,7 +691,10 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
                     min={1}
                     max={30}
                     value={prorataDias}
-                    onChange={(e) => setProrataDias(Math.max(1, Math.min(30, parseInt(e.target.value) || 30)))}
+                    onChange={(e) => {
+                      setManualProrata(true);
+                      setProrataDias(Math.max(1, Math.min(30, parseInt(e.target.value) || 30)));
+                    }}
                   />
                 </div>
                 <div className="text-xs text-muted-foreground pt-5">
