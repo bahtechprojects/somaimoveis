@@ -127,18 +127,17 @@ export async function POST(request: NextRequest) {
         });
         const discountEntries = tenantEntries.filter(e => e.type === "CREDITO");
         const chargeEntries = tenantEntries.filter(e => e.type === "DEBITO");
-        const totalDiscount = discountEntries.reduce((sum, e) => sum + e.value, 0);
-        const totalExtraCharges = chargeEntries.reduce((sum, e) => sum + e.value, 0);
-        const effectiveRentalValue = Math.max(0, contract.rentalValue - totalDiscount);
+        const totalCredits = discountEntries.reduce((sum, e) => sum + e.value, 0);
+        const totalDebits = chargeEntries.reduce((sum, e) => sum + e.value, 0);
 
-        // Total value charged to tenant = rent (with discount) + condo + IPTU + bank fee + seguro fianca + extra charges
+        // Total = aluguel + condominio + IPTU + seguro + taxa bancaria + debitos - creditos
         const bankFee = contract.bankFee || 0;
         const insuranceFee = contract.insuranceFee || 0;
-        const totalValue = Math.round((effectiveRentalValue + condoFee + iptuMonthly + bankFee + insuranceFee + totalExtraCharges) * 100) / 100;
+        const totalValue = Math.max(0, Math.round((contract.rentalValue + condoFee + iptuMonthly + bankFee + insuranceFee + totalDebits - totalCredits) * 100) / 100);
 
-        // Calculate split values (admin fee applies to rental value minus discounts)
+        // Calculate split values (admin fee applies to rental value)
         const adminFee = contract.adminFeePercent || 10;
-        let splitAdminValue = Math.round(effectiveRentalValue * (adminFee / 100) * 100) / 100;
+        let splitAdminValue = Math.round(contract.rentalValue * (adminFee / 100) * 100) / 100;
 
         // Calculate intermediation fee installment if applicable
         let intermediationInstallmentValue = 0;
@@ -157,7 +156,7 @@ export async function POST(request: NextRequest) {
 
           if (contractMonthNumber >= 1 && contractMonthNumber <= contract.intermediationInstallments) {
             // intermediationFee is a percentage of the rental value
-            const totalIntermediationValue = effectiveRentalValue * (contract.intermediationFee / 100);
+            const totalIntermediationValue = contract.rentalValue * (contract.intermediationFee / 100);
             intermediationInstallmentValue = Math.round(
               (totalIntermediationValue / contract.intermediationInstallments) * 100
             ) / 100;
@@ -166,7 +165,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const splitOwnerValue = Math.round((effectiveRentalValue - splitAdminValue) * 100) / 100;
+        const splitOwnerValue = Math.round((contract.rentalValue - splitAdminValue) * 100) / 100;
 
         // Calculate IRRF on owner's gross income (rental - admin fee).
         // IRRF is calculated ONLY on the rental value (aluguel) minus admin fee.
@@ -184,8 +183,8 @@ export async function POST(request: NextRequest) {
         // Build description with breakdown
         const mLabel = `${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`;
         const descParts = [`Aluguel ${mLabel} - ${contract.code}`];
-        if (totalDiscount > 0) descParts.push(`Desconto: -R$ ${totalDiscount.toFixed(2)}`);
-        if (totalExtraCharges > 0) descParts.push(`Débitos: +R$ ${totalExtraCharges.toFixed(2)}`);
+        if (totalCredits > 0) descParts.push(`Créditos: -R$ ${totalCredits.toFixed(2)}`);
+        if (totalDebits > 0) descParts.push(`Débitos: +R$ ${totalDebits.toFixed(2)}`);
         if (condoFee > 0) descParts.push(`Condominio: R$ ${condoFee.toFixed(2)}`);
         if (iptuMonthly > 0) descParts.push(`IPTU: R$ ${iptuMonthly.toFixed(2)}`);
         if (insuranceFee > 0) descParts.push(`Seguro Fianca: R$ ${insuranceFee.toFixed(2)}`);
@@ -195,9 +194,8 @@ export async function POST(request: NextRequest) {
         // Store structured breakdown in notes for programmatic access
         const breakdown: Record<string, unknown> = {
           aluguel: contract.rentalValue,
-          desconto: totalDiscount,
-          debitos: totalExtraCharges,
-          aluguelComDesconto: effectiveRentalValue,
+          creditos: totalCredits,
+          debitos: totalDebits,
           condominio: condoFee,
           iptu: iptuMonthly,
           seguroFianca: insuranceFee,
@@ -224,7 +222,7 @@ export async function POST(request: NextRequest) {
             tenantId: contract.tenantId!,
             ownerId: contract.ownerId,
             value: totalValue,
-            discountValue: totalDiscount > 0 ? totalDiscount : null,
+            discountValue: totalCredits > 0 ? totalCredits : null,
             dueDate,
             status: "PENDENTE",
             splitAdminValue,
