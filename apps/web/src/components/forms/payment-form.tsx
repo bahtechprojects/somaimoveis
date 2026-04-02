@@ -496,7 +496,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh]" preventOutsideClose>
+      <DialogContent className="sm:max-w-2xl sm:max-h-[90vh] overflow-y-auto" preventOutsideClose>
         <DialogHeader>
           <DialogTitle>
             {isEditing ? "Editar Cobranca" : "Nova Cobranca"}
@@ -626,7 +626,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
           {!isEditing && entries.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-foreground border-b pb-2 flex items-center justify-between">
-                <span>Lançamentos Pendentes</span>
+                <span>Lançamentos Pendentes ({entries.length})</span>
                 <button
                   type="button"
                   className="text-xs text-muted-foreground hover:text-foreground"
@@ -636,43 +636,45 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
                 </button>
               </h3>
 
-              {debitEntries.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-red-600">Débitos (+)</p>
-                  {debitEntries.map(entry => (
-                    <label
-                      key={entry.id}
-                      className="flex items-center gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50 text-xs"
-                    >
-                      <Checkbox
-                        checked={selectedEntryIds.has(entry.id)}
-                        onCheckedChange={() => toggleEntry(entry.id)}
-                      />
-                      <span className="flex-1">{entry.description}</span>
-                      <span className="font-medium text-red-600">+ R$ {formatBRL(entry.value)}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
+              <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                {debitEntries.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-red-600">Débitos (+)</p>
+                    {debitEntries.map(entry => (
+                      <label
+                        key={entry.id}
+                        className="flex items-center gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50 text-xs"
+                      >
+                        <Checkbox
+                          checked={selectedEntryIds.has(entry.id)}
+                          onCheckedChange={() => toggleEntry(entry.id)}
+                        />
+                        <span className="flex-1">{entry.description}</span>
+                        <span className="font-medium text-red-600">+ R$ {formatBRL(entry.value)}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
 
-              {creditEntries.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-green-600">Créditos (-)</p>
-                  {creditEntries.map(entry => (
-                    <label
-                      key={entry.id}
-                      className="flex items-center gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50 text-xs"
-                    >
-                      <Checkbox
-                        checked={selectedEntryIds.has(entry.id)}
-                        onCheckedChange={() => toggleEntry(entry.id)}
-                      />
-                      <span className="flex-1">{entry.description}</span>
-                      <span className="font-medium text-green-600">- R$ {formatBRL(entry.value)}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
+                {creditEntries.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-green-600">Créditos (-)</p>
+                    {creditEntries.map(entry => (
+                      <label
+                        key={entry.id}
+                        className="flex items-center gap-2 p-2 rounded-md border cursor-pointer hover:bg-muted/50 text-xs"
+                      >
+                        <Checkbox
+                          checked={selectedEntryIds.has(entry.id)}
+                          onCheckedChange={() => toggleEntry(entry.id)}
+                        />
+                        <span className="flex-1">{entry.description}</span>
+                        <span className="font-medium text-green-600">- R$ {formatBRL(entry.value)}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
