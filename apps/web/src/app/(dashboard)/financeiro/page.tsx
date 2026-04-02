@@ -235,6 +235,7 @@ function FinanceiroContent() {
     if (activeTab === "pagos") return payment.status === "PAGO";
     if (activeTab === "atrasados") return payment.status === "ATRASADO";
     if (activeTab === "emitidos") return payment.boletoStatus === "EMITIDO";
+    if (activeTab === "nao_emitidos") return !payment.nossoNumero && (payment.status === "PENDENTE" || payment.status === "ATRASADO");
     return true;
   });
 
@@ -526,6 +527,7 @@ function FinanceiroContent() {
                   <TabsList className="h-9 sm:h-8">
                     <TabsTrigger value="todos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Todos</TabsTrigger>
                     <TabsTrigger value="pendentes" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Pendentes</TabsTrigger>
+                    <TabsTrigger value="nao_emitidos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Não Emitidos</TabsTrigger>
                     <TabsTrigger value="emitidos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Emitidos</TabsTrigger>
                     <TabsTrigger value="pagos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Pagos</TabsTrigger>
                     <TabsTrigger value="atrasados" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">Atrasados</TabsTrigger>
