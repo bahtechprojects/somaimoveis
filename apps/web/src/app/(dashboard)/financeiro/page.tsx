@@ -360,6 +360,32 @@ function FinanceiroContent() {
     }
   };
 
+  const [batchNotifyLoading, setBatchNotifyLoading] = useState(false);
+
+  const handleSendNotifyBatch = async () => {
+    if (!confirm("Enviar cobranças (WhatsApp + Email) para todos os boletos emitidos que ainda não foram notificados?")) return;
+    setBatchNotifyLoading(true);
+    try {
+      const res = await fetch("/api/payments/notify/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Erro do servidor (${res.status}).`);
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao enviar cobranças");
+      toast.success(data.message);
+      fetchPayments();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao enviar cobranças em lote");
+    } finally {
+      setBatchNotifyLoading(false);
+    }
+  };
+
   const handleSendNotify = async (paymentId: string, channels: string[]) => {
     setNotifyLoading(prev => ({ ...prev, [paymentId]: true }));
     try {
@@ -506,6 +532,17 @@ function FinanceiroContent() {
                   <Receipt className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Emitir Boletos</span>
                   <span className="sm:hidden">Boletos</span>
+                </Button>
+                <Button size="sm" variant="outline" className="gap-1.5 h-10 sm:h-8 text-xs" onClick={handleSendNotifyBatch} disabled={batchNotifyLoading}>
+                  <Send className="h-3.5 w-3.5" />
+                  {batchNotifyLoading ? (
+                    <span>Enviando...</span>
+                  ) : (
+                    <>
+                      <span className="hidden sm:inline">Enviar Cobranças</span>
+                      <span className="sm:hidden">Cobrar</span>
+                    </>
+                  )}
                 </Button>
                 <Button size="sm" className="gap-1.5 h-10 sm:h-8 text-xs" onClick={handleNewPayment}>
                   <Plus className="h-3.5 w-3.5" />
