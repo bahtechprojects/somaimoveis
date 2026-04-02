@@ -222,22 +222,46 @@ export function sendWhatsAppDocument(params: {
 }
 
 /**
- * Envia uma mensagem via Email.
- * MOCK - apenas loga no console.
+ * Envia uma mensagem via Email usando SMTP.
  */
 export async function sendEmailMessage(msg: {
   to: string;
   subject: string;
   message: string;
 }): Promise<SendResult> {
-  console.log(
-    `[Email Mock] Enviando para ${msg.to}: ${msg.subject}`
-  );
-  await new Promise((r) => setTimeout(r, 100));
-  return {
-    success: true,
-    messageId: `email-mock-${Date.now()}`,
-  };
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = parseInt(process.env.SMTP_PORT || "465");
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const smtpFrom = process.env.SMTP_FROM || smtpUser;
+
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    console.log(`[Email Mock] SMTP não configurado. Para: ${msg.to} - ${msg.subject}`);
+    return { success: true, messageId: `email-mock-${Date.now()}` };
+  }
+
+  try {
+    const nodemailer = await import("nodemailer");
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: { user: smtpUser, pass: smtpPass },
+    });
+
+    const info = await transporter.sendMail({
+      from: `"Somma Imóveis" <${smtpFrom}>`,
+      to: msg.to,
+      subject: msg.subject,
+      html: msg.message.replace(/\n/g, "<br>"),
+    });
+
+    console.log(`[Email] Enviado para ${msg.to}: ${msg.subject} (${info.messageId})`);
+    return { success: true, messageId: info.messageId };
+  } catch (error: any) {
+    console.error(`[Email] Erro ao enviar para ${msg.to}:`, error.message);
+    return { success: false, error: error.message };
+  }
 }
 
 /**
