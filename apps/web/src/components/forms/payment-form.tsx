@@ -264,7 +264,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     if (contract) {
       recalculateValue(contract, selectedEntryIds);
     }
-  }, [selectedEntryIds, prorataDias, entries]);
+  }, [selectedEntryIds, prorataDias, entries, contracts, selectedContractId]);
 
   function recalculateValue(contract: ContractOption, entryIds: Set<string>) {
     const condoFee = contract.property?.condoFee || 0;
