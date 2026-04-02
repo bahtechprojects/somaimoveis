@@ -71,16 +71,18 @@ export async function POST(request: NextRequest) {
   // Auto-generate code if not provided or placeholder
   let code = body.code;
   if (!code || code === "AUTO") {
-    const lastPayment = await prisma.payment.findFirst({
-      orderBy: { code: "desc" },
+    const allCodes = await prisma.payment.findMany({
       select: { code: true },
     });
-    let nextNumber = 1;
-    if (lastPayment?.code) {
-      const match = lastPayment.code.match(/PAG-(\d+)/);
-      if (match) nextNumber = parseInt(match[1]) + 1;
+    let maxNumber = 0;
+    for (const p of allCodes) {
+      const match = p.code.match(/PAG-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1]);
+        if (num > maxNumber) maxNumber = num;
+      }
     }
-    code = `PAG-${String(nextNumber).padStart(3, "0")}`;
+    code = `PAG-${String(maxNumber + 1).padStart(3, "0")}`;
   }
 
   try {

@@ -70,15 +70,17 @@ export async function POST(request: NextRequest) {
     });
     const existingContractIds = new Set(existingPayments.map((p) => p.contractId));
 
-    // Get the last payment code to continue sequence
-    const lastPayment = await prisma.payment.findFirst({
-      orderBy: { code: "desc" },
+    // Get the highest payment code number to continue sequence
+    const allCodes = await prisma.payment.findMany({
       select: { code: true },
     });
     let nextNumber = 1;
-    if (lastPayment?.code) {
-      const match = lastPayment.code.match(/PAG-(\d+)/);
-      if (match) nextNumber = parseInt(match[1]) + 1;
+    for (const p of allCodes) {
+      const match = p.code.match(/PAG-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1]);
+        if (num >= nextNumber) nextNumber = num + 1;
+      }
     }
 
     let generated = 0;
