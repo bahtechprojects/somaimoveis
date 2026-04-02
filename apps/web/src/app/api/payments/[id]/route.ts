@@ -78,9 +78,35 @@ export async function DELETE(
   if (isAuthError(auth)) return auth;
   try {
     const { id } = await params;
+
+    const payment = await prisma.payment.findUnique({
+      where: { id },
+      select: { id: true, contractId: true, dueDate: true, nossoNumero: true },
+    });
+    if (!payment) {
+      return NextResponse.json({ error: "Pagamento não encontrado" }, { status: 404 });
+    }
+
+    // Limpar notificacoes relacionadas
+    await prisma.notification.deleteMany({
+      where: { paymentId: id },
+    });
+
+    // Limpar owner entries geradas para este pagamento (mesmo contrato e vencimento)
+    await prisma.ownerEntry.deleteMany({
+      where: {
+        contractId: payment.contractId,
+        dueDate: payment.dueDate,
+        category: "REPASSE",
+        status: "PENDENTE",
+      },
+    });
+
+    // Deletar o pagamento
     await prisma.payment.delete({ where: { id } });
     return NextResponse.json({ message: "Pagamento excluído com sucesso" });
   } catch (error: any) {
+    console.error("[Payment DELETE] Erro:", error);
     if (error?.code === "P2025") {
       return NextResponse.json({ error: "Pagamento não encontrado" }, { status: 404 });
     }

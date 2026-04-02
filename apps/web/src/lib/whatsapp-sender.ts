@@ -245,12 +245,68 @@ export function sendWhatsAppDocument(params: {
 }
 
 /**
+ * Envia um documento via WhatsApp usando base64 (para PDFs gerados em memória).
+ */
+export function sendWhatsAppDocumentBase64(params: {
+  to: string;
+  fileBase64: string;
+  fileName: string;
+  caption?: string;
+}): Promise<SendResult> {
+  return enqueue(async () => {
+    const cleanPhone = params.to.replace(/\D/g, "");
+    if (cleanPhone.length < 10) {
+      return { success: false, error: `Número de telefone inválido: ${params.to}` };
+    }
+
+    if (!UAZAPI_URL || !UAZAPI_TOKEN) {
+      console.log(`[WhatsApp Mock] Enviando documento base64 "${params.fileName}" para ${params.to}`);
+      return { success: true, messageId: `mock-doc64-${Date.now()}` };
+    }
+
+    const number = formatPhone(params.to) + "@s.whatsapp.net";
+    try {
+      const response = await fetch(`${UAZAPI_URL}/send/media`, {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "token": UAZAPI_TOKEN,
+        },
+        body: JSON.stringify({
+          number,
+          type: "document",
+          file: `data:application/pdf;base64,${params.fileBase64}`,
+          docName: params.fileName,
+          text: params.caption || "",
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        console.error(`[Uazapi] Erro envio doc base64 ${response.status}:`, data);
+        return { success: false, error: data?.message || data?.error || `Erro HTTP ${response.status}` };
+      }
+
+      console.log(`[Uazapi] Documento base64 enviado para ${number}`);
+      return { success: true, messageId: data?.key?.id || data?.messageId || data?.id || `uazapi-doc64-${Date.now()}` };
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : "Erro desconhecido";
+      console.error(`[Uazapi] Falha doc base64 para ${number}:`, errMsg);
+      return { success: false, error: errMsg };
+    }
+  });
+}
+
+/**
  * Envia uma mensagem via Email usando SMTP.
+ * Suporta anexos opcionais (ex: PDF de boleto).
  */
 export async function sendEmailMessage(msg: {
   to: string;
   subject: string;
   message: string;
+  attachments?: { filename: string; content: Buffer }[];
 }): Promise<SendResult> {
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = parseInt(process.env.SMTP_PORT || "465");
@@ -277,6 +333,10 @@ export async function sendEmailMessage(msg: {
       to: msg.to,
       subject: msg.subject,
       html: msg.message.replace(/\n/g, "<br>"),
+      attachments: msg.attachments?.map((a) => ({
+        filename: a.filename,
+        content: a.content,
+      })),
     });
 
     console.log(`[Email] Enviado para ${msg.to}: ${msg.subject} (${info.messageId})`);

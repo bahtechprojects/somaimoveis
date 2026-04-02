@@ -370,13 +370,16 @@ function FinanceiroContent() {
       const successResults = data.results?.filter((r: any) => r.success) || [];
       const failResults = data.results?.filter((r: any) => !r.success) || [];
       if (successResults.length > 0) {
-        toast.success(`Cobranca enviada via ${successResults.map((r: any) => r.channel).join(", ")}`);
+        const boletoMsg = data.boletoEmitido ? " (boleto emitido)" : "";
+        const pdfMsg = data.pdfEnviado ? " + PDF" : "";
+        toast.success(`Cobranca enviada via ${successResults.map((r: any) => r.channel).join(", ")}${pdfMsg}${boletoMsg}`);
       }
       if (failResults.length > 0) {
         for (const f of failResults) {
           toast.error(`${f.channel}: ${f.error}`);
         }
       }
+      fetchPayments(); // Atualizar lista (boleto pode ter sido emitido)
     } catch (err: any) {
       toast.error(err.message || "Erro ao enviar cobranca");
     } finally {
@@ -576,6 +579,15 @@ function FinanceiroContent() {
                             {payment.nossoNumero && (
                               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownloadBoleto(payment.id, payment.code); }}>
                                 <Receipt className="h-3.5 w-3.5 mr-2" /> Baixar Boleto
+                              </DropdownMenuItem>
+                            )}
+                            {(payment.status === "PENDENTE" || payment.status === "ATRASADO") && (
+                              <DropdownMenuItem
+                                disabled={notifyLoading[payment.id]}
+                                onClick={(e) => { e.stopPropagation(); handleSendNotify(payment.id, ["whatsapp", "email"]); }}
+                              >
+                                <Send className="h-3.5 w-3.5 mr-2" />
+                                {notifyLoading[payment.id] ? "Enviando..." : "Enviar Cobranca"}
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(payment)}>
@@ -833,6 +845,15 @@ function FinanceiroContent() {
                                 <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDownloadBoleto(payment.id, payment.code); }}>
                                   <Receipt className="h-3.5 w-3.5 mr-2" />
                                   Baixar Boleto
+                                </DropdownMenuItem>
+                              )}
+                              {(payment.status === "PENDENTE" || payment.status === "ATRASADO") && (
+                                <DropdownMenuItem
+                                  disabled={notifyLoading[payment.id]}
+                                  onClick={(e) => { e.stopPropagation(); handleSendNotify(payment.id, ["whatsapp", "email"]); }}
+                                >
+                                  <Send className="h-3.5 w-3.5 mr-2" />
+                                  {notifyLoading[payment.id] ? "Enviando..." : "Enviar Cobranca"}
                                 </DropdownMenuItem>
                               )}
                               <DropdownMenuItem
