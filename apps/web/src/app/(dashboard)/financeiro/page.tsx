@@ -297,6 +297,10 @@ function FinanceiroContent() {
     setBoletoLoading(prev => ({ ...prev, [paymentId]: true }));
     try {
       const res = await fetch(`/api/payments/${paymentId}/boleto`, { method: "POST" });
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Erro do servidor (${res.status}). Verifique as credenciais do Sicredi.`);
+      }
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao emitir boleto");
       toast.success("Boleto emitido com sucesso!");
@@ -332,7 +336,12 @@ function FinanceiroContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        throw new Error(`Erro do servidor (${res.status}). Verifique as credenciais do Sicredi.`);
+      }
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao emitir boletos");
       toast.success(`${data.emitidos} boleto(s) emitido(s), ${data.erros?.length || 0} erro(s)`);
       fetchPayments();
     } catch (err: any) {
