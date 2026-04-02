@@ -108,6 +108,39 @@ export async function POST(request: NextRequest) {
         const rawDueDate = new Date(targetYear, targetMonth, paymentDay, 12, 0, 0);
         const dueDate = nextBusinessDay(rawDueDate);
 
+        // Pro-rata: calcular aluguel proporcional se contrato começa ou termina no meio do mês
+        const contractStart = new Date(contract.startDate);
+        const contractEnd = contract.endDate ? new Date(contract.endDate) : null;
+        const monthFirstDay = new Date(targetYear, targetMonth, 1);
+        const monthLastDay = new Date(targetYear, targetMonth + 1, 0);
+        const daysInMonth = monthLastDay.getDate();
+
+        let prorataDays = 30; // padrão: mês cheio (base 30)
+        let isProrata = false;
+
+        // Primeiro mês do contrato: início no meio do mês
+        if (contractStart.getFullYear() === targetYear && contractStart.getMonth() === targetMonth && contractStart.getDate() > 1) {
+          prorataDays = daysInMonth - contractStart.getDate() + 1;
+          isProrata = true;
+        }
+
+        // Último mês do contrato: término no meio do mês
+        if (contractEnd && contractEnd.getFullYear() === targetYear && contractEnd.getMonth() === targetMonth && contractEnd.getDate() < daysInMonth) {
+          const endDay = contractEnd.getDate();
+          if (isProrata) {
+            // Começou e terminou no mesmo mês
+            prorataDays = endDay - contractStart.getDate() + 1;
+          } else {
+            prorataDays = endDay;
+            isProrata = true;
+          }
+        }
+
+        const dailyRate = contract.rentalValue / 30;
+        const prorataRentalValue = isProrata
+          ? Math.round(dailyRate * prorataDays * 100) / 100
+          : contract.rentalValue;
+
         // Calculate condominium and IPTU values
         const condoFee = contract.property?.condoFee || 0;
         const iptuMonthly = contract.property?.iptuValue
@@ -136,14 +169,14 @@ export async function POST(request: NextRequest) {
         const totalCredits = discountEntries.reduce((sum, e) => sum + e.value, 0);
         const totalDebits = chargeEntries.reduce((sum, e) => sum + e.value, 0);
 
-        // Total = aluguel + condominio + IPTU + seguro + taxa bancaria + debitos - creditos
+        // Total = aluguel (proporcional se pro-rata) + condominio + IPTU + seguro + taxa bancaria + debitos - creditos
         const bankFee = contract.bankFee || 0;
         const insuranceFee = contract.insuranceFee || 0;
-        const totalValue = Math.max(0, Math.round((contract.rentalValue + condoFee + iptuMonthly + bankFee + insuranceFee + totalDebits - totalCredits) * 100) / 100);
+        const totalValue = Math.max(0, Math.round((prorataRentalValue + condoFee + iptuMonthly + bankFee + insuranceFee + totalDebits - totalCredits) * 100) / 100);
 
-        // Calculate split values (admin fee applies to rental value)
+        // Calculate split values (admin fee applies to rental value proporcional)
         const adminFee = contract.adminFeePercent || 10;
-        let splitAdminValue = Math.round(contract.rentalValue * (adminFee / 100) * 100) / 100;
+        let splitAdminValue = Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100;
 
         // Calculate intermediation fee installment if applicable
         let intermediationInstallmentValue = 0;
@@ -162,7 +195,7 @@ export async function POST(request: NextRequest) {
 
           if (contractMonthNumber >= 1 && contractMonthNumber <= contract.intermediationInstallments) {
             // intermediationFee is a percentage of the rental value
-            const totalIntermediationValue = contract.rentalValue * (contract.intermediationFee / 100);
+            const totalIntermediationValue = prorataRentalValue * (contract.intermediationFee / 100);
             intermediationInstallmentValue = Math.round(
               (totalIntermediationValue / contract.intermediationInstallments) * 100
             ) / 100;
@@ -171,7 +204,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const splitOwnerValue = Math.round((contract.rentalValue - splitAdminValue) * 100) / 100;
+        const splitOwnerValue = Math.round((prorataRentalValue - splitAdminValue) * 100) / 100;
 
         // Calculate IRRF on owner's gross income (rental - admin fee).
         // IRRF is calculated ONLY on the rental value (aluguel) minus admin fee.
@@ -188,7 +221,12 @@ export async function POST(request: NextRequest) {
 
         // Build description with breakdown
         const mLabel = `${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`;
-        const descParts = [`Aluguel ${mLabel} - ${contract.code}`];
+        const descParts = [
+          isProrata
+            ? `Aluguel ${mLabel} (${prorataDays} dias) - ${contract.code}`
+            : `Aluguel ${mLabel} - ${contract.code}`,
+        ];
+        if (isProrata) descParts.push(`Pro-rata: R$ ${prorataRentalValue.toFixed(2)} (${prorataDays}/30 dias)`);
         if (totalCredits > 0) descParts.push(`Créditos: -R$ ${totalCredits.toFixed(2)}`);
         if (totalDebits > 0) descParts.push(`Débitos: +R$ ${totalDebits.toFixed(2)}`);
         if (condoFee > 0) descParts.push(`Condominio: R$ ${condoFee.toFixed(2)}`);
@@ -199,7 +237,10 @@ export async function POST(request: NextRequest) {
 
         // Store structured breakdown in notes for programmatic access
         const breakdown: Record<string, unknown> = {
-          aluguel: contract.rentalValue,
+          aluguel: isProrata ? prorataRentalValue : contract.rentalValue,
+          aluguelOriginal: isProrata ? contract.rentalValue : undefined,
+          isProrata,
+          prorataDias: isProrata ? prorataDays : undefined,
           creditos: totalCredits,
           debitos: totalDebits,
           condominio: condoFee,

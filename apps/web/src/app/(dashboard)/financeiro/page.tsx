@@ -128,6 +128,9 @@ function formatCurrency(value: number): string {
 
 interface PaymentBreakdown {
   aluguel: number;
+  aluguelOriginal?: number;
+  isProrata?: boolean;
+  prorataDias?: number;
   creditos?: number;
   desconto?: number; // legacy
   debitos?: number;
@@ -818,7 +821,11 @@ function FinanceiroContent() {
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom" className="max-w-sm text-xs space-y-1 p-3">
                                   <p className="font-medium border-b pb-1 mb-1">Composição do Valor</p>
-                                  <p>Aluguel: {formatCurrency(breakdown.aluguel)}</p>
+                                  {breakdown.isProrata ? (
+                                    <p>Aluguel: {formatCurrency(breakdown.aluguel)} <span className="text-muted-foreground">({breakdown.prorataDias}/30 dias - original: {formatCurrency(breakdown.aluguelOriginal!)})</span></p>
+                                  ) : (
+                                    <p>Aluguel: {formatCurrency(breakdown.aluguel)}</p>
+                                  )}
                                   {breakdown.condominio > 0 && <p className="text-orange-600">+ Condomínio: {formatCurrency(breakdown.condominio)}</p>}
                                   {breakdown.iptu > 0 && <p className="text-purple-600">+ IPTU: {formatCurrency(breakdown.iptu)}</p>}
                                   {(breakdown.seguroFianca ?? 0) > 0 && <p className="text-cyan-600">+ Seguro Fiança: {formatCurrency(breakdown.seguroFianca!)}</p>}
