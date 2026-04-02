@@ -95,8 +95,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Delay between sends to avoid rate limits
-      await new Promise(r => setTimeout(r, 1000));
+      // Delay de 5 segundos entre envios para evitar banimento no WhatsApp
+      await new Promise(r => setTimeout(r, 5000));
     }
 
     return NextResponse.json({

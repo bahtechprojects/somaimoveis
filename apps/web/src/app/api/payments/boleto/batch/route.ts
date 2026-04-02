@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
 
       // Delay entre chamadas para evitar rate limit
       if (i < payments.length - 1) {
-        await delay(500);
+        await delay(2000);
       }
     }
 
