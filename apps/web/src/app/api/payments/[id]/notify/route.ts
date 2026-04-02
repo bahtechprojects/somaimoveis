@@ -204,11 +204,23 @@ export async function POST(
 
     const rendered = renderTemplate(templateKey, templateData);
 
-    // Adicionar linha digitavel na mensagem
+    // Adicionar formas de pagamento na mensagem
     let fullMessage = rendered.message;
+
+    // PIX da imobiliaria (env var)
+    const pixKey = process.env.PIX_KEY;
+    const pixKeyType = process.env.PIX_KEY_TYPE || "Chave";
+    if (pixKey) {
+      fullMessage += `\n\n*Pagamento via PIX:*\n${pixKeyType}: ${pixKey}`;
+      fullMessage += `\nValor: ${formatCurrency(isOverdue ? totalValue : payment.value)}`;
+    }
+
+    // Linha digitavel do boleto
     if (payment.linhaDigitavel) {
       fullMessage += `\n\n*Linha digitavel do boleto:*\n${payment.linhaDigitavel}`;
     }
+
+    fullMessage += `\n\n_Somma Imoveis_`;
 
     const results: { channel: string; success: boolean; error?: string }[] = [];
 

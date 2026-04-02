@@ -24,7 +24,7 @@ interface PaymentReminderParams {
 }
 
 export function paymentReminder(params: PaymentReminderParams): TemplateResult {
-  const greeting = variant(["Ola", "Oi", "Bom dia"]);
+  const greeting = variant(["Ola", "Oi", "Prezado(a)"]);
   const closing = variant([
     "Pague em dia para evitar multa e juros.",
     "Evite encargos realizando o pagamento ate a data.",
