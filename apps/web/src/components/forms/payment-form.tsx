@@ -257,14 +257,14 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
     setProrataDias(days);
   }, [selectedContractId, contracts, watchDueDate, isEditing]);
 
-  // Recalculate when entries selection or prorataDias changes
+  // Recalculate when entries, selection, or prorataDias changes
   useEffect(() => {
-    if (!selectedContractId || isEditing) return;
+    if (!selectedContractId) return;
     const contract = contracts.find((c) => c.id === selectedContractId);
     if (contract) {
       recalculateValue(contract, selectedEntryIds);
     }
-  }, [selectedEntryIds, prorataDias]);
+  }, [selectedEntryIds, prorataDias, entries]);
 
   function recalculateValue(contract: ContractOption, entryIds: Set<string>) {
     const condoFee = contract.property?.condoFee || 0;
@@ -390,6 +390,13 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
           splitAdminValue: payment.splitAdminValue ?? undefined,
           notes: payment.notes || "",
         });
+        // Load prorataDias from existing breakdown
+        if (payment.notes) {
+          try {
+            const b = JSON.parse(payment.notes);
+            if (b.prorataDias) setProrataDias(b.prorataDias);
+          } catch {}
+        }
       } else {
         reset({
           code: "",
@@ -604,7 +611,7 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
           )}
 
           {/* Dias de aluguel (pro-rata) */}
-          {!isEditing && selectedContractId && (
+          {selectedContractId && (
             <div className="space-y-4">
               <h3 className="text-sm font-semibold text-foreground border-b pb-2">
                 Dias de Aluguel
