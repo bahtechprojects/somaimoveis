@@ -23,28 +23,29 @@ function formatBRL(v: number): string {
 }
 
 function buildInformativos(notes: string | null): string[] {
-  if (!notes) return [];
+  const fallback = ["Cobranca de aluguel"];
+  if (!notes) return fallback;
   try {
     const b = JSON.parse(notes);
     const lines: string[] = [];
     let line1 = `Aluguel: R$ ${formatBRL(b.aluguel || 0)}`;
     if ((b.taxaBancaria || 0) > 0) line1 += ` | Tx Banc: R$ ${formatBRL(b.taxaBancaria)}`;
-    lines.push(line1);
+    lines.push(line1.slice(0, 80));
     const parts2: string[] = [];
     if ((b.condominio || 0) > 0) parts2.push(`Cond: R$ ${formatBRL(b.condominio)}`);
     if ((b.iptu || 0) > 0) parts2.push(`IPTU: R$ ${formatBRL(b.iptu)}`);
     if ((b.seguroFianca || 0) > 0) parts2.push(`Seguro: R$ ${formatBRL(b.seguroFianca)}`);
-    if (parts2.length > 0) lines.push(parts2.join(" | "));
+    if (parts2.length > 0) lines.push(parts2.join(" | ").slice(0, 80));
     if (b.lancamentos && Array.isArray(b.lancamentos) && b.lancamentos.length > 0) {
       const debitos = b.lancamentos.filter((l: any) => l.tipo === "DEBITO");
       const creditos = b.lancamentos.filter((l: any) => l.tipo === "CREDITO");
       if (debitos.length > 0) lines.push(debitos.map((l: any) => `(+) ${l.descricao}: R$ ${formatBRL(l.valor)}`).join(" | ").slice(0, 80));
       if (creditos.length > 0) lines.push(creditos.map((l: any) => `(-) ${l.descricao}: R$ ${formatBRL(l.valor)}`).join(" | ").slice(0, 80));
     }
-    if ((b.total || 0) > 0) lines.push(`TOTAL: R$ ${formatBRL(b.total)}`);
-    return lines.slice(0, 5);
+    if ((b.total || 0) > 0) lines.push(`TOTAL: R$ ${formatBRL(b.total)}`.slice(0, 80));
+    return lines.length > 0 ? lines.slice(0, 5) : fallback;
   } catch {
-    return [];
+    return fallback;
   }
 }
 

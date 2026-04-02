@@ -27,7 +27,8 @@ function formatBRL(v: number): string {
  * Sicredi aceita até 5 linhas de informativo no boleto.
  */
 function buildInformativos(notes: string | null): string[] {
-  if (!notes) return [];
+  const fallback = ["Cobranca de aluguel"];
+  if (!notes) return fallback;
   try {
     const b = JSON.parse(notes);
     const lines: string[] = [];
@@ -35,14 +36,14 @@ function buildInformativos(notes: string | null): string[] {
     // Linha 1: Aluguel + taxa bancaria
     let line1 = `Aluguel: R$ ${formatBRL(b.aluguel || 0)}`;
     if ((b.taxaBancaria || 0) > 0) line1 += ` | Tx Banc: R$ ${formatBRL(b.taxaBancaria)}`;
-    lines.push(line1);
+    lines.push(line1.slice(0, 80));
 
     // Linha 2: Condominio + IPTU + Seguro
     const parts2: string[] = [];
     if ((b.condominio || 0) > 0) parts2.push(`Cond: R$ ${formatBRL(b.condominio)}`);
     if ((b.iptu || 0) > 0) parts2.push(`IPTU: R$ ${formatBRL(b.iptu)}`);
     if ((b.seguroFianca || 0) > 0) parts2.push(`Seguro: R$ ${formatBRL(b.seguroFianca)}`);
-    if (parts2.length > 0) lines.push(parts2.join(" | "));
+    if (parts2.length > 0) lines.push(parts2.join(" | ").slice(0, 80));
 
     // Linha 3-4: Lançamentos (débitos e créditos)
     if (b.lancamentos && Array.isArray(b.lancamentos) && b.lancamentos.length > 0) {
@@ -61,12 +62,13 @@ function buildInformativos(notes: string | null): string[] {
 
     // Linha 5: Total
     if ((b.total || 0) > 0) {
-      lines.push(`TOTAL: R$ ${formatBRL(b.total)}`);
+      lines.push(`TOTAL: R$ ${formatBRL(b.total)}`.slice(0, 80));
     }
 
-    return lines.slice(0, 5); // Sicredi max 5 informativos
+    // Sicredi exige mínimo 1, máximo 5 informativos
+    return lines.length > 0 ? lines.slice(0, 5) : fallback;
   } catch {
-    return [];
+    return fallback;
   }
 }
 
