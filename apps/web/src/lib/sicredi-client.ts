@@ -54,6 +54,7 @@ export interface CreateBoletoResult {
   nossoNumero: string;
   linhaDigitavel: string;
   codigoBarras: string;
+  pixCopiaECola?: string;
   success: boolean;
   error?: string;
 }
@@ -257,11 +258,12 @@ export async function sicrediCreateBoleto(
       };
     }
 
-    console.log("[Sicredi] Boleto criado com sucesso:", data);
+    console.log("[Sicredi] Boleto criado com sucesso:", JSON.stringify(data));
     return {
       nossoNumero: data.nossoNumero || "",
       linhaDigitavel: data.linhaDigitavel || "",
       codigoBarras: data.codigoBarras || "",
+      pixCopiaECola: data.qrCode || data.pixCopiaECola || data.txId || "",
       success: true,
     };
   } catch (error) {

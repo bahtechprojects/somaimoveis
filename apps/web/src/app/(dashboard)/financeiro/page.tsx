@@ -590,7 +590,7 @@ function FinanceiroContent() {
                                 {notifyLoading[payment.id] ? "Enviando..." : "Enviar Cobranca"}
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem variant="destructive" onClick={() => handleDeleteClick(payment)}>
+                            <DropdownMenuItem variant="destructive" onClick={(e) => { e.stopPropagation(); handleDeleteClick(payment); }}>
                               <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir
                             </DropdownMenuItem>
                           </DropdownMenuContent>
@@ -858,7 +858,7 @@ function FinanceiroContent() {
                               )}
                               <DropdownMenuItem
                                 variant="destructive"
-                                onClick={() => handleDeleteClick(payment)}
+                                onClick={(e) => { e.stopPropagation(); handleDeleteClick(payment); }}
                               >
                                 <Trash2 className="h-3.5 w-3.5 mr-2" />
                                 Excluir

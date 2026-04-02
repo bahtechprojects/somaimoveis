@@ -121,6 +121,7 @@ export async function POST(
         nossoNumero: result.nossoNumero,
         linhaDigitavel: result.linhaDigitavel,
         codigoBarras: result.codigoBarras,
+        pixCopiaECola: result.pixCopiaECola || null,
         boletoStatus: "EMITIDO",
         boletoEmitidoEm: new Date(),
       },

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
+import { sicrediCancelBoleto } from "@/lib/sicredi-client";
 
 export async function GET(
   request: NextRequest,
@@ -85,6 +86,17 @@ export async function DELETE(
     });
     if (!payment) {
       return NextResponse.json({ error: "Pagamento não encontrado" }, { status: 404 });
+    }
+
+    // Se tem boleto emitido, cancelar no Sicredi primeiro
+    if (payment.nossoNumero) {
+      try {
+        await sicrediCancelBoleto(payment.nossoNumero);
+        console.log(`[Payment DELETE] Boleto ${payment.nossoNumero} cancelado no Sicredi`);
+      } catch (err) {
+        // Logar mas nao bloquear a exclusao
+        console.error(`[Payment DELETE] Erro ao cancelar boleto ${payment.nossoNumero}:`, err);
+      }
     }
 
     // Limpar notificacoes relacionadas

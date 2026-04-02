@@ -141,6 +141,7 @@ export async function POST(
           nossoNumero: boletoResult.nossoNumero,
           linhaDigitavel: boletoResult.linhaDigitavel,
           codigoBarras: boletoResult.codigoBarras,
+          pixCopiaECola: boletoResult.pixCopiaECola || null,
           boletoStatus: "EMITIDO",
           boletoEmitidoEm: new Date(),
         },
@@ -207,12 +208,17 @@ export async function POST(
     // Adicionar formas de pagamento na mensagem
     let fullMessage = rendered.message;
 
-    // PIX da imobiliaria (env var)
-    const pixKey = process.env.PIX_KEY;
-    const pixKeyType = process.env.PIX_KEY_TYPE || "Chave";
-    if (pixKey) {
-      fullMessage += `\n\n*Pagamento via PIX:*\n${pixKeyType}: ${pixKey}`;
-      fullMessage += `\nValor: ${formatCurrency(isOverdue ? totalValue : payment.value)}`;
+    // PIX copia e cola (gerado pelo Sicredi no boleto hibrido)
+    if (payment.pixCopiaECola) {
+      fullMessage += `\n\n*PIX Copia e Cola:*\n${payment.pixCopiaECola}`;
+    } else {
+      // Fallback: chave PIX fixa da imobiliaria (env var)
+      const pixKey = process.env.PIX_KEY;
+      const pixKeyType = process.env.PIX_KEY_TYPE || "Chave PIX";
+      if (pixKey) {
+        fullMessage += `\n\n*Pagamento via PIX:*\n${pixKeyType}: ${pixKey}`;
+        fullMessage += `\nValor: ${formatCurrency(isOverdue ? totalValue : payment.value)}`;
+      }
     }
 
     // Linha digitavel do boleto

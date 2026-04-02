@@ -318,6 +318,7 @@ model Payment {
   nossoNumero       String?   // ID unico do boleto no Sicredi
   linhaDigitavel    String?   // Linha digitavel para pagamento
   codigoBarras      String?   // Codigo de barras
+  pixCopiaECola     String?   // PIX copia e cola (EMV) para pagamento hibrido
   boletoStatus      String?   // EMITIDO, LIQUIDADO, BAIXADO, VENCIDO
   boletoEmitidoEm   DateTime? // Data de emissao
   boletoLiquidadoEm DateTime? // Data de liquidacao (webhook)
