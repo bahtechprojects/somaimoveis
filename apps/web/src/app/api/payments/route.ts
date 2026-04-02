@@ -68,9 +68,9 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  // Auto-generate code if not provided
+  // Auto-generate code if not provided or placeholder
   let code = body.code;
-  if (!code) {
+  if (!code || code === "AUTO") {
     const lastPayment = await prisma.payment.findFirst({
       orderBy: { code: "desc" },
       select: { code: true },
@@ -83,34 +83,49 @@ export async function POST(request: NextRequest) {
     code = `PAG-${String(nextNumber).padStart(3, "0")}`;
   }
 
-  const payment = await prisma.payment.create({
-    data: {
-      code, contractId, tenantId, ownerId,
-      value: parseFloat(value),
-      dueDate: new Date(dueDate.includes("T") ? dueDate : dueDate + "T12:00:00"),
-      status: body.status || "PENDENTE",
-      description: body.description || null,
-      paymentMethod: body.paymentMethod || null,
-      paidValue: body.paidValue ? parseFloat(body.paidValue) : null,
-      paidAt: body.paidAt ? new Date(String(body.paidAt).includes("T") ? body.paidAt : body.paidAt + "T12:00:00") : null,
-      fineValue: body.fineValue ? parseFloat(body.fineValue) : null,
-      interestValue: body.interestValue ? parseFloat(body.interestValue) : null,
-      discountValue: body.discountValue ? parseFloat(body.discountValue) : null,
-      splitOwnerValue: body.splitOwnerValue ? parseFloat(body.splitOwnerValue) : null,
-      splitAdminValue: body.splitAdminValue ? parseFloat(body.splitAdminValue) : null,
-      lateFee: body.lateFee ? parseFloat(body.lateFee) : null,
-      totalDue: body.totalDue ? parseFloat(body.totalDue) : null,
-      irrfValue: body.irrfValue ? parseFloat(body.irrfValue) : null,
-      irrfRate: body.irrfRate ? parseFloat(body.irrfRate) : null,
-      grossToOwner: body.grossToOwner ? parseFloat(body.grossToOwner) : null,
-      netToOwner: body.netToOwner ? parseFloat(body.netToOwner) : null,
-      intermediationFee: body.intermediationFee ? parseFloat(body.intermediationFee) : null,
-      notes: body.notes || null,
-    },
-    include: {
-      tenant: { select: { id: true, name: true } },
-      owner: { select: { id: true, name: true } },
-    },
-  });
-  return NextResponse.json(payment, { status: 201 });
+  try {
+    const payment = await prisma.payment.create({
+      data: {
+        code, contractId, tenantId, ownerId,
+        value: parseFloat(value),
+        dueDate: new Date(dueDate.includes("T") ? dueDate : dueDate + "T12:00:00"),
+        status: body.status || "PENDENTE",
+        description: body.description || null,
+        paymentMethod: body.paymentMethod || null,
+        paidValue: body.paidValue ? parseFloat(body.paidValue) : null,
+        paidAt: body.paidAt ? new Date(String(body.paidAt).includes("T") ? body.paidAt : body.paidAt + "T12:00:00") : null,
+        fineValue: body.fineValue ? parseFloat(body.fineValue) : null,
+        interestValue: body.interestValue ? parseFloat(body.interestValue) : null,
+        discountValue: body.discountValue ? parseFloat(body.discountValue) : null,
+        splitOwnerValue: body.splitOwnerValue ? parseFloat(body.splitOwnerValue) : null,
+        splitAdminValue: body.splitAdminValue ? parseFloat(body.splitAdminValue) : null,
+        lateFee: body.lateFee ? parseFloat(body.lateFee) : null,
+        totalDue: body.totalDue ? parseFloat(body.totalDue) : null,
+        irrfValue: body.irrfValue ? parseFloat(body.irrfValue) : null,
+        irrfRate: body.irrfRate ? parseFloat(body.irrfRate) : null,
+        grossToOwner: body.grossToOwner ? parseFloat(body.grossToOwner) : null,
+        netToOwner: body.netToOwner ? parseFloat(body.netToOwner) : null,
+        intermediationFee: body.intermediationFee ? parseFloat(body.intermediationFee) : null,
+        notes: body.notes || null,
+      },
+      include: {
+        tenant: { select: { id: true, name: true } },
+        owner: { select: { id: true, name: true } },
+      },
+    });
+    return NextResponse.json(payment, { status: 201 });
+  } catch (error: any) {
+    console.error("[Payments POST] Erro:", error);
+    // Handle unique constraint violation on code
+    if (error?.code === "P2002") {
+      return NextResponse.json(
+        { error: `Código ${code} já existe. Tente novamente.` },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json(
+      { error: error?.message || "Erro ao criar pagamento" },
+      { status: 500 }
+    );
+  }
 }

@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   }
 
   const includeRelations = {
-    property: { select: { id: true, title: true } },
+    property: { select: { id: true, title: true, condoFee: true, iptuValue: true } },
     owner: { select: { id: true, name: true } },
     tenant: { select: { id: true, name: true } },
     tenant2: { select: { id: true, name: true } },
