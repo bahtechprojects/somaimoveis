@@ -286,9 +286,9 @@ async function processNotifications(payments: any[]) {
       console.error(`[Notify Batch] Erro ${payment.code}:`, err);
     }
 
-    // Delay de 36 segundos entre envios (~100 cobranças em 1 hora)
+    // Delay de 15 segundos entre envios (~200 cobranças em ~50 min)
     if (i < payments.length - 1) {
-      await new Promise(r => setTimeout(r, 36000));
+      await new Promise(r => setTimeout(r, 15000));
     }
   }
 }
