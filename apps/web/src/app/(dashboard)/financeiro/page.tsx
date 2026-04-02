@@ -18,6 +18,12 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -790,40 +796,47 @@ function FinanceiroContent() {
                         <TableCell className="text-xs font-semibold text-right">
                           {formatCurrency(payment.value)}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="max-w-[200px]">
                           {breakdown ? (
-                            <div className="space-y-0.5 min-w-[180px]">
-                              <div className="flex items-center gap-1 flex-wrap">
-                                <span className="text-[10px] text-muted-foreground">Aluguel: {formatCurrency(breakdown.aluguel)}</span>
-                                {breakdown.condominio > 0 && (
-                                  <span className="text-[10px] text-orange-600">+ Cond: {formatCurrency(breakdown.condominio)}</span>
-                                )}
-                                {breakdown.iptu > 0 && (
-                                  <span className="text-[10px] text-purple-600">+ IPTU: {formatCurrency(breakdown.iptu)}</span>
-                                )}
-                                {(breakdown.seguroFianca ?? 0) > 0 && (
-                                  <span className="text-[10px] text-cyan-600">+ Seguro: {formatCurrency(breakdown.seguroFianca!)}</span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1 flex-wrap">
-                                {(breakdown.taxaBancaria ?? 0) > 0 && (
-                                  <span className="text-[10px] text-muted-foreground">+ Tx Banc: {formatCurrency(breakdown.taxaBancaria!)}</span>
-                                )}
-                                {(breakdown.debitos ?? 0) > 0 && (
-                                  <span className="text-[10px] text-red-600">+ Déb: {formatCurrency(breakdown.debitos!)}</span>
-                                )}
-                                {(breakdown.creditos ?? breakdown.desconto ?? 0) > 0 && (
-                                  <span className="text-[10px] text-green-600">- Créd: {formatCurrency((breakdown.creditos ?? breakdown.desconto)!)}</span>
-                                )}
-                              </div>
-                              {breakdown.lancamentos && breakdown.lancamentos.length > 0 && (
-                                <div className="text-[9px] text-muted-foreground/70">
-                                  {breakdown.lancamentos.map((l, i) => (
-                                    <span key={i}>{l.tipo === "CREDITO" ? "(-) " : "(+) "}{l.descricao}: {formatCurrency(l.valor)}{i < breakdown.lancamentos!.length - 1 ? " | " : ""}</span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="cursor-help space-y-0.5">
+                                    <span className="text-[10px] text-muted-foreground">Aluguel: {formatCurrency(breakdown.aluguel)}</span>
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      {(breakdown.taxaBancaria ?? 0) > 0 && (
+                                        <span className="text-[10px] text-muted-foreground">+ Tx Banc: {formatCurrency(breakdown.taxaBancaria!)}</span>
+                                      )}
+                                      {(breakdown.debitos ?? 0) > 0 && (
+                                        <span className="text-[10px] text-red-600">+ Déb: {formatCurrency(breakdown.debitos!)}</span>
+                                      )}
+                                      {(breakdown.creditos ?? breakdown.desconto ?? 0) > 0 && (
+                                        <span className="text-[10px] text-green-600">- Créd: {formatCurrency((breakdown.creditos ?? breakdown.desconto)!)}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="max-w-sm text-xs space-y-1 p-3">
+                                  <p className="font-medium border-b pb-1 mb-1">Composição do Valor</p>
+                                  <p>Aluguel: {formatCurrency(breakdown.aluguel)}</p>
+                                  {breakdown.condominio > 0 && <p className="text-orange-600">+ Condomínio: {formatCurrency(breakdown.condominio)}</p>}
+                                  {breakdown.iptu > 0 && <p className="text-purple-600">+ IPTU: {formatCurrency(breakdown.iptu)}</p>}
+                                  {(breakdown.seguroFianca ?? 0) > 0 && <p className="text-cyan-600">+ Seguro Fiança: {formatCurrency(breakdown.seguroFianca!)}</p>}
+                                  {(breakdown.taxaBancaria ?? 0) > 0 && <p>+ Taxa Bancária: {formatCurrency(breakdown.taxaBancaria!)}</p>}
+                                  {breakdown.lancamentos && breakdown.lancamentos.length > 0 && (
+                                    <>
+                                      <p className="font-medium border-t pt-1 mt-1">Lançamentos</p>
+                                      {breakdown.lancamentos.map((l, i) => (
+                                        <p key={i} className={l.tipo === "CREDITO" ? "text-green-600" : "text-red-600"}>
+                                          {l.tipo === "CREDITO" ? "(-) " : "(+) "}{l.descricao}: {formatCurrency(l.valor)}
+                                        </p>
+                                      ))}
+                                    </>
+                                  )}
+                                  <p className="font-semibold border-t pt-1 mt-1">= Total: {formatCurrency(breakdown.total)}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           ) : (
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
