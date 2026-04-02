@@ -89,8 +89,8 @@ async function doSendText(msg: WhatsAppMessage): Promise<SendResult> {
     return { success: true, messageId };
   }
 
-  // Envio real via Uazapi
-  const number = formatPhone(msg.to);
+  // Envio real via Uazapi (Uazapi exige sufixo @s.whatsapp.net)
+  const number = formatPhone(msg.to) + "@s.whatsapp.net";
   try {
     const response = await fetch(`${UAZAPI_URL}/send/text`, {
       method: "POST",
@@ -165,7 +165,7 @@ async function doSendDocument(params: {
     };
   }
 
-  const number = formatPhone(params.to);
+  const number = formatPhone(params.to) + "@s.whatsapp.net";
   try {
     const response = await fetch(`${UAZAPI_URL}/send/media`, {
       method: "POST",
