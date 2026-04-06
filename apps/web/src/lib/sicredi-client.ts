@@ -478,9 +478,11 @@ export async function sicrediCancelBoleto(
   console.log(`[Sicredi] Headers: cooperativa=${SICREDI_COOPERATIVA}, posto=${SICREDI_POSTO}, codigoBeneficiario=${SICREDI_BENEFICIARIO}`);
 
   try {
+    // Sicredi exige body JSON vazio {} conforme Postman collection
     const response = await fetchWithRetry(url, {
       method: "PATCH",
       headers,
+      body: "{}",
     });
 
     // Capturar headers de resposta para debug
