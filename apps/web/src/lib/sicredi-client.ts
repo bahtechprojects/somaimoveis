@@ -400,19 +400,33 @@ export async function sicrediCancelBoleto(
   }
 
   const token = await sicrediAuth();
-  const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/${nossoNumero}/baixa?codigoBeneficiario=${SICREDI_BENEFICIARIO}`;
 
   console.log(`[Sicredi] Cancelando boleto ${nossoNumero}...`);
 
+  // Tentar formato 1: PATCH /boletos/baixa (nossoNumero no body)
+  const url1 = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/baixa`;
+  const bodyPayload = JSON.stringify({
+    codigoBeneficiario: SICREDI_BENEFICIARIO,
+    nossoNumero,
+  });
+
   try {
-    const response = await fetchWithRetry(url, {
+    let response = await fetchWithRetry(url1, {
       method: "PATCH",
       headers: commonHeaders(token),
-      body: JSON.stringify({
-        codigoBeneficiario: SICREDI_BENEFICIARIO,
-        nossoNumero,
-      }),
+      body: bodyPayload,
     });
+
+    // Se formato 1 falhar com 404/405, tentar formato 2: /boletos/{nossoNumero}/baixa
+    if (response.status === 404 || response.status === 405) {
+      console.log(`[Sicredi] Formato 1 falhou (${response.status}), tentando formato 2...`);
+      const url2 = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/${nossoNumero}/baixa?codigoBeneficiario=${SICREDI_BENEFICIARIO}`;
+      response = await fetchWithRetry(url2, {
+        method: "PATCH",
+        headers: commonHeaders(token),
+        body: bodyPayload,
+      });
+    }
 
     if (!response.ok) {
       const contentType = response.headers.get("content-type") || "";
