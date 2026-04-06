@@ -374,6 +374,96 @@ export default function ConfiguracoesPage() {
     }
   }
 
+  // WhatsApp integration state
+  const [whatsappStatus, setWhatsappStatus] = useState<{
+    configured: boolean;
+    connected: boolean;
+    status: string;
+    phone?: string | null;
+    name?: string | null;
+  } | null>(null);
+  const [whatsappLoading, setWhatsappLoading] = useState(true);
+  const [whatsappConnecting, setWhatsappConnecting] = useState(false);
+  const [whatsappQrCode, setWhatsappQrCode] = useState<string | null>(null);
+
+  const fetchWhatsappStatus = useCallback(async () => {
+    setWhatsappLoading(true);
+    try {
+      const response = await fetch("/api/whatsapp/status");
+      const data = await response.json();
+      setWhatsappStatus({
+        configured: data.configured ?? false,
+        connected: data.connected ?? false,
+        status: data.status || "unknown",
+        phone: data.phone,
+        name: data.name,
+      });
+      if (data.connected) {
+        setWhatsappQrCode(null);
+      }
+    } catch {
+      setWhatsappStatus({ configured: false, connected: false, status: "error" });
+    } finally {
+      setWhatsappLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchWhatsappStatus();
+  }, [fetchWhatsappStatus]);
+
+  async function handleWhatsappConnect() {
+    setWhatsappConnecting(true);
+    setWhatsappQrCode(null);
+    try {
+      const response = await fetch("/api/whatsapp/connect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        toast.error(data.error || "Erro ao gerar QR Code");
+        return;
+      }
+      // UaZapi returns qrcode as base64 or URL
+      const qr = data.qrcode || data.qr || data.base64 || data.urlcode || null;
+      if (qr) {
+        setWhatsappQrCode(qr);
+        toast.success("QR Code gerado! Escaneie com o WhatsApp.");
+        // Poll status every 5s for 2 minutes
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          attempts++;
+          try {
+            const statusRes = await fetch("/api/whatsapp/status");
+            const statusData = await statusRes.json();
+            if (statusData.connected) {
+              clearInterval(interval);
+              setWhatsappQrCode(null);
+              setWhatsappStatus({
+                configured: true,
+                connected: true,
+                status: "CONNECTED",
+                phone: statusData.phone,
+                name: statusData.name,
+              });
+              toast.success("WhatsApp conectado com sucesso!");
+            }
+          } catch { /* ignore */ }
+          if (attempts >= 24) clearInterval(interval);
+        }, 5000);
+      } else {
+        toast.info("Resposta recebida, verifique o status.");
+        fetchWhatsappStatus();
+      }
+    } catch (error: any) {
+      toast.error(error?.message || "Erro ao conectar WhatsApp");
+    } finally {
+      setWhatsappConnecting(false);
+    }
+  }
+
   // Fetch billing rules on mount
   const fetchBillingRules = useCallback(async () => {
     setLoadingRules(true);
@@ -1681,6 +1771,178 @@ export default function ConfiguracoesPage() {
                           </p>
                         </div>
                       </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* WhatsApp UaZapi Card */}
+              <Card className="border-0 shadow-sm">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
+                        <MessageCircle className="h-5 w-5 text-green-700" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-base">
+                          WhatsApp - UaZapi
+                        </CardTitle>
+                        <CardDescription>
+                          Envio de cobranças e notificações via WhatsApp
+                        </CardDescription>
+                      </div>
+                    </div>
+                    {!whatsappLoading && (
+                      <Badge
+                        variant="outline"
+                        className={
+                          whatsappStatus?.connected
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : whatsappStatus?.configured
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-red-50 text-red-700 border-red-200"
+                        }
+                      >
+                        {whatsappStatus?.connected
+                          ? "Conectado"
+                          : whatsappStatus?.configured
+                            ? "Desconectado"
+                            : "Não configurado"}
+                      </Badge>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {whatsappLoading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-sm text-muted-foreground">
+                        Verificando status...
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Status info */}
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="grid gap-1.5">
+                            <Label className="text-xs text-muted-foreground">
+                              Status da Instância
+                            </Label>
+                            <div className="flex items-center gap-2">
+                              <div className={`h-2 w-2 rounded-full ${whatsappStatus?.connected ? "bg-emerald-500" : "bg-red-500"}`} />
+                              <p className="text-sm font-medium">
+                                {whatsappStatus?.connected ? "Conectado" : "Desconectado"}
+                              </p>
+                            </div>
+                          </div>
+                          {whatsappStatus?.connected && whatsappStatus.phone && (
+                            <div className="grid gap-1.5">
+                              <Label className="text-xs text-muted-foreground">
+                                Número Conectado
+                              </Label>
+                              <p className="text-sm font-medium">
+                                {whatsappStatus.phone}
+                              </p>
+                            </div>
+                          )}
+                          {whatsappStatus?.connected && whatsappStatus.name && (
+                            <div className="grid gap-1.5">
+                              <Label className="text-xs text-muted-foreground">
+                                Nome do Perfil
+                              </Label>
+                              <p className="text-sm font-medium">
+                                {whatsappStatus.name}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-muted-foreground">
+                            API
+                          </Label>
+                          <p className="text-sm font-medium">
+                            {whatsappStatus?.configured ? "UaZapi configurado" : "Não configurado"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      {/* QR Code section */}
+                      {!whatsappStatus?.connected && (
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-muted-foreground" />
+                            <p className="text-sm font-medium">Conectar WhatsApp</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Clique no botão abaixo para gerar o QR Code. Em seguida, abra o WhatsApp no celular, vá em Dispositivos Conectados e escaneie o código.
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={handleWhatsappConnect}
+                            disabled={whatsappConnecting || !whatsappStatus?.configured}
+                          >
+                            {whatsappConnecting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Wifi className="h-4 w-4" />
+                            )}
+                            {whatsappConnecting ? "Gerando QR Code..." : "Gerar QR Code"}
+                          </Button>
+
+                          {whatsappQrCode && (
+                            <div className="flex flex-col items-center gap-3 p-4 bg-white rounded-lg border">
+                              <p className="text-sm font-medium text-foreground">
+                                Escaneie o QR Code com seu WhatsApp
+                              </p>
+                              {whatsappQrCode.startsWith("data:") || whatsappQrCode.startsWith("http") ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={whatsappQrCode}
+                                  alt="QR Code WhatsApp"
+                                  className="w-64 h-64 object-contain"
+                                />
+                              ) : (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={`data:image/png;base64,${whatsappQrCode}`}
+                                  alt="QR Code WhatsApp"
+                                  className="w-64 h-64 object-contain"
+                                />
+                              )}
+                              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                Aguardando leitura do QR Code...
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Connected actions */}
+                      {whatsappStatus?.connected && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-3">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                              onClick={fetchWhatsappStatus}
+                            >
+                              <Wifi className="h-4 w-4" />
+                              Atualizar Status
+                            </Button>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">
+                            A instância está conectada e pronta para enviar mensagens de cobrança e notificações.
+                          </p>
+                        </div>
+                      )}
                     </>
                   )}
                 </CardContent>
