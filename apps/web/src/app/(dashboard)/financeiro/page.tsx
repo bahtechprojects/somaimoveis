@@ -793,18 +793,18 @@ function FinanceiroContent() {
               <Table className="table-fixed w-full">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs w-[80px]">Código</TableHead>
-                    <TableHead className="text-xs w-[70px]">Contrato</TableHead>
-                    <TableHead className="text-xs w-[120px]">Locatário</TableHead>
-                    <TableHead className="text-xs text-right w-[90px]">Valor</TableHead>
-                    <TableHead className="text-xs w-[140px]">Composição</TableHead>
-                    <TableHead className="text-xs w-[85px]">Vencimento</TableHead>
-                    <TableHead className="text-xs w-[85px]">Pagamento</TableHead>
-                    <TableHead className="text-xs w-[100px]">Status</TableHead>
-                    <TableHead className="text-xs w-[95px]">Nº Boleto</TableHead>
-                    <TableHead className="text-xs w-[65px]">Metodo</TableHead>
-                    <TableHead className="text-xs w-[130px]">Boleto</TableHead>
-                    <TableHead className="text-xs w-[70px]">Envio</TableHead>
+                    <TableHead className="text-xs w-[75px]">Código</TableHead>
+                    <TableHead className="text-xs w-[65px]">Contrato</TableHead>
+                    <TableHead className="text-xs w-[110px]">Locatário</TableHead>
+                    <TableHead className="text-xs text-right w-[85px]">Valor</TableHead>
+                    <TableHead className="text-xs w-[130px]">Composição</TableHead>
+                    <TableHead className="text-xs w-[80px]">Vencimento</TableHead>
+                    <TableHead className="text-xs w-[80px]">Pagamento</TableHead>
+                    <TableHead className="text-xs w-[110px]">Status</TableHead>
+                    <TableHead className="text-xs w-[90px]">Nº Boleto</TableHead>
+                    <TableHead className="text-xs w-[60px]">Metodo</TableHead>
+                    <TableHead className="text-xs w-[120px]">Boleto</TableHead>
+                    <TableHead className="text-xs w-[65px]">Envio</TableHead>
                     <TableHead className="text-xs w-[40px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -823,7 +823,7 @@ function FinanceiroContent() {
                         <TableCell className="text-xs text-muted-foreground">
                           {payment.contract.code}
                         </TableCell>
-                        <TableCell className="text-xs font-medium truncate" title={payment.tenant?.name || ""}>
+                        <TableCell className="text-xs font-medium truncate max-w-0" title={payment.tenant?.name || ""}>
                           {payment.tenant?.name || "N/A"}
                         </TableCell>
                         <TableCell className="text-xs font-semibold text-right">
@@ -885,31 +885,44 @@ function FinanceiroContent() {
                           {payment.paidAt ? formatDate(payment.paidAt) : "-"}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="outline" className={cn("text-xs border gap-1", status.className)}>
+                          <div className="flex flex-col items-start gap-0.5">
+                            <Badge variant="outline" className={cn("text-[10px] border gap-0.5", status.className)}>
                               <StatusIcon className="h-3 w-3" />
                               {status.label}
                             </Badge>
-                            {payment.boletoStatus && (
-                              <TooltipProvider delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Badge variant="outline" className="text-xs border gap-1 bg-blue-50 text-blue-700 border-blue-200 cursor-default">
-                                      <Receipt className="h-3 w-3" />
-                                      {payment.boletoStatus}
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  {payment.description && payment.description.startsWith("Sicredi:") && (
-                                    <TooltipContent side="bottom" className="max-w-xs">
-                                      <p className="text-xs whitespace-pre-line">{payment.description.replace(/ \| /g, "\n")}</p>
-                                    </TooltipContent>
-                                  )}
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
+                            {payment.boletoStatus && (() => {
+                              // Extrair tipo de liquidação do description (ex: "Sicredi: PIX | ...")
+                              let tipoLabel = payment.boletoStatus;
+                              if (payment.description && payment.description.startsWith("Sicredi:")) {
+                                const tipo = payment.description.split("|")[0].replace("Sicredi:", "").trim();
+                                if (tipo === "PIX") tipoLabel = "PIX";
+                                else if (tipo === "REDE") tipoLabel = "Rede Sicredi";
+                                else if (tipo === "COMPE" || tipo.includes("COMPE")) tipoLabel = "Compensando";
+                                else if (tipo === "AVISO DE PAGAMENTO REDE") tipoLabel = "Rede Sicredi";
+                                else if (tipo === "AVISO DE PAGAMENTO COMPE") tipoLabel = "Compensando";
+                                else if (tipo) tipoLabel = tipo;
+                              }
+                              return (
+                                <TooltipProvider delayDuration={200}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="outline" className="text-[10px] border gap-0.5 bg-blue-50 text-blue-700 border-blue-200 cursor-default whitespace-nowrap">
+                                        <Receipt className="h-2.5 w-2.5" />
+                                        {tipoLabel}
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    {payment.description && payment.description.startsWith("Sicredi:") && (
+                                      <TooltipContent side="bottom" className="max-w-xs">
+                                        <p className="text-xs whitespace-pre-line">{payment.description.replace(/ \| /g, "\n")}</p>
+                                      </TooltipContent>
+                                    )}
+                                  </Tooltip>
+                                </TooltipProvider>
+                              );
+                            })()}
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono text-[11px] text-muted-foreground truncate" title={payment.nossoNumero || ""}>
+                        <TableCell className="font-mono text-[10px] text-muted-foreground overflow-hidden truncate max-w-0" title={payment.nossoNumero || ""}>
                           {payment.nossoNumero || "-"}
                         </TableCell>
                         <TableCell className="text-xs">
