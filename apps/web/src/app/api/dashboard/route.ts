@@ -6,6 +6,7 @@ export async function GET() {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
 
+  try {
   const now = new Date();
   const in90Days = new Date();
   in90Days.setDate(now.getDate() + 90);
@@ -216,4 +217,8 @@ export async function GET() {
     contractsExpiring,
     revenueByMonth,
   });
+  } catch (error) {
+    console.error("[Dashboard GET] Error:", error);
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+  }
 }

@@ -218,6 +218,7 @@ function ImoveisContent() {
         const error = await response.json();
         throw new Error(error.error || "Erro ao excluir imovel");
       }
+      toast.success("Imóvel excluído com sucesso");
       setDeleteDialogOpen(false);
       setDeletingProperty(null);
       fetchProperties();

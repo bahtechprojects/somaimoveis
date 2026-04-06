@@ -177,6 +177,7 @@ function ProprietariosContent() {
         toast.error(error.error || "Erro ao excluir proprietario");
         return;
       }
+      toast.success("Proprietário excluído com sucesso");
       fetchOwners();
     } catch (error) {
       toast.error("Erro ao excluir proprietario");

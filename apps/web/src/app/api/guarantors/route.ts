@@ -85,33 +85,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(existing, { status: 200 });
   }
 
-  const guarantor = await prisma.guarantor.create({
-    data: {
-      name,
-      cpfCnpj,
-      personType: body.personType || "PF",
-      stateRegistration: body.stateRegistration || null,
-      email: body.email || null,
-      phone: body.phone || null,
-      phone2: body.phone2 || null,
-      email2: body.email2 || null,
-      rgNumber: body.rgNumber || null,
-      rgIssuer: body.rgIssuer || null,
-      birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
-      maritalStatus: body.maritalStatus || null,
-      profession: body.profession || null,
-      street: body.street || null,
-      number: body.number || null,
-      complement: body.complement || null,
-      neighborhood: body.neighborhood || null,
-      city: body.city || null,
-      state: body.state || null,
-      zipCode: body.zipCode || null,
-      propertyRegistration: body.propertyRegistration || null,
-      occupation: body.occupation || null,
-      monthlyIncome: body.monthlyIncome ? parseFloat(body.monthlyIncome) : null,
-      notes: body.notes || null,
-    },
-  });
-  return NextResponse.json(guarantor, { status: 201 });
+  try {
+    const guarantor = await prisma.guarantor.create({
+      data: {
+        name,
+        cpfCnpj,
+        personType: body.personType || "PF",
+        stateRegistration: body.stateRegistration || null,
+        email: body.email || null,
+        phone: body.phone || null,
+        phone2: body.phone2 || null,
+        email2: body.email2 || null,
+        rgNumber: body.rgNumber || null,
+        rgIssuer: body.rgIssuer || null,
+        birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
+        maritalStatus: body.maritalStatus || null,
+        profession: body.profession || null,
+        street: body.street || null,
+        number: body.number || null,
+        complement: body.complement || null,
+        neighborhood: body.neighborhood || null,
+        city: body.city || null,
+        state: body.state || null,
+        zipCode: body.zipCode || null,
+        propertyRegistration: body.propertyRegistration || null,
+        occupation: body.occupation || null,
+        monthlyIncome: body.monthlyIncome ? parseFloat(body.monthlyIncome) : null,
+        notes: body.notes || null,
+      },
+    });
+    return NextResponse.json(guarantor, { status: 201 });
+  } catch (error) {
+    console.error("[Guarantors POST] Error:", error);
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+  }
 }

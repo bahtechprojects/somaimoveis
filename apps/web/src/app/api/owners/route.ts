@@ -83,39 +83,44 @@ export async function POST(request: NextRequest) {
       { status: 409 }
     );
   }
-  const owner = await prisma.owner.create({
-    data: {
-      name, cpfCnpj,
-      email: body.email || null,
-      phone: body.phone || null,
-      phone2: body.phone2 || null,
-      email2: body.email2 || null,
-      personType: body.personType || "PF",
-      stateRegistration: body.stateRegistration || null,
-      street: body.street || null,
-      number: body.number || null,
-      complement: body.complement || null,
-      neighborhood: body.neighborhood || null,
-      city: body.city || null,
-      state: body.state || null,
-      zipCode: body.zipCode || null,
-      bankName: body.bankName || null,
-      bankAgency: body.bankAgency || null,
-      bankAccount: body.bankAccount || null,
-      bankPix: body.bankPix || null,
-      bankPixType: body.bankPixType || null,
-      thirdPartyName: body.thirdPartyName || null,
-      thirdPartyDocument: body.thirdPartyDocument || null,
-      thirdPartyBank: body.thirdPartyBank || null,
-      thirdPartyAgency: body.thirdPartyAgency || null,
-      thirdPartyAccount: body.thirdPartyAccount || null,
-      thirdPartyPixKeyType: body.thirdPartyPixKeyType || null,
-      thirdPartyPix: body.thirdPartyPix || null,
-      birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
-      rgIssuer: body.rgIssuer || null,
-      paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 10,
-      notes: body.notes || null,
-    },
-  });
-  return NextResponse.json(owner, { status: 201 });
+  try {
+    const owner = await prisma.owner.create({
+      data: {
+        name, cpfCnpj,
+        email: body.email || null,
+        phone: body.phone || null,
+        phone2: body.phone2 || null,
+        email2: body.email2 || null,
+        personType: body.personType || "PF",
+        stateRegistration: body.stateRegistration || null,
+        street: body.street || null,
+        number: body.number || null,
+        complement: body.complement || null,
+        neighborhood: body.neighborhood || null,
+        city: body.city || null,
+        state: body.state || null,
+        zipCode: body.zipCode || null,
+        bankName: body.bankName || null,
+        bankAgency: body.bankAgency || null,
+        bankAccount: body.bankAccount || null,
+        bankPix: body.bankPix || null,
+        bankPixType: body.bankPixType || null,
+        thirdPartyName: body.thirdPartyName || null,
+        thirdPartyDocument: body.thirdPartyDocument || null,
+        thirdPartyBank: body.thirdPartyBank || null,
+        thirdPartyAgency: body.thirdPartyAgency || null,
+        thirdPartyAccount: body.thirdPartyAccount || null,
+        thirdPartyPixKeyType: body.thirdPartyPixKeyType || null,
+        thirdPartyPix: body.thirdPartyPix || null,
+        birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
+        rgIssuer: body.rgIssuer || null,
+        paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 10,
+        notes: body.notes || null,
+      },
+    });
+    return NextResponse.json(owner, { status: 201 });
+  } catch (error) {
+    console.error("[Owners POST] Error:", error);
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+  }
 }

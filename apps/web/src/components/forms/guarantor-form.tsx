@@ -7,6 +7,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Search } from "lucide-react";
 import { useCepLookup } from "@/hooks/use-cep-lookup";
+import { useCnpjLookup } from "@/hooks/use-cnpj-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -108,6 +109,18 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
   }, [setValue]);
 
   const { lookup: lookupCep, loading: cepLoading, error: cepError, formatCep } = useCepLookup({ onResult: handleCepResult });
+
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const handleCnpjResult = useCallback(() => {}, []);
+  const { formatCpfCnpj } = useCnpjLookup({ onResult: handleCnpjResult });
+
+  const formatPhone = useCallback((value: string): string => {
+    const clean = value.replace(/\D/g, "");
+    if (clean.length <= 2) return clean;
+    if (clean.length <= 7) return `(${clean.slice(0, 2)}) ${clean.slice(2)}`;
+    if (clean.length <= 10) return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`;
+    return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7, 11)}`;
+  }, []);
 
   useEffect(() => {
     if (open) {
@@ -226,7 +239,12 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
                   id="g-cpfCnpj"
                   placeholder={watch("personType") === "PJ" ? "00.000.000/0000-00" : "000.000.000-00"}
                   maxLength={watch("personType") === "PJ" ? 18 : 14}
-                  {...register("cpfCnpj")}
+                  {...register("cpfCnpj", {
+                    onChange: (e) => {
+                      const formatted = formatCpfCnpj(e.target.value);
+                      setValue("cpfCnpj", formatted);
+                    },
+                  })}
                 />
                 {errors.cpfCnpj && (
                   <p className="text-xs text-destructive">{errors.cpfCnpj.message}</p>
@@ -295,7 +313,12 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
                 <Input
                   id="g-phone"
                   placeholder="(00) 00000-0000"
-                  {...register("phone")}
+                  maxLength={15}
+                  {...register("phone", {
+                    onChange: (e) => {
+                      setValue("phone", formatPhone(e.target.value));
+                    },
+                  })}
                 />
               </div>
 
@@ -317,7 +340,12 @@ export function GuarantorForm({ open, onOpenChange, guarantor, onSuccess }: Guar
                 <Input
                   id="g-phone2"
                   placeholder="(00) 00000-0000"
-                  {...register("phone2")}
+                  maxLength={15}
+                  {...register("phone2", {
+                    onChange: (e) => {
+                      setValue("phone2", formatPhone(e.target.value));
+                    },
+                  })}
                 />
               </div>
 

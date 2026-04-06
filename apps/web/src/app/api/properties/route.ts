@@ -71,30 +71,35 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  const property = await prisma.property.create({
-    data: {
-      title, type, street, number, neighborhood, city, state, zipCode, ownerId,
-      description: body.description || null,
-      complement: body.complement || null,
-      status: body.status || "DISPONIVEL",
-      area: body.area ? parseFloat(body.area) : null,
-      bedrooms: body.bedrooms ? parseInt(body.bedrooms) : 0,
-      bathrooms: body.bathrooms ? parseInt(body.bathrooms) : 0,
-      parkingSpaces: body.parkingSpaces ? parseInt(body.parkingSpaces) : 0,
-      furnished: body.furnished || false,
-      rentalValue: body.rentalValue ? parseFloat(body.rentalValue) : null,
-      saleValue: body.saleValue ? parseFloat(body.saleValue) : null,
-      condoFee: body.condoFee ? parseFloat(body.condoFee) : null,
-      iptuValue: body.iptuValue ? parseFloat(body.iptuValue) : null,
-      registrationNumber: body.registrationNumber || null,
-      iptuNumber: body.iptuNumber || null,
-      energyMeter: body.energyMeter || null,
-      waterMeter: body.waterMeter || null,
-      gasMeter: body.gasMeter || null,
-      condoAdmin: body.condoAdmin || null,
-      notes: body.notes || null,
-    },
-    include: { owner: { select: { id: true, name: true } } },
-  });
-  return NextResponse.json(property, { status: 201 });
+  try {
+    const property = await prisma.property.create({
+      data: {
+        title, type, street, number, neighborhood, city, state, zipCode, ownerId,
+        description: body.description || null,
+        complement: body.complement || null,
+        status: body.status || "DISPONIVEL",
+        area: body.area ? parseFloat(body.area) : null,
+        bedrooms: body.bedrooms ? parseInt(body.bedrooms) : 0,
+        bathrooms: body.bathrooms ? parseInt(body.bathrooms) : 0,
+        parkingSpaces: body.parkingSpaces ? parseInt(body.parkingSpaces) : 0,
+        furnished: body.furnished || false,
+        rentalValue: body.rentalValue ? parseFloat(body.rentalValue) : null,
+        saleValue: body.saleValue ? parseFloat(body.saleValue) : null,
+        condoFee: body.condoFee ? parseFloat(body.condoFee) : null,
+        iptuValue: body.iptuValue ? parseFloat(body.iptuValue) : null,
+        registrationNumber: body.registrationNumber || null,
+        iptuNumber: body.iptuNumber || null,
+        energyMeter: body.energyMeter || null,
+        waterMeter: body.waterMeter || null,
+        gasMeter: body.gasMeter || null,
+        condoAdmin: body.condoAdmin || null,
+        notes: body.notes || null,
+      },
+      include: { owner: { select: { id: true, name: true } } },
+    });
+    return NextResponse.json(property, { status: 201 });
+  } catch (error) {
+    console.error("[Properties POST] Error:", error);
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+  }
 }

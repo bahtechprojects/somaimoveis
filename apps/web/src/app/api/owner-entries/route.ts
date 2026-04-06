@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
 
   const installments = parseInt(body.installments) || 1;
 
+  try {
   if (installments > 1) {
     // Create multiple installment entries
     const totalValue = parseFloat(value);
@@ -180,4 +181,8 @@ export async function POST(request: NextRequest) {
     },
   });
   return NextResponse.json(entry, { status: 201 });
+  } catch (error) {
+    console.error("[OwnerEntries POST] Error:", error);
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+  }
 }

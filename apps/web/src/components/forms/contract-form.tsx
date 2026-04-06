@@ -835,15 +835,43 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
               {selectedGuaranteeType === "FIADOR" && (
                 <div className="space-y-3 sm:col-span-2">
                   <Label>Fiadores</Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setGuarantorFormOpen(true)}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Cadastrar Fiador
-                  </Button>
+                  <div className="flex gap-2 items-center flex-wrap">
+                    <Select
+                      onValueChange={(value) => {
+                        if (value && !selectedGuarantorIds.includes(value)) {
+                          setSelectedGuarantorIds(prev => [...prev, value]);
+                        }
+                      }}
+                      value=""
+                    >
+                      <SelectTrigger className="w-full sm:w-[280px]">
+                        <SelectValue placeholder="Selecionar fiador existente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {guarantorsList
+                          .filter(g => !selectedGuarantorIds.includes(g.id))
+                          .map(g => (
+                            <SelectItem key={g.id} value={g.id}>
+                              {g.name} {g.cpfCnpj ? `- ${g.cpfCnpj}` : ""}
+                            </SelectItem>
+                          ))}
+                        {guarantorsList.filter(g => !selectedGuarantorIds.includes(g.id)).length === 0 && (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            Nenhum fiador disponível
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setGuarantorFormOpen(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Novo Fiador
+                    </Button>
+                  </div>
 
                   {selectedGuarantorIds.length > 0 && (
                     <div className="space-y-1.5">
@@ -869,7 +897,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
 
                   {selectedGuarantorIds.length === 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Nenhum fiador selecionado. Use o seletor acima ou cadastre um novo.
+                      Nenhum fiador selecionado. Selecione um existente ou cadastre um novo.
                     </p>
                   )}
                 </div>

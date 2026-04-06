@@ -132,6 +132,14 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
 
   const { lookup: lookupCnpj, loading: cnpjLoading, error: cnpjError, formatCpfCnpj } = useCnpjLookup({ onResult: handleCnpjResult });
 
+  const formatPhone = useCallback((value: string): string => {
+    const clean = value.replace(/\D/g, "");
+    if (clean.length <= 2) return clean;
+    if (clean.length <= 7) return `(${clean.slice(0, 2)}) ${clean.slice(2)}`;
+    if (clean.length <= 10) return `(${clean.slice(0, 2)}) ${clean.slice(2, 6)}-${clean.slice(6)}`;
+    return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7, 11)}`;
+  }, []);
+
   const DRAFT_KEY = "somma-draft-tenant";
 
   useEffect(() => {
@@ -340,7 +348,12 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
                 <Input
                   id="phone"
                   placeholder="(00) 00000-0000"
-                  {...register("phone")}
+                  maxLength={15}
+                  {...register("phone", {
+                    onChange: (e) => {
+                      setValue("phone", formatPhone(e.target.value));
+                    },
+                  })}
                 />
               </div>
 
@@ -362,7 +375,12 @@ export function TenantForm({ open, onOpenChange, tenant, onSuccess }: TenantForm
                 <Input
                   id="phone2"
                   placeholder="(00) 00000-0000"
-                  {...register("phone2")}
+                  maxLength={15}
+                  {...register("phone2", {
+                    onChange: (e) => {
+                      setValue("phone2", formatPhone(e.target.value));
+                    },
+                  })}
                 />
               </div>
 

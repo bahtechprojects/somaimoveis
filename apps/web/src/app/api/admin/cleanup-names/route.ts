@@ -28,27 +28,32 @@ export async function POST() {
   const auth = await requireAdmin();
   if (isAuthError(auth)) return auth;
 
-  let fixed = 0;
+  try {
+    let fixed = 0;
 
-  // Fix tenant names
-  const tenants = await prisma.tenant.findMany();
-  for (const t of tenants) {
-    const clean = truncateName(t.name);
-    if (clean !== t.name) {
-      await prisma.tenant.update({ where: { id: t.id }, data: { name: clean } });
-      fixed++;
+    // Fix tenant names
+    const tenants = await prisma.tenant.findMany();
+    for (const t of tenants) {
+      const clean = truncateName(t.name);
+      if (clean !== t.name) {
+        await prisma.tenant.update({ where: { id: t.id }, data: { name: clean } });
+        fixed++;
+      }
     }
-  }
 
-  // Fix owner names
-  const owners = await prisma.owner.findMany();
-  for (const o of owners) {
-    const clean = truncateName(o.name);
-    if (clean !== o.name) {
-      await prisma.owner.update({ where: { id: o.id }, data: { name: clean } });
-      fixed++;
+    // Fix owner names
+    const owners = await prisma.owner.findMany();
+    for (const o of owners) {
+      const clean = truncateName(o.name);
+      if (clean !== o.name) {
+        await prisma.owner.update({ where: { id: o.id }, data: { name: clean } });
+        fixed++;
+      }
     }
-  }
 
-  return NextResponse.json({ message: `${fixed} nomes corrigidos` });
+    return NextResponse.json({ message: `${fixed} nomes corrigidos` });
+  } catch (error) {
+    console.error("[CleanupNames] Error:", error);
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
+  }
 }

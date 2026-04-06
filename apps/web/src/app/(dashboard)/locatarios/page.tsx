@@ -190,6 +190,7 @@ function LocatariosContent() {
         toast.error(error.error || "Erro ao excluir locatario");
         return;
       }
+      toast.success("Locatário excluído com sucesso");
       fetchTenants();
     } catch (error) {
       toast.error("Erro ao excluir locatario");

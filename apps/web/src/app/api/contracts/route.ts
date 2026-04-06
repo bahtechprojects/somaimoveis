@@ -5,63 +5,69 @@ import { requireAuth, isAuthError } from "@/lib/api-auth";
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
-  const { searchParams } = new URL(request.url);
-  const status = searchParams.get("status");
-  const search = searchParams.get("search");
 
-  const tenantId = searchParams.get("tenantId");
-  const where: Record<string, unknown> = {};
-  if (status && status !== "all") where.status = status;
-  if (tenantId) where.tenantId = tenantId;
-  if (search) {
-    where.OR = [
-      { code: { contains: search } },
-      { tenant: { name: { contains: search } } },
-      { property: { title: { contains: search } } },
-    ];
-  }
+  try {
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get("status");
+    const search = searchParams.get("search");
 
-  const includeRelations = {
-    property: { select: { id: true, title: true, condoFee: true, iptuValue: true } },
-    owner: { select: { id: true, name: true } },
-    tenant: { select: { id: true, name: true } },
-    tenant2: { select: { id: true, name: true } },
-    guarantors: {
-      select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
-    },
-  };
+    const tenantId = searchParams.get("tenantId");
+    const where: Record<string, unknown> = {};
+    if (status && status !== "all") where.status = status;
+    if (tenantId) where.tenantId = tenantId;
+    if (search) {
+      where.OR = [
+        { code: { contains: search } },
+        { tenant: { name: { contains: search } } },
+        { property: { title: { contains: search } } },
+      ];
+    }
 
-  const pageParam = searchParams.get("page");
-  if (!pageParam) {
-    // Legacy: return all as array
-    const contracts = await prisma.contract.findMany({
-      where,
-      include: includeRelations,
-      orderBy: { createdAt: "desc" },
+    const includeRelations = {
+      property: { select: { id: true, title: true, condoFee: true, iptuValue: true } },
+      owner: { select: { id: true, name: true } },
+      tenant: { select: { id: true, name: true } },
+      tenant2: { select: { id: true, name: true } },
+      guarantors: {
+        select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
+      },
+    };
+
+    const pageParam = searchParams.get("page");
+    if (!pageParam) {
+      // Legacy: return all as array
+      const contracts = await prisma.contract.findMany({
+        where,
+        include: includeRelations,
+        orderBy: { createdAt: "desc" },
+      });
+      return NextResponse.json(contracts);
+    }
+
+    // Paginated response
+    const page = Math.max(1, parseInt(pageParam));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50")));
+    const skip = (page - 1) * limit;
+
+    const [contracts, total] = await Promise.all([
+      prisma.contract.findMany({
+        where,
+        include: includeRelations,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.contract.count({ where }),
+    ]);
+
+    return NextResponse.json({
+      data: contracts,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-    return NextResponse.json(contracts);
+  } catch (error) {
+    console.error("[Contracts GET] Error:", error);
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
   }
-
-  // Paginated response
-  const page = Math.max(1, parseInt(pageParam));
-  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50")));
-  const skip = (page - 1) * limit;
-
-  const [contracts, total] = await Promise.all([
-    prisma.contract.findMany({
-      where,
-      include: includeRelations,
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-    }),
-    prisma.contract.count({ where }),
-  ]);
-
-  return NextResponse.json({
-    data: contracts,
-    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-  });
 }
 
 export async function POST(request: NextRequest) {
