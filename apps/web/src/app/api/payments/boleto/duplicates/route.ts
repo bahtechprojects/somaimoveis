@@ -294,6 +294,7 @@ export async function POST(request: NextRequest) {
           {
             error: `Erro ao cancelar boleto: ${result.error}`,
             nossoNumero,
+            sicrediResponse: result.data || null,
             linkedPayment: linkedPayment
               ? { id: linkedPayment.id, code: linkedPayment.code }
               : null,

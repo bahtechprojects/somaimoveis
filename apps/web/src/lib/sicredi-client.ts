@@ -483,31 +483,33 @@ export async function sicrediCancelBoleto(
       headers,
     });
 
+    // Capturar headers de resposta para debug
+    const respHeaders: Record<string, string> = {};
+    response.headers.forEach((v, k) => { respHeaders[k] = v; });
     console.log(`[Sicredi] Baixa status: ${response.status}`);
+    console.log(`[Sicredi] Baixa response headers:`, JSON.stringify(respHeaders));
 
-    const contentType = response.headers.get("content-type") || "";
+    // Ler body como texto primeiro para garantir que capturamos tudo
+    const rawText = await response.text().catch(() => "");
+    console.log(`[Sicredi] Baixa response body: "${rawText}"`);
+
     let data: any = {};
-    if (contentType.includes("application/json")) {
-      data = await response.json().catch(() => ({}));
-    } else {
-      const text = await response.text().catch(() => "");
-      data = { rawBody: text.slice(0, 500) };
+    if (rawText) {
+      try { data = JSON.parse(rawText); } catch { data = { rawBody: rawText.slice(0, 500) }; }
     }
 
     // 202 = sucesso conforme manual
     if (response.status === 202 || response.ok) {
-      console.log(`[Sicredi] Boleto ${nossoNumero} baixa solicitada com sucesso`, JSON.stringify(data));
+      console.log(`[Sicredi] Boleto ${nossoNumero} baixa solicitada com sucesso`);
       return { success: true, data };
     }
 
-    console.error(
-      `[Sicredi] Erro ao cancelar boleto ${response.status}:`,
-      JSON.stringify(data)
-    );
+    const errorMsg = data?.message || data?.error || data?.rawBody || rawText || `Erro HTTP ${response.status}`;
+    console.error(`[Sicredi] Erro baixa ${response.status}: ${errorMsg}`);
     return {
       success: false,
-      error: data?.message || data?.error || data?.rawBody || `Erro HTTP ${response.status}`,
-      data,
+      error: errorMsg,
+      data: { ...data, httpStatus: response.status, responseHeaders: respHeaders },
     };
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : "Erro desconhecido";
