@@ -38,19 +38,22 @@ export async function GET() {
       });
     }
 
-    // UaZapi returns different status formats - normalize
+    // UaZapi response: { instance: { status, name, owner, profileName, ... }, status: { connected, loggedIn, ... } }
+    const instance = data.instance || {};
+    const statusObj = data.status || {};
+
     const isConnected =
-      data.connected === true ||
-      data.status === "CONNECTED" ||
-      data.state === "CONNECTED" ||
-      data.state === "open";
+      statusObj.connected === true ||
+      statusObj.loggedIn === true ||
+      instance.status === "connected";
 
     return NextResponse.json({
       configured: true,
       connected: isConnected,
-      status: data.status || data.state || "unknown",
-      phone: data.phone || data.number || null,
-      name: data.name || data.pushname || null,
+      status: instance.status || statusObj.connected ? "connected" : "disconnected",
+      phone: instance.owner || null,
+      name: instance.profileName || instance.name || null,
+      profilePic: instance.profilePicUrl || null,
       details: data,
     });
   } catch (error) {
