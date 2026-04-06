@@ -405,7 +405,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 overflow-y-auto min-h-0 -mx-6 px-6 pb-1">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Informações */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
