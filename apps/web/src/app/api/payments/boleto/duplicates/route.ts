@@ -5,44 +5,86 @@ import { requireAuth, isAuthError } from "@/lib/api-auth";
 
 /**
  * GET /api/payments/boleto/duplicates
- * Lista pagamentos que podem ter boletos duplicados no Sicredi.
- * Consulta o Sicredi por seuNumero (payment.code) para detectar múltiplos boletos.
+ * Lista todos os boletos emitidos com status no Sicredi.
+ * Consulta cada um no Sicredi para mostrar situação real.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
 
   try {
+    const { searchParams } = new URL(request.url);
+    const withSicredi = searchParams.get("sicredi") === "true";
+
     // Buscar pagamentos com boleto emitido
     const payments = await prisma.payment.findMany({
       where: {
         nossoNumero: { not: null },
-        boletoStatus: { in: ["EMITIDO", "REGISTRADO"] },
-        status: { in: ["PENDENTE", "ATRASADO"] },
       },
       select: {
         id: true,
         code: true,
         nossoNumero: true,
+        linhaDigitavel: true,
         value: true,
         dueDate: true,
-        tenant: { select: { name: true } },
+        status: true,
+        boletoStatus: true,
+        boletoEmitidoEm: true,
+        tenant: { select: { name: true, cpfCnpj: true } },
+        owner: { select: { name: true } },
+        contract: { select: { code: true } },
       },
-      orderBy: { dueDate: "asc" },
+      orderBy: { dueDate: "desc" },
     });
 
+    // Se solicitado, consultar cada um no Sicredi para ver status real
+    let enriched = payments.map((p) => ({
+      id: p.id,
+      code: p.code,
+      contractCode: p.contract?.code || "—",
+      nossoNumero: p.nossoNumero,
+      linhaDigitavel: p.linhaDigitavel,
+      value: p.value,
+      dueDate: p.dueDate,
+      status: p.status,
+      boletoStatus: p.boletoStatus,
+      boletoEmitidoEm: p.boletoEmitidoEm,
+      tenant: p.tenant?.name || "—",
+      tenantCpfCnpj: p.tenant?.cpfCnpj || "—",
+      owner: p.owner?.name || "—",
+      sicredi: null as any,
+    }));
+
+    if (withSicredi) {
+      // Consultar no Sicredi (com delay para não bater rate limit)
+      for (let i = 0; i < enriched.length; i++) {
+        const p = enriched[i];
+        if (p.nossoNumero) {
+          try {
+            const sicrediData = await sicrediQueryBoleto(p.nossoNumero);
+            enriched[i] = { ...p, sicredi: sicrediData };
+          } catch {
+            enriched[i] = { ...p, sicredi: { error: "Falha na consulta" } };
+          }
+          // Delay de 300ms entre consultas para evitar rate limit
+          if (i < enriched.length - 1) {
+            await new Promise((r) => setTimeout(r, 300));
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
-      total: payments.length,
-      payments: payments.map((p) => ({
-        id: p.id,
-        code: p.code,
-        nossoNumero: p.nossoNumero,
-        value: p.value,
-        dueDate: p.dueDate,
-        tenant: p.tenant?.name || "—",
-      })),
-      message:
-        "Use POST com { nossoNumero: '...' } para cancelar um boleto específico no Sicredi, ou POST com { action: 'check', code: '...' } para consultar boletos de um pagamento.",
+      total: enriched.length,
+      boletos: enriched,
+      usage: {
+        list: "GET /api/payments/boleto/duplicates — lista boletos do banco",
+        listWithSicredi: "GET /api/payments/boleto/duplicates?sicredi=true — lista com status do Sicredi (mais lento)",
+        check: "POST { action: 'check', nossoNumero: '...' } — consulta um boleto no Sicredi",
+        cancel: "POST { action: 'cancel', nossoNumero: '...' } — cancela boleto no Sicredi",
+        cancelAndClear: "POST { action: 'cancel', nossoNumero: '...', clearFromDb: true } — cancela e limpa do banco",
+      },
     });
   } catch (error) {
     console.error("[Duplicates] Error:", error);
@@ -58,6 +100,7 @@ export async function GET() {
  * Ações:
  * - { action: "check", nossoNumero: "..." } → Consulta status de um boleto no Sicredi
  * - { action: "cancel", nossoNumero: "..." } → Cancela (baixa) um boleto duplicado no Sicredi
+ * - { action: "cancel", nossoNumero: "...", clearFromDb: true } → Cancela e limpa dados do banco
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
@@ -83,30 +126,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "cancel") {
-      // Verificar se esse nossoNumero está vinculado a algum pagamento ativo no nosso banco
+      // Verificar se esse nossoNumero está vinculado a algum pagamento no nosso banco
       const linkedPayment = await prisma.payment.findFirst({
         where: { nossoNumero },
         select: { id: true, code: true, status: true },
       });
 
-      if (linkedPayment) {
-        // Se está vinculado, perguntar se quer desvincular também
-        const { clearFromDb } = body;
-        if (clearFromDb) {
-          await prisma.payment.update({
-            where: { id: linkedPayment.id },
-            data: {
-              nossoNumero: null,
-              linhaDigitavel: null,
-              codigoBarras: null,
-              pixCopiaECola: null,
-              boletoStatus: null,
-              boletoEmitidoEm: null,
-            },
-          });
-        }
-      }
-
+      // Cancelar no Sicredi
       const result = await sicrediCancelBoleto(nossoNumero);
 
       if (!result.success) {
@@ -122,13 +148,28 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Se solicitado, limpar dados do boleto no banco
+      if (linkedPayment && body.clearFromDb) {
+        await prisma.payment.update({
+          where: { id: linkedPayment.id },
+          data: {
+            nossoNumero: null,
+            linhaDigitavel: null,
+            codigoBarras: null,
+            pixCopiaECola: null,
+            boletoStatus: null,
+            boletoEmitidoEm: null,
+          },
+        });
+      }
+
       return NextResponse.json({
         success: true,
         message: `Boleto ${nossoNumero} cancelado no Sicredi com sucesso`,
         linkedPayment: linkedPayment
           ? { id: linkedPayment.id, code: linkedPayment.code }
           : null,
-        clearedFromDb: !!body.clearFromDb,
+        clearedFromDb: !!(linkedPayment && body.clearFromDb),
       });
     }
 
