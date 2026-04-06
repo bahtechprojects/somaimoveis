@@ -408,6 +408,10 @@ export async function sicrediCancelBoleto(
     const response = await fetchWithRetry(url, {
       method: "PATCH",
       headers: commonHeaders(token),
+      body: JSON.stringify({
+        codigoBeneficiario: SICREDI_BENEFICIARIO,
+        nossoNumero,
+      }),
     });
 
     if (!response.ok) {
