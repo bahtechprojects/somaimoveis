@@ -400,7 +400,7 @@ export async function sicrediCancelBoleto(
   }
 
   const token = await sicrediAuth();
-  const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/${nossoNumero}/baixa`;
+  const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/${nossoNumero}/baixa?codigoBeneficiario=${SICREDI_BENEFICIARIO}`;
 
   console.log(`[Sicredi] Cancelando boleto ${nossoNumero}...`);
 
@@ -411,16 +411,24 @@ export async function sicrediCancelBoleto(
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
+      const contentType = response.headers.get("content-type") || "";
+      let data: any = {};
+      if (contentType.includes("application/json")) {
+        data = await response.json().catch(() => ({}));
+      } else {
+        const text = await response.text().catch(() => "");
+        data = { rawBody: text.slice(0, 500) };
+      }
       console.error(
         `[Sicredi] Erro ao cancelar boleto ${response.status}:`,
-        data
+        JSON.stringify(data)
       );
       return {
         success: false,
         error:
-          (data as any)?.message ||
-          (data as any)?.error ||
+          data?.message ||
+          data?.error ||
+          data?.rawBody ||
           `Erro HTTP ${response.status}`,
       };
     }
