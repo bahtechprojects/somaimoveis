@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendWhatsAppMessage } from "@/lib/whatsapp-sender";
 import { verifyWebhookSignature } from "@/lib/webhook-verify";
 
 // GET - Health check para verificacao do endpoint pelo Sicredi
@@ -124,34 +123,6 @@ export async function POST(request: NextRequest) {
       console.error(
         "[Sicredi Webhook] Erro ao atualizar OwnerEntries (nao-critico):",
         ownerEntryError
-      );
-    }
-
-    if (!payment.owner) {
-      console.warn("[Sicredi Webhook] Payment has no owner linked:", payment.id);
-    }
-
-    // Notificacao WhatsApp ao proprietario (opcional, nao falha se der erro)
-    try {
-      const ownerPhone = payment.owner?.phone;
-      if (ownerPhone) {
-        const valorFormatado = (valorPago ? Number(valorPago) : payment.value)
-          .toFixed(2)
-          .replace(".", ",");
-        const dataFormatada = paidAt.toLocaleDateString("pt-BR");
-
-        await sendWhatsAppMessage({
-          to: ownerPhone,
-          message: `Pagamento recebido! Boleto ${payment.code} no valor de R$ ${valorFormatado} foi pago em ${dataFormatada}.`,
-        });
-        console.log(
-          `[Sicredi Webhook] WhatsApp enviado para proprietario ${payment.owner?.name}`
-        );
-      }
-    } catch (whatsappError) {
-      console.error(
-        "[Sicredi Webhook] Erro ao enviar WhatsApp (nao-critico):",
-        whatsappError
       );
     }
 

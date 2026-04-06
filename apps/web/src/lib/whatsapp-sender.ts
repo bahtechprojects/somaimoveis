@@ -326,6 +326,10 @@ export async function sendEmailMessage(msg: {
       port: smtpPort,
       secure: smtpPort === 465,
       auth: { user: smtpUser, pass: smtpPass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
     });
 
     const info = await transporter.sendMail({
@@ -342,8 +346,8 @@ export async function sendEmailMessage(msg: {
     console.log(`[Email] Enviado para ${msg.to}: ${msg.subject} (${info.messageId})`);
     return { success: true, messageId: info.messageId };
   } catch (error: any) {
-    console.error(`[Email] Erro ao enviar para ${msg.to}:`, error.message);
-    return { success: false, error: error.message };
+    console.error(`[Email] Erro ao enviar para ${msg.to}:`, error.message, error.code || "", error.responseCode || "");
+    return { success: false, error: `${error.message}${error.code ? ` (${error.code})` : ""}` };
   }
 }
 

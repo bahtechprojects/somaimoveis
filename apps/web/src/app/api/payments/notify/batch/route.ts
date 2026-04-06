@@ -132,6 +132,35 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Send WhatsApp with retry on rate limit
+async function sendWhatsAppWithRetry(
+  sendFn: () => Promise<{ success: boolean; error?: string }>,
+  code: string,
+  maxRetries = 3,
+): Promise<{ success: boolean; error?: string }> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const result = await sendFn();
+    if (result.success) return result;
+
+    // Check if rate limited
+    const isRateLimit = result.error && (
+      result.error.toLowerCase().includes("rate limit") ||
+      result.error.toLowerCase().includes("máximo de") ||
+      result.error.toLowerCase().includes("limite")
+    );
+
+    if (isRateLimit && attempt < maxRetries) {
+      // Wait progressively: 2min, 4min, 6min
+      const waitMinutes = (attempt + 1) * 2;
+      console.log(`[Notify Batch] Rate limit ${code}, aguardando ${waitMinutes}min (tentativa ${attempt + 1}/${maxRetries})...`);
+      await new Promise(r => setTimeout(r, waitMinutes * 60 * 1000));
+    } else {
+      return result;
+    }
+  }
+  return { success: false, error: "Rate limit excedido após retries" };
+}
+
 async function processNotifications(payments: any[]) {
   for (let i = 0; i < payments.length; i++) {
     const payment = payments[i];
@@ -198,22 +227,28 @@ async function processNotifications(payments: any[]) {
       let whatsappSuccess = false;
       let emailSuccess = false;
 
-      // Send WhatsApp
+      // Send WhatsApp - PDF com mensagem como caption (1 chamada) ou só texto
       if (tenant.phone) {
-        const textResult = await sendWhatsAppMessage({ to: tenant.phone, message: fullMessage });
-        if (textResult.success && pdfBase64) {
-          try {
-            await sendWhatsAppDocumentBase64({
+        if (pdfBase64) {
+          // Envia PDF com a mensagem completa como caption (1 API call ao invés de 2)
+          const docResult = await sendWhatsAppWithRetry(
+            () => sendWhatsAppDocumentBase64({
               to: tenant.phone,
-              fileBase64: pdfBase64,
+              fileBase64: pdfBase64!,
               fileName: `boleto-${payment.code}.pdf`,
-              caption: `Boleto ${payment.code} - Venc: ${formatDateBR(dueDate)}`,
-            });
-          } catch (err) {
-            console.error(`[Notify Batch] Erro PDF WhatsApp ${payment.code}:`, err);
-          }
+              caption: fullMessage,
+            }),
+            payment.code,
+          );
+          whatsappSuccess = docResult.success;
+        } else {
+          // Sem PDF, envia só texto
+          const textResult = await sendWhatsAppWithRetry(
+            () => sendWhatsAppMessage({ to: tenant.phone, message: fullMessage }),
+            payment.code,
+          );
+          whatsappSuccess = textResult.success;
         }
-        whatsappSuccess = textResult.success;
 
         await prisma.notification.create({
           data: {
@@ -224,9 +259,9 @@ async function processNotifications(payments: any[]) {
             templateKey,
             subject: rendered.subject,
             message: fullMessage,
-            status: textResult.success ? "ENVIADO" : "FALHA",
-            sentAt: textResult.success ? new Date() : null,
-            errorMessage: textResult.error || null,
+            status: whatsappSuccess ? "ENVIADO" : "FALHA",
+            sentAt: whatsappSuccess ? new Date() : null,
+            errorMessage: whatsappSuccess ? null : "Falha no envio",
             paymentId: payment.id,
             contractId: payment.contractId,
             tenantId: tenant.id,
@@ -286,9 +321,9 @@ async function processNotifications(payments: any[]) {
       console.error(`[Notify Batch] Erro ${payment.code}:`, err);
     }
 
-    // Delay de 15 segundos entre envios (~200 cobranças em ~50 min)
+    // Delay de 75s entre envios (~48 cobranças por hora, dentro do limite de 30 msgs/hr com retries)
     if (i < payments.length - 1) {
-      await new Promise(r => setTimeout(r, 15000));
+      await new Promise(r => setTimeout(r, 75000));
     }
   }
 }

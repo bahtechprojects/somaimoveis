@@ -81,6 +81,7 @@ interface ContractOption {
   endDate?: string;
   bankFee?: number;
   insuranceFee?: number;
+  paymentDay?: number;
   property: { id: string; title: string; condoFee?: number; iptuValue?: number };
   tenant: { id: string; name: string };
   owner: { id: string; name: string };
@@ -232,6 +233,22 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
       setValue("tenantId", contract.tenantId);
       setValue("ownerId", contract.ownerId);
       recalculateValue(contract, selectedEntryIds);
+
+      // Auto-preencher data de vencimento com paymentDay do contrato
+      const currentDueDate = watch("dueDate");
+      if (!currentDueDate && contract.paymentDay) {
+        const now = new Date();
+        let targetMonth = now.getMonth();
+        let targetYear = now.getFullYear();
+        // Se já passou do dia de vencimento, usar próximo mês
+        if (now.getDate() > contract.paymentDay) {
+          targetMonth++;
+          if (targetMonth > 11) { targetMonth = 0; targetYear++; }
+        }
+        const day = String(Math.min(contract.paymentDay, new Date(targetYear, targetMonth + 1, 0).getDate())).padStart(2, "0");
+        const month = String(targetMonth + 1).padStart(2, "0");
+        setValue("dueDate", `${targetYear}-${month}-${day}`);
+      }
     }
   }, [selectedContractId, contracts, isEditing, setValue]);
 
