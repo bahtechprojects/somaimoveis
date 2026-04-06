@@ -115,6 +115,15 @@ export async function POST(
     // ==========================================
     let boletoEmitido = false;
     if (!payment.nossoNumero && (payment.status === "PENDENTE" || payment.status === "ATRASADO")) {
+      // Re-verificar no banco para evitar duplicidade (race condition)
+      const freshPayment = await prisma.payment.findUnique({ where: { id }, select: { nossoNumero: true } });
+      if (freshPayment?.nossoNumero) {
+        // Outro processo já emitiu o boleto, recarregar dados
+        payment = await prisma.payment.findUnique({
+          where: { id },
+          include: { contract: { include: { property: { select: { title: true } } } }, tenant: true, owner: true },
+        }) as typeof payment;
+      } else {
       // Validar dados obrigatorios
       const missingFields: string[] = [];
       if (!tenant.cpfCnpj) missingFields.push("CPF/CNPJ do locatario");
@@ -184,6 +193,7 @@ export async function POST(
         },
       });
       boletoEmitido = true;
+      } // end else (fresh check)
     }
 
     // ==========================================

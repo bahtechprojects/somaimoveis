@@ -182,6 +182,13 @@ export async function POST(request: NextRequest) {
           informativos: buildInformativos(payment.notes),
         };
 
+        // Re-verificar no banco para evitar duplicidade (race condition)
+        const freshCheck = await prisma.payment.findUnique({ where: { id: payment.id }, select: { nossoNumero: true } });
+        if (freshCheck?.nossoNumero) {
+          erros.push({ paymentId: payment.id, code: payment.code, error: "Boleto já emitido por outro processo" });
+          continue;
+        }
+
         const result = await sicrediCreateBoleto(boletoParams);
 
         if (!result.success) {
