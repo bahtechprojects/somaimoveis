@@ -32,7 +32,30 @@ export async function GET(request: NextRequest) {
       include: includeRelations,
       orderBy: { dueDate: "desc" },
     });
-    return NextResponse.json(payments);
+
+    // Buscar notificações enviadas para cada payment
+    const paymentIds = payments.map(p => p.id);
+    const sentNotifications = paymentIds.length > 0
+      ? await prisma.notification.findMany({
+          where: { paymentId: { in: paymentIds }, status: "ENVIADO" },
+          select: { paymentId: true, channel: true, sentAt: true },
+          orderBy: { sentAt: "desc" },
+        })
+      : [];
+
+    const notifByPayment = new Map<string, { channel: string; sentAt: Date | null }[]>();
+    for (const n of sentNotifications) {
+      if (!n.paymentId) continue;
+      if (!notifByPayment.has(n.paymentId)) notifByPayment.set(n.paymentId, []);
+      notifByPayment.get(n.paymentId)!.push({ channel: n.channel, sentAt: n.sentAt });
+    }
+
+    const enriched = payments.map(p => ({
+      ...p,
+      notifications: notifByPayment.get(p.id) || [],
+    }));
+
+    return NextResponse.json(enriched);
   }
 
   // Paginated response

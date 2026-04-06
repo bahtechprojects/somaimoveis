@@ -84,6 +84,7 @@ interface Payment {
   nossoNumero?: string;
   linhaDigitavel?: string;
   boletoStatus?: string;
+  notifications?: { id: string; channel: string; sentAt: string }[];
   contract: {
     id: string;
     code: string;
@@ -677,6 +678,12 @@ function FinanceiroContent() {
                               {payment.boletoStatus}
                             </Badge>
                           )}
+                          {(payment.notifications?.length ?? 0) > 0 && (
+                            <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-green-50 text-green-700 border-green-200">
+                              <Send className="h-3 w-3" />
+                              Enviado
+                            </Badge>
+                          )}
                           {breakdown && breakdown.condominio > 0 && (
                             <Badge variant="outline" className="text-[10px] h-5 border gap-1 bg-orange-50 text-orange-700 border-orange-200">
                               <Building2 className="h-3 w-3" />
@@ -791,6 +798,7 @@ function FinanceiroContent() {
                     <TableHead className="text-xs">Status</TableHead>
                     <TableHead className="text-xs">Metodo</TableHead>
                     <TableHead className="text-xs">Boleto</TableHead>
+                    <TableHead className="text-xs">Envio</TableHead>
                     <TableHead className="text-xs w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -940,6 +948,31 @@ function FinanceiroContent() {
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const notifs = payment.notifications || [];
+                            if (notifs.length === 0) {
+                              return <span className="text-xs text-muted-foreground">-</span>;
+                            }
+                            const channels = [...new Set(notifs.map(n => n.channel))];
+                            const lastSent = notifs[0]?.sentAt ? formatDate(notifs[0].sentAt) : "";
+                            return (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="text-xs border gap-1 bg-green-50 text-green-700 border-green-200 cursor-default">
+                                      <Send className="h-3 w-3" />
+                                      Enviado
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Enviado via {channels.join(" + ")} em {lastSent}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
