@@ -27,27 +27,76 @@ export async function POST(request: NextRequest) {
     // Log completo do payload para debug
     console.log("[Sicredi Webhook]", JSON.stringify(body));
 
-    // Extrair campos do payload de forma flexivel
-    // O Sicredi pode enviar em diferentes formatos
-    const nossoNumero =
-      body.nossoNumero ||
-      body.boleto?.nossoNumero ||
-      body.cobranca?.nossoNumero ||
-      body.data?.nossoNumero;
+    // Payload do Sicredi Webhook conforme manual v3.9:
+    // {
+    //   "agencia": "9999", "posto": "99", "beneficiario": "12345",
+    //   "nossoNumero": "221000144",
+    //   "dataEvento": [2024,3,20,11,40,39,24000000],
+    //   "movimento": "LIQUIDACAO_PIX",
+    //   "valorLiquidacao": "101.01",
+    //   "valorDesconto": "0", "valorJuros": "0", "valorMulta": "0", "valorAbatimento": "0",
+    //   "dataPrevisaoPagamento": [2024,3,20],
+    //   "idEventoWebhook": "N000...LIQUIDACAO_PIX"
+    // }
 
-    const valorPago =
-      body.valorPago ||
-      body.valor ||
-      body.boleto?.valorPago ||
-      body.boleto?.valor ||
-      body.data?.valorPago ||
-      body.data?.valor;
+    const nossoNumero = body.nossoNumero;
+    const movimento = (body.movimento || "").toString().toUpperCase();
 
-    const dataPagamento =
-      body.dataPagamento ||
-      body.dataLiquidacao ||
-      body.boleto?.dataPagamento ||
-      body.data?.dataPagamento;
+    console.log(`[Sicredi Webhook] movimento: "${movimento}" | nossoNumero: ${nossoNumero || "N/A"} | idEvento: ${body.idEventoWebhook || "N/A"}`);
+
+    // Tipos validos de liquidacao conforme manual Sicredi v3.9
+    const LIQUIDACOES = [
+      "LIQUIDACAO_PIX",
+      "LIQUIDACAO_REDE",
+      "LIQUIDACAO_COMPE_H5",
+      "LIQUIDACAO_COMPE_H6",
+      "LIQUIDACAO_COMPE_H8",
+      "LIQUIDACAO_CARTORIO",
+    ];
+    const isLiquidacao = LIQUIDACOES.includes(movimento);
+    const isEstorno = movimento === "ESTORNO_LIQUIDACAO_REDE";
+
+    // Ignorar estornos (log mas nao processa - TODO: implementar reversao de estorno)
+    if (isEstorno) {
+      console.warn(
+        `[Sicredi Webhook] ⚠️ ESTORNO recebido! nossoNumero: ${nossoNumero}, valor: ${body.valorLiquidacao || "?"}`
+      );
+      return NextResponse.json({
+        success: true,
+        message: "Estorno recebido - registrado no log",
+        nossoNumero,
+        movimento,
+      });
+    }
+
+    // Se nao e liquidacao, ignorar (nao deveria acontecer pois contrato filtra por LIQUIDACAO)
+    if (!isLiquidacao) {
+      console.warn(
+        `[Sicredi Webhook] Evento "${movimento}" NAO e liquidacao, ignorando. nossoNumero: ${nossoNumero || "N/A"}`
+      );
+      return NextResponse.json({
+        success: true,
+        message: `Evento "${movimento}" ignorado (somente liquidacoes sao processadas)`,
+        nossoNumero,
+        movimento,
+      });
+    }
+
+    // Extrair valor pago e data do payload oficial
+    const valorPago = body.valorLiquidacao || body.valorPago || body.valor;
+    const valorDesconto = body.valorDesconto ? Number(body.valorDesconto) : 0;
+    const valorJuros = body.valorJuros ? Number(body.valorJuros) : 0;
+    const valorMulta = body.valorMulta ? Number(body.valorMulta) : 0;
+
+    // dataEvento vem como array: [YYYY,MM,DD,HH,mm,ss,ns]
+    let dataPagamento: Date | null = null;
+    if (Array.isArray(body.dataEvento) && body.dataEvento.length >= 3) {
+      const [y, m, d, h = 12, min = 0, s = 0] = body.dataEvento;
+      dataPagamento = new Date(y, m - 1, d, h, min, s);
+    } else if (Array.isArray(body.dataPrevisaoPagamento) && body.dataPrevisaoPagamento.length >= 3) {
+      const [y, m, d] = body.dataPrevisaoPagamento;
+      dataPagamento = new Date(y, m - 1, d, 12, 0, 0);
+    }
 
     if (!nossoNumero) {
       console.warn(
@@ -71,7 +120,6 @@ export async function POST(request: NextRequest) {
         `[Sicredi Webhook] Payload completo do fantasma:`,
         JSON.stringify(body)
       );
-      // Retorna 200 para nao causar retry do Sicredi
       return NextResponse.json({
         success: true,
         message: "Boleto fantasma - nossoNumero nao vinculado a pagamento",
@@ -88,16 +136,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Atualizar o pagamento com dados da liquidacao
-    const paidAt = dataPagamento
-      ? new Date(String(dataPagamento).includes("T") ? dataPagamento : dataPagamento + "T12:00:00")
-      : new Date();
+    // Montar dados de pagamento
+    const paidAt = dataPagamento || new Date();
 
     const updated = await prisma.payment.update({
       where: { id: payment.id },
       data: {
         status: "PAGO",
-        paidValue: valorPago ? Number(valorPago) : payment.value,
+        paidValue: valorPagoNum ?? payment.value,
         paidAt,
         boletoStatus: "LIQUIDADO",
         boletoLiquidadoEm: new Date(),
@@ -106,7 +152,7 @@ export async function POST(request: NextRequest) {
     });
 
     console.log(
-      `[Sicredi Webhook] Pagamento ${payment.code} atualizado para LIQUIDADO`
+      `[Sicredi Webhook] ✅ ${payment.code} LIQUIDADO via ${movimento} - R$ ${(valorPagoNum ?? payment.value).toFixed(2)} (juros: ${valorJuros}, multa: ${valorMulta}, desconto: ${valorDesconto})`
     );
 
     // Atualizar OwnerEntries de REPASSE vinculados a este contrato/mes

@@ -790,22 +790,22 @@ function FinanceiroContent() {
 
               {/* Desktop table view */}
               <div className="overflow-x-auto hidden md:block">
-              <Table>
+              <Table className="table-fixed w-full">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-xs">Código</TableHead>
-                    <TableHead className="text-xs">Contrato</TableHead>
-                    <TableHead className="text-xs">Locatário</TableHead>
-                    <TableHead className="text-xs text-right">Valor</TableHead>
-                    <TableHead className="text-xs">Composição</TableHead>
-                    <TableHead className="text-xs">Vencimento</TableHead>
-                    <TableHead className="text-xs">Pagamento</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
-                    <TableHead className="text-xs">Nº Boleto</TableHead>
-                    <TableHead className="text-xs">Metodo</TableHead>
-                    <TableHead className="text-xs">Boleto</TableHead>
-                    <TableHead className="text-xs">Envio</TableHead>
-                    <TableHead className="text-xs w-10"></TableHead>
+                    <TableHead className="text-xs w-[80px]">Código</TableHead>
+                    <TableHead className="text-xs w-[70px]">Contrato</TableHead>
+                    <TableHead className="text-xs w-[120px]">Locatário</TableHead>
+                    <TableHead className="text-xs text-right w-[90px]">Valor</TableHead>
+                    <TableHead className="text-xs w-[140px]">Composição</TableHead>
+                    <TableHead className="text-xs w-[85px]">Vencimento</TableHead>
+                    <TableHead className="text-xs w-[85px]">Pagamento</TableHead>
+                    <TableHead className="text-xs w-[100px]">Status</TableHead>
+                    <TableHead className="text-xs w-[95px]">Nº Boleto</TableHead>
+                    <TableHead className="text-xs w-[65px]">Metodo</TableHead>
+                    <TableHead className="text-xs w-[130px]">Boleto</TableHead>
+                    <TableHead className="text-xs w-[70px]">Envio</TableHead>
+                    <TableHead className="text-xs w-[40px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -823,13 +823,13 @@ function FinanceiroContent() {
                         <TableCell className="text-xs text-muted-foreground">
                           {payment.contract.code}
                         </TableCell>
-                        <TableCell className="text-xs font-medium">
+                        <TableCell className="text-xs font-medium truncate" title={payment.tenant?.name || ""}>
                           {payment.tenant?.name || "N/A"}
                         </TableCell>
                         <TableCell className="text-xs font-semibold text-right">
                           {formatCurrency(payment.value)}
                         </TableCell>
-                        <TableCell className="max-w-[200px]">
+                        <TableCell className="overflow-hidden">
                           {breakdown ? (
                             <TooltipProvider delayDuration={200}>
                               <Tooltip>
@@ -898,14 +898,14 @@ function FinanceiroContent() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
+                        <TableCell className="font-mono text-[11px] text-muted-foreground truncate" title={payment.nossoNumero || ""}>
                           {payment.nossoNumero || "-"}
                         </TableCell>
                         <TableCell className="text-xs">
                           {payment.paymentMethod ? (methodLabels[payment.paymentMethod] || payment.paymentMethod) : "-"}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
+                        <TableCell className="overflow-visible">
+                          <div className="flex items-center gap-0.5">
                           {payment.nossoNumero ? (
                             <>
                               <Button
@@ -983,7 +983,7 @@ function FinanceiroContent() {
                             );
                           })()}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="overflow-visible">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-7 w-7">

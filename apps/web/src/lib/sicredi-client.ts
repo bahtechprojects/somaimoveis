@@ -388,11 +388,68 @@ export async function sicrediPrintBoleto(
 }
 
 /**
+ * Consulta boletos liquidados em um dia especifico
+ * Conforme manual Sicredi v3.9 seção 7.19
+ * GET /cobranca/boleto/v1/boletos/liquidados/dia?codigoBeneficiario=...&dia=DD/MM/YYYY
+ */
+export async function sicrediQueryLiquidados(
+  dia: string // formato DD/MM/YYYY
+): Promise<{ success: boolean; items?: any[]; error?: string }> {
+  if (!isSicrediConfigured()) {
+    console.log(`[Sicredi Mock] Consultando liquidados dia ${dia}`);
+    return { success: true, items: [] };
+  }
+
+  const token = await sicrediAuth();
+  const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/liquidados/dia?codigoBeneficiario=${SICREDI_BENEFICIARIO}&dia=${encodeURIComponent(dia)}`;
+
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${token}`,
+    "x-api-key": SICREDI_API_KEY!,
+    "cooperativa": SICREDI_COOPERATIVA!,
+    "posto": SICREDI_POSTO!,
+  };
+
+  console.log(`[Sicredi] Consultando liquidados dia ${dia}...`);
+
+  try {
+    let allItems: any[] = [];
+    let pagina = 0;
+    let hasNext = true;
+
+    while (hasNext) {
+      const pageUrl = pagina > 0 ? `${url}&pagina=${pagina}` : url;
+      const response = await fetchWithRetry(pageUrl, { method: "GET", headers });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        console.error(`[Sicredi] Erro liquidados ${response.status}:`, text.slice(0, 200));
+        return { success: false, error: `HTTP ${response.status}: ${text.slice(0, 200)}` };
+      }
+
+      const data = await response.json();
+      const items = data.items || [];
+      allItems = allItems.concat(items);
+      hasNext = data.hasNext === true || data.hasNext === "true";
+      pagina++;
+    }
+
+    console.log(`[Sicredi] ${allItems.length} boleto(s) liquidado(s) em ${dia}`);
+    return { success: true, items: allItems };
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : "Erro desconhecido";
+    console.error(`[Sicredi] Falha consulta liquidados:`, errMsg);
+    return { success: false, error: errMsg };
+  }
+}
+
+/**
  * Cancela (baixa) um boleto pelo nossoNumero
+ * Conforme manual Sicredi v3.9 seção 7.4
  */
 export async function sicrediCancelBoleto(
   nossoNumero: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; data?: any }> {
   // Mock se nao configurado
   if (!isSicrediConfigured()) {
     console.log(`[Sicredi Mock] Cancelando boleto ${nossoNumero}`);
@@ -401,75 +458,59 @@ export async function sicrediCancelBoleto(
 
   const token = await sicrediAuth();
 
-  console.log(`[Sicredi] Cancelando boleto ${nossoNumero}...`);
+  // Conforme manual Sicredi v3.9 seção 7.4:
+  // PATCH /cobranca/boleto/v1/boletos/{nossoNumero}/baixa
+  // Headers: Authorization, x-api-key, Content-Type, cooperativa, posto, codigoBeneficiario
+  // Body: vazio (sem body)
+  // Retorno esperado: 202 (ACCEPTED)
+  const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/${nossoNumero}/baixa`;
 
-  // Tentar 2 formatos de endpoint para baixa:
-  // 1. POST /boletos/comando/instrucao/baixa (documentação oficial)
-  // 2. PATCH /boletos/{nossoNumero}/baixa (formato alternativo)
-  const url1 = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/comando/instrucao/baixa`;
-  const url2 = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/${nossoNumero}/baixa?codigoBeneficiario=${SICREDI_BENEFICIARIO}`;
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${token}`,
+    "x-api-key": SICREDI_API_KEY!,
+    "Content-Type": "application/json",
+    "cooperativa": SICREDI_COOPERATIVA!,
+    "posto": SICREDI_POSTO!,
+    "codigoBeneficiario": SICREDI_BENEFICIARIO!,
+  };
 
-  const bodyBaixa = JSON.stringify({
-    codigoBeneficiario: SICREDI_BENEFICIARIO,
-    nossoNumero,
-  });
-
-  console.log(`[Sicredi] URL baixa (formato 1): ${url1}`);
-  console.log(`[Sicredi] Body: ${bodyBaixa}`);
+  console.log(`[Sicredi] Baixa: PATCH ${url}`);
+  console.log(`[Sicredi] Headers: cooperativa=${SICREDI_COOPERATIVA}, posto=${SICREDI_POSTO}, codigoBeneficiario=${SICREDI_BENEFICIARIO}`);
 
   try {
-    // Formato 1: POST /boletos/comando/instrucao/baixa
-    let response = await fetchWithRetry(url1, {
-      method: "POST",
-      headers: commonHeaders(token),
-      body: bodyBaixa,
+    const response = await fetchWithRetry(url, {
+      method: "PATCH",
+      headers,
     });
 
-    console.log(`[Sicredi] Formato 1 status: ${response.status}`);
+    console.log(`[Sicredi] Baixa status: ${response.status}`);
 
-    // Se formato 1 falhar, tentar formato 2
-    if (!response.ok) {
-      const err1 = await response.text().catch(() => "");
-      console.log(`[Sicredi] Formato 1 erro: ${err1.slice(0, 200)}`);
-      console.log(`[Sicredi] Tentando formato 2: PATCH ${url2}`);
-
-      response = await fetchWithRetry(url2, {
-        method: "PATCH",
-        headers: commonHeaders(token),
-        body: bodyBaixa,
-      });
-
-      console.log(`[Sicredi] Formato 2 status: ${response.status}`);
+    const contentType = response.headers.get("content-type") || "";
+    let data: any = {};
+    if (contentType.includes("application/json")) {
+      data = await response.json().catch(() => ({}));
+    } else {
+      const text = await response.text().catch(() => "");
+      data = { rawBody: text.slice(0, 500) };
     }
 
-    if (!response.ok) {
-      const contentType = response.headers.get("content-type") || "";
-      let data: any = {};
-      if (contentType.includes("application/json")) {
-        data = await response.json().catch(() => ({}));
-      } else {
-        const text = await response.text().catch(() => "");
-        data = { rawBody: text.slice(0, 500) };
-      }
-      console.error(
-        `[Sicredi] Erro ao cancelar boleto ${response.status}:`,
-        JSON.stringify(data)
-      );
-      return {
-        success: false,
-        error:
-          data?.message ||
-          data?.error ||
-          data?.rawBody ||
-          `Erro HTTP ${response.status}`,
-      };
+    // 202 = sucesso conforme manual
+    if (response.status === 202 || response.ok) {
+      console.log(`[Sicredi] Boleto ${nossoNumero} baixa solicitada com sucesso`, JSON.stringify(data));
+      return { success: true, data };
     }
 
-    console.log(`[Sicredi] Boleto ${nossoNumero} cancelado com sucesso`);
-    return { success: true };
+    console.error(
+      `[Sicredi] Erro ao cancelar boleto ${response.status}:`,
+      JSON.stringify(data)
+    );
+    return {
+      success: false,
+      error: data?.message || data?.error || data?.rawBody || `Erro HTTP ${response.status}`,
+      data,
+    };
   } catch (error) {
-    const errMsg =
-      error instanceof Error ? error.message : "Erro desconhecido";
+    const errMsg = error instanceof Error ? error.message : "Erro desconhecido";
     console.error(`[Sicredi] Falha ao cancelar boleto:`, errMsg);
     return { success: false, error: errMsg };
   }
