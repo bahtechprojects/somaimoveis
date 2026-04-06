@@ -288,7 +288,7 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 overflow-y-auto min-h-0 -mx-6 px-6 pb-1">
           {/* Informações Básicas */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
