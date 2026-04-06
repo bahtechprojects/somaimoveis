@@ -148,6 +148,7 @@ export async function POST(request: NextRequest) {
         boletoStatus: "LIQUIDADO",
         boletoLiquidadoEm: new Date(),
         paymentMethod: "BOLETO",
+        description: `Sicredi: ${movimento} | Valor: R$ ${(valorPagoNum ?? payment.value).toFixed(2)} | Juros: R$ ${valorJuros.toFixed(2)} | Multa: R$ ${valorMulta.toFixed(2)} | Desconto: R$ ${valorDesconto.toFixed(2)} | ID: ${body.idEventoWebhook || "N/A"}`,
       },
     });
 

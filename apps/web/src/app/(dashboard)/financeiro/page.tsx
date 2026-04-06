@@ -891,10 +891,21 @@ function FinanceiroContent() {
                               {status.label}
                             </Badge>
                             {payment.boletoStatus && (
-                              <Badge variant="outline" className="text-xs border gap-1 bg-blue-50 text-blue-700 border-blue-200">
-                                <Receipt className="h-3 w-3" />
-                                {payment.boletoStatus}
-                              </Badge>
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="text-xs border gap-1 bg-blue-50 text-blue-700 border-blue-200 cursor-default">
+                                      <Receipt className="h-3 w-3" />
+                                      {payment.boletoStatus}
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  {payment.description && payment.description.startsWith("Sicredi:") && (
+                                    <TooltipContent side="bottom" className="max-w-xs">
+                                      <p className="text-xs whitespace-pre-line">{payment.description.replace(/ \| /g, "\n")}</p>
+                                    </TooltipContent>
+                                  )}
+                                </Tooltip>
+                              </TooltipProvider>
                             )}
                           </div>
                         </TableCell>

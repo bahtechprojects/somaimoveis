@@ -4,6 +4,95 @@ import { sicrediQueryLiquidados } from "@/lib/sicredi-client";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 
 /**
+ * POST /api/audit/payments
+ * Atualiza os pagamentos PAGO/LIQUIDADO com o status real do Sicredi (tipo liquidacao, valor, etc.)
+ * Usado para preencher o campo description dos pagamentos existentes.
+ */
+export async function POST(request: NextRequest) {
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
+
+  try {
+    // Buscar pagamentos PAGO com boleto
+    const payments = await prisma.payment.findMany({
+      where: {
+        status: "PAGO",
+        boletoStatus: "LIQUIDADO",
+        nossoNumero: { not: null },
+      },
+      select: {
+        id: true,
+        code: true,
+        nossoNumero: true,
+        value: true,
+        paidValue: true,
+        paidAt: true,
+        description: true,
+      },
+      orderBy: { paidAt: "desc" },
+    });
+
+    if (payments.length === 0) {
+      return NextResponse.json({ message: "Nenhum pagamento PAGO/LIQUIDADO encontrado", updated: 0 });
+    }
+
+    // Coletar datas unicas para consultar liquidados
+    const datesSet = new Set<string>();
+    for (const p of payments) {
+      if (p.paidAt) {
+        const d = new Date(p.paidAt);
+        datesSet.add(`${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`);
+      }
+    }
+
+    // Consultar liquidados no Sicredi
+    const liquidadosMap = new Map<string, any>();
+    for (const dia of Array.from(datesSet)) {
+      try {
+        const result = await sicrediQueryLiquidados(dia);
+        if (result.success && result.items) {
+          for (const item of result.items) {
+            liquidadosMap.set(item.nossoNumero, item);
+          }
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    let updated = 0;
+    const results: { code: string; nossoNumero: string; status: string }[] = [];
+
+    for (const p of payments) {
+      const sicredi = liquidadosMap.get(p.nossoNumero!);
+      if (sicredi) {
+        const desc = `Sicredi: ${sicredi.tipoLiquidacao || "LIQUIDADO"} | Valor nominal: R$ ${(sicredi.valor || 0).toFixed(2)} | Valor liquidado: R$ ${(sicredi.valorLiquidado || 0).toFixed(2)} | Juros: R$ ${(sicredi.jurosLiquido || 0).toFixed(2)} | Multa: R$ ${(sicredi.multaLiquida || 0).toFixed(2)} | Desconto: R$ ${(sicredi.descontoLiquido || 0).toFixed(2)} | Data pgto: ${sicredi.dataPagamento || "N/A"}`;
+
+        await prisma.payment.update({
+          where: { id: p.id },
+          data: { description: desc },
+        });
+
+        results.push({ code: p.code, nossoNumero: p.nossoNumero!, status: `✅ ${sicredi.tipoLiquidacao}` });
+        updated++;
+      } else {
+        results.push({ code: p.code, nossoNumero: p.nossoNumero!, status: "❌ Não encontrado no Sicredi" });
+      }
+    }
+
+    return NextResponse.json({
+      message: `${updated} de ${payments.length} pagamentos atualizados com status Sicredi`,
+      updated,
+      total: payments.length,
+      detalhes: results,
+    });
+  } catch (error) {
+    console.error("[Audit POST] Erro:", error);
+    return NextResponse.json({ error: "Erro ao atualizar status" }, { status: 500 });
+  }
+}
+
+/**
  * GET /api/audit/payments
  * Audita pagamentos marcados como PAGO/LIQUIDADO.
  * Consulta a API de liquidados por dia do Sicredi para cruzar com o banco.
