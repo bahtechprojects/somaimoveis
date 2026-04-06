@@ -585,12 +585,14 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 {coOwners.length > 0 && (() => {
                   const totalCo = coOwners.reduce((s, c) => s + (c.percentage || 0), 0);
                   const total = Math.round(totalCo * 100) / 100;
-                  const isValid = Math.abs(total - 100) < 0.01;
+                  const primaryPercent = Math.round((100 - total) * 100) / 100;
+                  const isValid = total < 100 && primaryPercent > 0;
                   return (
                     <div className="space-y-1">
                       <p className={`text-xs font-medium ${isValid ? "text-emerald-600" : "text-red-600"}`}>
-                        Total: {total.toFixed(2).replace(/\.?0+$/, "")}%
-                        {isValid ? " ✓" : " (deve somar 100%)"}
+                        Co-proprietários: {total.toFixed(2).replace(/\.?0+$/, "")}%
+                        {" · "}Proprietário principal: {primaryPercent.toFixed(2).replace(/\.?0+$/, "")}%
+                        {isValid ? " ✓" : " (co-proprietários devem somar menos de 100%)"}
                       </p>
                     </div>
                   );
