@@ -65,13 +65,27 @@ export async function POST(request: NextRequest) {
 
     if (!payment) {
       console.warn(
-        `[Sicredi Webhook] Pagamento nao encontrado para nossoNumero: ${nossoNumero}`
+        `[Sicredi Webhook] ⚠️ BOLETO FANTASMA LIQUIDADO - nossoNumero ${nossoNumero} NAO existe no banco! Valor: ${valorPago || "?"}`
+      );
+      console.warn(
+        `[Sicredi Webhook] Payload completo do fantasma:`,
+        JSON.stringify(body)
       );
       // Retorna 200 para nao causar retry do Sicredi
       return NextResponse.json({
         success: true,
-        message: "Pagamento nao encontrado",
+        message: "Boleto fantasma - nossoNumero nao vinculado a pagamento",
+        nossoNumero,
+        valorPago,
       });
+    }
+
+    // Validar valor pago vs valor esperado
+    const valorPagoNum = valorPago ? Number(valorPago) : null;
+    if (valorPagoNum && Math.abs(valorPagoNum - payment.value) > 0.10) {
+      console.warn(
+        `[Sicredi Webhook] ⚠️ VALOR DIFERENTE - ${payment.code}: esperado R$ ${payment.value.toFixed(2)}, recebido R$ ${valorPagoNum.toFixed(2)} (diff: R$ ${(valorPagoNum - payment.value).toFixed(2)})`
+      );
     }
 
     // Atualizar o pagamento com dados da liquidacao

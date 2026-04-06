@@ -742,6 +742,11 @@ function FinanceiroContent() {
                         </p>
                       )}
                       {payment.nossoNumero && (
+                        <p className="mt-1 text-[11px] text-muted-foreground font-mono">
+                          Boleto: {payment.nossoNumero}
+                        </p>
+                      )}
+                      {payment.nossoNumero && (
                         <div className="mt-2 flex items-center gap-2">
                           <Button
                             variant="outline"
@@ -796,6 +801,7 @@ function FinanceiroContent() {
                     <TableHead className="text-xs">Vencimento</TableHead>
                     <TableHead className="text-xs">Pagamento</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Nº Boleto</TableHead>
                     <TableHead className="text-xs">Metodo</TableHead>
                     <TableHead className="text-xs">Boleto</TableHead>
                     <TableHead className="text-xs">Envio</TableHead>
@@ -891,6 +897,9 @@ function FinanceiroContent() {
                               </Badge>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {payment.nossoNumero || "-"}
                         </TableCell>
                         <TableCell className="text-xs">
                           {payment.paymentMethod ? (methodLabels[payment.paymentMethod] || payment.paymentMethod) : "-"}
