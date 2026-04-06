@@ -403,15 +403,24 @@ export async function sicrediCancelBoleto(
 
   console.log(`[Sicredi] Cancelando boleto ${nossoNumero}...`);
 
-  // Formato confirmado: PATCH /boletos/{nossoNumero}/baixa?codigoBeneficiario=... (sem body)
+  // PATCH /boletos/{nossoNumero}/baixa?codigoBeneficiario=...
   const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos/${nossoNumero}/baixa?codigoBeneficiario=${SICREDI_BENEFICIARIO}`;
 
-  console.log(`[Sicredi] URL: ${url}`);
+  // Headers sem Content-Type (sem body no PATCH)
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${token}`,
+    "x-api-key": process.env.SICREDI_API_KEY!,
+    "cooperativa": process.env.SICREDI_COOPERATIVA!,
+    "posto": process.env.SICREDI_POSTO!,
+  };
+
+  console.log(`[Sicredi] URL baixa: ${url}`);
+  console.log(`[Sicredi] Headers: ${JSON.stringify(Object.keys(headers))}`);
 
   try {
     const response = await fetchWithRetry(url, {
       method: "PATCH",
-      headers: commonHeaders(token),
+      headers,
     });
 
     if (!response.ok) {
