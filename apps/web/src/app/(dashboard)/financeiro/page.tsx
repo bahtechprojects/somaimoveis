@@ -210,12 +210,26 @@ function FinanceiroContent() {
     .filter((p) => p.status === "PAGO")
     .reduce((sum, p) => sum + (p.paidValue ?? p.value), 0);
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Helper: pagamento está atrasado (status ATRASADO ou PENDENTE com vencimento passado)
+  const isOverdue = (p: Payment) => {
+    if (p.status === "ATRASADO") return true;
+    if (p.status === "PENDENTE") {
+      const due = new Date(p.dueDate);
+      due.setHours(0, 0, 0, 0);
+      return due < today;
+    }
+    return false;
+  };
+
   const totalAReceber = payments
-    .filter((p) => p.status === "PENDENTE")
+    .filter((p) => p.status === "PENDENTE" && !isOverdue(p))
     .reduce((sum, p) => sum + p.value, 0);
 
   const totalEmAtraso = payments
-    .filter((p) => p.status === "ATRASADO")
+    .filter((p) => isOverdue(p))
     .reduce((sum, p) => sum + p.value, 0);
 
   const now = new Date();
@@ -232,9 +246,9 @@ function FinanceiroContent() {
   // Client-side filtering by status tab
   const filteredByStatus = payments.filter((payment) => {
     if (activeTab === "todos") return true;
-    if (activeTab === "pendentes") return payment.status === "PENDENTE";
+    if (activeTab === "pendentes") return payment.status === "PENDENTE" && !isOverdue(payment);
     if (activeTab === "pagos") return payment.status === "PAGO";
-    if (activeTab === "atrasados") return payment.status === "ATRASADO";
+    if (activeTab === "atrasados") return isOverdue(payment);
     if (activeTab === "emitidos") return payment.boletoStatus === "EMITIDO";
     if (activeTab === "nao_emitidos") return !payment.nossoNumero && (payment.status === "PENDENTE" || payment.status === "ATRASADO");
     return true;
@@ -499,7 +513,7 @@ function FinanceiroContent() {
                   <div className="flex items-center gap-1 mt-1">
                     <ArrowDownRight className="h-3.5 w-3.5 text-red-500" />
                     <span className="text-xs text-red-500 font-medium">
-                      {payments.filter((p) => p.status === "ATRASADO").length} cobranca(s) atrasada(s)
+                      {payments.filter((p) => isOverdue(p)).length} cobrança(s) atrasada(s)
                     </span>
                   </div>
                 </div>
@@ -604,7 +618,8 @@ function FinanceiroContent() {
               {/* Mobile card view */}
               <div className="divide-y md:hidden">
                 {filteredPayments.map((payment) => {
-                  const status = statusConfig[payment.status] || {
+                  const displayStatus = isOverdue(payment) ? "ATRASADO" : payment.status;
+                  const status = statusConfig[displayStatus] || {
                     label: payment.status,
                     className: "bg-muted text-muted-foreground",
                     icon: Clock,
@@ -810,7 +825,8 @@ function FinanceiroContent() {
                 </TableHeader>
                 <TableBody>
                   {filteredPayments.map((payment) => {
-                    const status = statusConfig[payment.status] || {
+                    const displayStatus = isOverdue(payment) ? "ATRASADO" : payment.status;
+                    const status = statusConfig[displayStatus] || {
                       label: payment.status,
                       className: "bg-muted text-muted-foreground",
                       icon: Clock,
