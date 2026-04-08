@@ -903,16 +903,19 @@ export default function RepassesPage() {
                               )}
                             </div>
 
+                            {group.totalPendente > 0 && (
+                              <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
+                                Créditos: {formatCurrency(group.totalPendente)}
+                              </Badge>
+                            )}
                             {(group.totalDebitos ?? 0) > 0 && (
                               <Badge className="bg-red-100 text-red-700 border-red-200 text-xs">
-                                Debitos: -{formatCurrency(group.totalDebitos!)}
+                                Débitos: -{formatCurrency(group.totalDebitos!)}
                               </Badge>
                             )}
                             {group.totalPendente > 0 && (
-                              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs">
-                                {(group.totalDebitos ?? 0) > 0
-                                  ? `Liq: ${formatCurrency(group.totalLiquido ?? group.totalPendente)}`
-                                  : formatCurrency(group.totalPendente)}
+                              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs font-bold">
+                                Líq: {formatCurrency(group.totalLiquido ?? group.totalPendente)}
                               </Badge>
                             )}
                             {group.totalPago > 0 && (
