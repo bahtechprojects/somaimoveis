@@ -46,6 +46,7 @@ import {
   Banknote,
   Copy,
   FileText,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -160,6 +161,27 @@ export default function RepassesPage() {
   const [confirmAction, setConfirmAction] = useState<"PAGO" | "PENDENTE">("PAGO");
   const [actionLoading, setActionLoading] = useState(false);
   const [cnabLoading, setCnabLoading] = useState(false);
+  const [guaranteeLoading, setGuaranteeLoading] = useState<Record<string, boolean>>({});
+
+  async function handleGuarantee(ownerId: string, ownerName: string) {
+    if (!confirm(`Garantir aluguel atrasado de ${ownerName} para ${formatMonthLabel(month)}?\n\nIsso cria um crédito de garantia na conta do proprietário.`)) return;
+    setGuaranteeLoading((prev) => ({ ...prev, [ownerId]: true }));
+    try {
+      const res = await fetch("/api/payments/guarantee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerId, month }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao garantir");
+      toast.success(data.message);
+      fetchRepasses();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao garantir aluguel");
+    } finally {
+      setGuaranteeLoading((prev) => ({ ...prev, [ownerId]: false }));
+    }
+  }
 
   async function fetchRepasses() {
     setLoading(true);
@@ -916,6 +938,21 @@ export default function RepassesPage() {
                                 <span>{getBankDisplay(group.owner)}</span>
                               )}
                               <span>PIX: {getPixDisplay(group.owner)}</span>
+                              {activeTab === "pendentes" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 px-2 text-[11px] gap-1 text-amber-700 border-amber-300 hover:bg-amber-50 ml-auto"
+                                  disabled={guaranteeLoading[group.owner.id]}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleGuarantee(group.owner.id, group.owner.name);
+                                  }}
+                                >
+                                  <Shield className="h-3 w-3" />
+                                  {guaranteeLoading[group.owner.id] ? "..." : "Garantir Aluguel"}
+                                </Button>
+                              )}
                             </div>
 
                             {/* Entries table */}
@@ -954,7 +991,9 @@ export default function RepassesPage() {
                                             entry.category === "GARANTIA" ? "bg-amber-50 text-amber-700 border-amber-200" :
                                             "bg-slate-50 text-slate-600 border-slate-200"
                                           )}>
-                                            {entry.category}
+                                            {entry.category === "GARANTIA" ? (
+                                              <span className="flex items-center gap-0.5"><Shield className="h-2.5 w-2.5" /> GARANTIA</span>
+                                            ) : entry.category}
                                           </Badge>
                                         )}
                                         {entry.notes && entry.category === "REPASSE" ? (() => {
