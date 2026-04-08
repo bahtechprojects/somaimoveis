@@ -328,33 +328,25 @@ export async function POST(request: NextRequest) {
           ? await prisma.propertyOwner.findMany({ where: { propertyId: contract.property.id } })
           : [];
 
-        // Helper para gerar notes com breakdown proporcional à porcentagem
+        // Notes com valores TOTAIS do contrato + porcentagem do proprietário
+        // Taxa adm é sobre o valor total, depois divide pela porcentagem
+        const baseAluguel = isProrata ? prorataRentalValue : contract.rentalValue;
+        const totalAdminFeeValue = Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100;
+
         const buildOwnerNotes = (sharePercent: number) => {
-          const pct = sharePercent / 100;
-          const baseAluguel = isProrata ? prorataRentalValue : contract.rentalValue;
-          const propAluguel = Math.round(baseAluguel * pct * 100) / 100;
-          const propAdminFee = Math.round(prorataRentalValue * (adminFee / 100) * pct * 100) / 100;
-          const propIntermed = intermediationInstallmentValue > 0
-            ? Math.round(intermediationInstallmentValue * pct * 100) / 100
-            : undefined;
-          const propIrrf = irrfValue > 0
-            ? Math.round(irrfValue * pct * 100) / 100
-            : undefined;
-          const propNet = Math.round(netToOwner * pct * 100) / 100;
           return JSON.stringify({
-            aluguelBruto: propAluguel,
+            aluguelBruto: baseAluguel,
             adminFeePercent: adminFee,
-            adminFeeValue: propAdminFee,
-            sharePercent,
-            intermediacao: propIntermed,
+            adminFeeValue: totalAdminFeeValue,
+            sharePercent: sharePercent < 100 ? sharePercent : undefined,
+            intermediacao: intermediationInstallmentValue > 0 ? intermediationInstallmentValue : undefined,
             intermediacaoNota: intermediationNote || undefined,
-            irrfValue: propIrrf,
+            irrfValue: irrfValue > 0 ? irrfValue : undefined,
             irrfRate: irrfValue > 0 ? irrfRate : undefined,
-            netToOwner: propNet,
+            netToOwner,
           });
         };
 
-        // Notes para owner único (100%)
         const ownerEntryNotes = buildOwnerNotes(100);
 
         if (contract.property?.id) {

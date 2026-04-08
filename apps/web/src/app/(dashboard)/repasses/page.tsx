@@ -966,18 +966,21 @@ export default function RepassesPage() {
                               let totalAluguelBruto = 0;
                               let totalIntermediacao = 0;
                               let totalIrrf = 0;
+                              let sharePercent: number | undefined;
                               for (const e of group.entries) {
                                 if (e.status === "CANCELADO") continue;
                                 creditsByCategory[e.category] = (creditsByCategory[e.category] || 0) + e.value;
-                                // Extrair taxa adm do notes dos entries REPASSE
-                                if (e.category === "REPASSE" && e.notes) {
+                                // Extrair taxa adm do notes dos entries REPASSE/GARANTIA
+                                if (["REPASSE", "GARANTIA"].includes(e.category) && e.notes) {
                                   try {
                                     const n = JSON.parse(e.notes);
-                                    if (n.adminFeeValue) totalAdminFee += n.adminFeeValue;
+                                    // Valores TOTAIS do contrato (não proporcionais)
+                                    if (n.adminFeeValue && !totalAdminFee) totalAdminFee = n.adminFeeValue;
                                     if (n.adminFeePercent) adminFeePercent = n.adminFeePercent;
-                                    if (n.aluguelBruto) totalAluguelBruto += n.aluguelBruto;
-                                    if (n.intermediacao) totalIntermediacao += n.intermediacao;
-                                    if (n.irrfValue) totalIrrf += n.irrfValue;
+                                    if (n.aluguelBruto && !totalAluguelBruto) totalAluguelBruto = n.aluguelBruto;
+                                    if (n.intermediacao && !totalIntermediacao) totalIntermediacao = n.intermediacao;
+                                    if (n.irrfValue && !totalIrrf) totalIrrf = n.irrfValue;
+                                    if (n.sharePercent) sharePercent = n.sharePercent;
                                   } catch {}
                                 }
                               }
@@ -987,6 +990,10 @@ export default function RepassesPage() {
                               }
                               const totalCreditos = Object.values(creditsByCategory).reduce((s, v) => s + v, 0);
                               const totalDebitos = Object.values(debitsByCategory).reduce((s, v) => s + v, 0);
+                              // Líquido do contrato (antes do split)
+                              const liquidoContrato = totalAluguelBruto > 0
+                                ? totalAluguelBruto - totalAdminFee - totalIntermediacao - totalIrrf
+                                : 0;
                               const categoryLabels: Record<string, string> = {
                                 REPASSE: "Repasse Aluguel",
                                 GARANTIA: "Garantia Aluguel",
@@ -1021,8 +1028,13 @@ export default function RepassesPage() {
                                       IRRF: -{formatCurrency(Math.round(totalIrrf * 100) / 100)}
                                     </span>
                                   )}
+                                  {sharePercent && liquidoContrato > 0 && (
+                                    <span className="text-blue-600 font-medium">
+                                      Parte ({sharePercent}%): {formatCurrency(Math.round(liquidoContrato * (sharePercent / 100) * 100) / 100)}
+                                    </span>
+                                  )}
                                   {Object.entries(creditsByCategory)
-                                    .filter(([cat]) => !(cat === "REPASSE" && totalAluguelBruto > 0))
+                                    .filter(([cat]) => !(["REPASSE", "GARANTIA"].includes(cat) && totalAluguelBruto > 0))
                                     .map(([cat, val]) => (
                                     <span key={cat} className="text-emerald-700 font-medium">
                                       + {categoryLabels[cat] || cat}: {formatCurrency(Math.round(val * 100) / 100)}
