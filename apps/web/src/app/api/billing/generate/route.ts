@@ -103,6 +103,16 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      // Contrato que começa no mês alvo: primeira cobrança é no mês seguinte
+      const contractStartDate = new Date(contract.startDate);
+      const csYearCheck = contractStartDate.getUTCFullYear();
+      const csMonthCheck = contractStartDate.getUTCMonth();
+      if (csYearCheck === targetYear && csMonthCheck === targetMonth) {
+        skipped++;
+        console.log(`[Billing] ${contract.code}: pulando mês de início do contrato. Primeira cobrança será no mês seguinte.`);
+        continue;
+      }
+
       try {
         // Calculate due date using paymentDay
         let paymentDay = contract.paymentDay || 10;
@@ -111,25 +121,7 @@ export async function POST(request: NextRequest) {
         if (paymentDay > lastDayOfMonth) paymentDay = lastDayOfMonth;
 
         // Se vencimento cair em final de semana ou feriado, mover para proximo dia util
-        let rawDueDate = new Date(targetYear, targetMonth, paymentDay, 12, 0, 0);
-
-        // Para contratos que iniciam no mês alvo e o vencimento já passou:
-        // dar pelo menos 10 dias a partir do início do contrato
-        const contractStartDate = new Date(contract.startDate);
-        const csYearCheck = contractStartDate.getUTCFullYear();
-        const csMonthCheck = contractStartDate.getUTCMonth();
-        if (csYearCheck === targetYear && csMonthCheck === targetMonth) {
-          const today = new Date();
-          today.setHours(12, 0, 0, 0);
-          if (rawDueDate < today) {
-            // Vencimento já passou — dar 10 dias a partir de hoje
-            const newDue = new Date(today);
-            newDue.setDate(newDue.getDate() + 10);
-            rawDueDate = newDue;
-            console.log(`[Billing] ${contract.code}: vencimento ajustado para ${rawDueDate.toISOString().slice(0, 10)} (contrato novo, vencimento original já passou)`);
-          }
-        }
-
+        const rawDueDate = new Date(targetYear, targetMonth, paymentDay, 12, 0, 0);
         const dueDate = nextBusinessDay(rawDueDate);
 
         // Pro-rata: calcular aluguel proporcional se contrato começa ou termina no meio do mês
