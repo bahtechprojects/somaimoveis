@@ -97,17 +97,24 @@ export async function GET(request: NextRequest) {
 
     const c = contractCache[cacheKey];
     if (c) {
-      const adminFeeValue = Math.round(c.rentalValue * (c.adminFeePercent / 100) * 100) / 100;
+      // Extrair porcentagem do co-proprietário da descrição (ex: "(50%)")
+      const pctMatch = entry.description.match(/\((\d+(?:\.\d+)?)%\)/);
+      const sharePct = pctMatch ? parseFloat(pctMatch[1]) / 100 : 1;
+
+      const propAluguel = Math.round(c.rentalValue * sharePct * 100) / 100;
+      const propAdminFee = Math.round(c.rentalValue * (c.adminFeePercent / 100) * sharePct * 100) / 100;
+
       let existingNotes: Record<string, unknown> = {};
       if (entry.notes) {
         try { existingNotes = JSON.parse(entry.notes); } catch {}
       }
-      // Enriquecer notes com dados do contrato (em memória, sem salvar no banco)
+      // Enriquecer notes com dados do contrato proporcionais (em memória, sem salvar no banco)
       (entry as any).notes = JSON.stringify({
         ...existingNotes,
-        aluguelBruto: c.rentalValue,
+        aluguelBruto: propAluguel,
         adminFeePercent: c.adminFeePercent,
-        adminFeeValue,
+        adminFeeValue: propAdminFee,
+        sharePercent: sharePct < 1 ? sharePct * 100 : undefined,
         netToOwner: entry.value,
       });
     }

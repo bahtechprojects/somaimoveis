@@ -323,22 +323,39 @@ export async function POST(request: NextRequest) {
         }
 
         // Create owner entry records split by PropertyOwner percentages
-        // Enriquecer notes com breakdown para visibilidade (admin fee, intermediação, IRRF)
-        const ownerEntryNotes = JSON.stringify({
-          aluguelBruto: isProrata ? prorataRentalValue : contract.rentalValue,
-          adminFeePercent: adminFee,
-          adminFeeValue: Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100,
-          intermediacao: intermediationInstallmentValue > 0 ? intermediationInstallmentValue : undefined,
-          intermediacaoNota: intermediationNote || undefined,
-          irrfValue: irrfValue > 0 ? irrfValue : undefined,
-          irrfRate: irrfValue > 0 ? irrfRate : undefined,
-          netToOwner,
-        });
-
         // Buscar shares de proprietários (usado para repasse e créditos do locatário)
         const ownerShares = contract.property?.id
           ? await prisma.propertyOwner.findMany({ where: { propertyId: contract.property.id } })
           : [];
+
+        // Helper para gerar notes com breakdown proporcional à porcentagem
+        const buildOwnerNotes = (sharePercent: number) => {
+          const pct = sharePercent / 100;
+          const baseAluguel = isProrata ? prorataRentalValue : contract.rentalValue;
+          const propAluguel = Math.round(baseAluguel * pct * 100) / 100;
+          const propAdminFee = Math.round(prorataRentalValue * (adminFee / 100) * pct * 100) / 100;
+          const propIntermed = intermediationInstallmentValue > 0
+            ? Math.round(intermediationInstallmentValue * pct * 100) / 100
+            : undefined;
+          const propIrrf = irrfValue > 0
+            ? Math.round(irrfValue * pct * 100) / 100
+            : undefined;
+          const propNet = Math.round(netToOwner * pct * 100) / 100;
+          return JSON.stringify({
+            aluguelBruto: propAluguel,
+            adminFeePercent: adminFee,
+            adminFeeValue: propAdminFee,
+            sharePercent,
+            intermediacao: propIntermed,
+            intermediacaoNota: intermediationNote || undefined,
+            irrfValue: propIrrf,
+            irrfRate: irrfValue > 0 ? irrfRate : undefined,
+            netToOwner: propNet,
+          });
+        };
+
+        // Notes para owner único (100%)
+        const ownerEntryNotes = buildOwnerNotes(100);
 
         if (contract.property?.id) {
 
@@ -357,7 +374,7 @@ export async function POST(request: NextRequest) {
                   ownerId: share.ownerId,
                   contractId: contract.id,
                   propertyId: contract.property.id,
-                  notes: ownerEntryNotes,
+                  notes: buildOwnerNotes(share.percentage),
                 },
               });
             }
