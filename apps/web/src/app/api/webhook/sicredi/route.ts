@@ -156,36 +156,9 @@ export async function POST(request: NextRequest) {
       `[Sicredi Webhook] ✅ ${payment.code} LIQUIDADO via ${movimento} - R$ ${(valorPagoNum ?? payment.value).toFixed(2)} (juros: ${valorJuros}, multa: ${valorMulta}, desconto: ${valorDesconto})`
     );
 
-    // Atualizar OwnerEntries de REPASSE vinculados a este contrato/mes
-    try {
-      const paymentDueDate = new Date(payment.dueDate);
-      const monthStart = new Date(paymentDueDate.getFullYear(), paymentDueDate.getMonth(), 1);
-      const monthEnd = new Date(paymentDueDate.getFullYear(), paymentDueDate.getMonth() + 1, 0, 23, 59, 59, 999);
-
-      const updatedEntries = await prisma.ownerEntry.updateMany({
-        where: {
-          contractId: payment.contractId,
-          category: "REPASSE",
-          status: "PENDENTE",
-          dueDate: { gte: monthStart, lte: monthEnd },
-        },
-        data: {
-          status: "PAGO",
-          paidAt: paidAt,
-        },
-      });
-
-      if (updatedEntries.count > 0) {
-        console.log(
-          `[Sicredi Webhook] ${updatedEntries.count} OwnerEntry(s) de repasse marcado(s) como PAGO`
-        );
-      }
-    } catch (ownerEntryError) {
-      console.error(
-        "[Sicredi Webhook] Erro ao atualizar OwnerEntries (nao-critico):",
-        ownerEntryError
-      );
-    }
+    // NÃO marcar repasses como PAGO automaticamente.
+    // O repasse só deve ser marcado como PAGO quando o dinheiro for
+    // efetivamente transferido ao proprietário (via CNAB240 ou manualmente).
 
     return NextResponse.json({
       success: true,
