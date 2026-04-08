@@ -531,10 +531,10 @@ export default function RepassesPage() {
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
                   <TabsList className="h-9 sm:h-8">
                     <TabsTrigger value="pendentes" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">
-                      Pendentes
+                      A Repassar
                     </TabsTrigger>
                     <TabsTrigger value="pagos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">
-                      Pagos
+                      Repassados
                     </TabsTrigger>
                     <TabsTrigger value="todos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">
                       Todos
@@ -608,7 +608,7 @@ export default function RepassesPage() {
                 <p className="text-sm text-muted-foreground">
                   {search
                     ? "Nenhum proprietario encontrado."
-                    : `Nenhum repasse ${activeTab === "pendentes" ? "pendente" : activeTab === "pagos" ? "pago" : ""} para ${formatMonthLabel(month)}.`}
+                    : `Nenhum repasse ${activeTab === "pendentes" ? "a repassar" : activeTab === "pagos" ? "repassado" : ""} para ${formatMonthLabel(month)}.`}
                 </p>
               </div>
             ) : (
