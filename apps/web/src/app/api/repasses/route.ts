@@ -54,6 +54,65 @@ export async function GET(request: NextRequest) {
     orderBy: { dueDate: "asc" },
   });
 
+  // Para entries REPASSE/GARANTIA sem admin fee no notes, buscar do contrato
+  const contractCache: Record<string, { rentalValue: number; adminFeePercent: number }> = {};
+  for (const entry of entries) {
+    if (!["REPASSE", "GARANTIA"].includes(entry.category)) continue;
+    // Verificar se já tem admin fee no notes
+    let hasAdminFee = false;
+    if (entry.notes) {
+      try {
+        const n = JSON.parse(entry.notes);
+        if (n.adminFeePercent !== undefined) hasAdminFee = true;
+      } catch {}
+    }
+    if (hasAdminFee) continue;
+
+    // Buscar contrato e injetar no notes
+    const cacheKey = entry.contractId || `owner-${entry.ownerId}-${entry.propertyId}`;
+    if (!contractCache[cacheKey]) {
+      let contract: { rentalValue: number; adminFeePercent: number } | null = null;
+      if (entry.contractId) {
+        contract = await prisma.contract.findUnique({
+          where: { id: entry.contractId },
+          select: { rentalValue: true, adminFeePercent: true },
+        });
+      }
+      if (!contract) {
+        const contracts = await prisma.contract.findMany({
+          where: {
+            ownerId: entry.ownerId,
+            status: "ATIVO",
+            ...(entry.propertyId ? { propertyId: entry.propertyId } : {}),
+          },
+          select: { rentalValue: true, adminFeePercent: true },
+          take: 1,
+        });
+        if (contracts.length > 0) contract = contracts[0];
+      }
+      if (contract) {
+        contractCache[cacheKey] = contract;
+      }
+    }
+
+    const c = contractCache[cacheKey];
+    if (c) {
+      const adminFeeValue = Math.round(c.rentalValue * (c.adminFeePercent / 100) * 100) / 100;
+      let existingNotes: Record<string, unknown> = {};
+      if (entry.notes) {
+        try { existingNotes = JSON.parse(entry.notes); } catch {}
+      }
+      // Enriquecer notes com dados do contrato (em memória, sem salvar no banco)
+      (entry as any).notes = JSON.stringify({
+        ...existingNotes,
+        aluguelBruto: c.rentalValue,
+        adminFeePercent: c.adminFeePercent,
+        adminFeeValue,
+        netToOwner: entry.value,
+      });
+    }
+  }
+
   // Buscar debitos PENDENTES dos proprietarios para descontar do repasse
   const ownerIds = [...new Set(entries.map((e) => e.ownerId))];
   const debitWhere: Record<string, unknown> = {

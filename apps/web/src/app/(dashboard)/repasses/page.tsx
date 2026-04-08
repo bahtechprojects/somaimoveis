@@ -1079,7 +1079,7 @@ export default function RepassesPage() {
                                             ) : entry.category}
                                           </Badge>
                                         )}
-                                        {entry.notes && entry.category === "REPASSE" ? (() => {
+                                        {entry.notes && ["REPASSE", "GARANTIA"].includes(entry.category) ? (() => {
                                           try {
                                             const n = JSON.parse(entry.notes!);
                                             if (!n.adminFeePercent) return <span>{entry.description}</span>;
