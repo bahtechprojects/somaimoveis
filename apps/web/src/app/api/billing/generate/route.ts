@@ -31,11 +31,15 @@ export async function POST(request: NextRequest) {
     const monthStart = new Date(targetYear, targetMonth, 1);
     const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
 
-    // Find active contracts (status ATIVO, started before target month)
+    // Find active contracts (status ATIVO, started before target month, not ended before it)
     const contracts = await prisma.contract.findMany({
       where: {
         status: "ATIVO",
         startDate: { lte: monthEnd },
+        OR: [
+          { endDate: null },
+          { endDate: { gte: monthStart } },
+        ],
       },
       include: {
         property: {
