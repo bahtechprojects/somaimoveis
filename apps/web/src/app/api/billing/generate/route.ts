@@ -310,6 +310,18 @@ export async function POST(request: NextRequest) {
         }
 
         // Create owner entry records split by PropertyOwner percentages
+        // Enriquecer notes com breakdown para visibilidade (admin fee, intermediação, IRRF)
+        const ownerEntryNotes = JSON.stringify({
+          aluguelBruto: isProrata ? prorataRentalValue : contract.rentalValue,
+          adminFeePercent: adminFee,
+          adminFeeValue: Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100,
+          intermediacao: intermediationInstallmentValue > 0 ? intermediationInstallmentValue : undefined,
+          intermediacaoNota: intermediationNote || undefined,
+          irrfValue: irrfValue > 0 ? irrfValue : undefined,
+          irrfRate: irrfValue > 0 ? irrfRate : undefined,
+          netToOwner,
+        });
+
         if (contract.property?.id) {
           const ownerShares = await prisma.propertyOwner.findMany({
             where: { propertyId: contract.property.id },
@@ -330,6 +342,7 @@ export async function POST(request: NextRequest) {
                   ownerId: share.ownerId,
                   contractId: contract.id,
                   propertyId: contract.property.id,
+                  notes: ownerEntryNotes,
                 },
               });
             }
@@ -346,6 +359,7 @@ export async function POST(request: NextRequest) {
                 ownerId: contract.ownerId,
                 contractId: contract.id,
                 propertyId: contract.property.id,
+                notes: ownerEntryNotes,
               },
             });
           }

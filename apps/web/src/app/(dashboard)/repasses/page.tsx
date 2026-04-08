@@ -28,6 +28,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Search,
   CheckCircle2,
   Clock,
@@ -939,7 +945,46 @@ export default function RepassesPage() {
                                       </TableCell>
                                     )}
                                     <TableCell className="text-xs">
-                                      {entry.description}
+                                      <div className="flex items-center gap-1.5">
+                                        {entry.category !== "REPASSE" && (
+                                          <Badge variant="outline" className={cn(
+                                            "text-[9px] h-4 px-1 border shrink-0",
+                                            entry.category === "IPTU" ? "bg-purple-50 text-purple-700 border-purple-200" :
+                                            entry.category === "CONDOMINIO" ? "bg-orange-50 text-orange-700 border-orange-200" :
+                                            entry.category === "GARANTIA" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                                            "bg-slate-50 text-slate-600 border-slate-200"
+                                          )}>
+                                            {entry.category}
+                                          </Badge>
+                                        )}
+                                        {entry.notes && entry.category === "REPASSE" ? (() => {
+                                          try {
+                                            const n = JSON.parse(entry.notes!);
+                                            if (!n.adminFeePercent) return <span>{entry.description}</span>;
+                                            return (
+                                              <TooltipProvider delayDuration={200}>
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <span className="cursor-help underline decoration-dotted">{entry.description}</span>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent side="bottom" className="max-w-xs p-3 space-y-1">
+                                                    <p className="font-medium border-b pb-1 mb-1 text-xs">Composição do Repasse</p>
+                                                    <p className="text-xs">Aluguel bruto: {formatCurrency(n.aluguelBruto)}</p>
+                                                    <p className="text-xs text-red-600">- Taxa adm ({n.adminFeePercent}%): {formatCurrency(n.adminFeeValue)}</p>
+                                                    {n.intermediacao > 0 && (
+                                                      <p className="text-xs text-red-600">- Intermediação: {formatCurrency(n.intermediacao)}</p>
+                                                    )}
+                                                    {n.irrfValue > 0 && (
+                                                      <p className="text-xs text-red-600">- IRRF ({(n.irrfRate * 100).toFixed(1)}%): {formatCurrency(n.irrfValue)}</p>
+                                                    )}
+                                                    <p className="text-xs font-semibold border-t pt-1 mt-1">= Líquido: {formatCurrency(n.netToOwner)}</p>
+                                                  </TooltipContent>
+                                                </Tooltip>
+                                              </TooltipProvider>
+                                            );
+                                          } catch { return <span>{entry.description}</span>; }
+                                        })() : <span>{entry.description}</span>}
+                                      </div>
                                     </TableCell>
                                     <TableCell className="text-xs">
                                       {formatDate(entry.dueDate)}
@@ -978,25 +1023,37 @@ export default function RepassesPage() {
                                 </div>
                                 <Table>
                                   <TableBody>
-                                    {group.debitEntries!.map((debit) => (
-                                      <TableRow key={debit.id} className="hover:bg-red-50">
-                                        {activeTab === "pendentes" && <TableCell className="w-10" />}
-                                        <TableCell className="text-xs text-red-700">
-                                          {debit.description}
-                                        </TableCell>
-                                        <TableCell className="text-xs text-red-500">
-                                          {formatDate(debit.dueDate)}
-                                        </TableCell>
-                                        <TableCell>
-                                          <Badge variant="outline" className="text-[10px] h-5 border bg-red-100 text-red-700 border-red-200">
-                                            {debit.category}
-                                          </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right text-xs font-semibold text-red-600">
-                                          -{formatCurrency(debit.value)}
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
+                                    {group.debitEntries!.map((debit) => {
+                                      const isCarryover = debit.dueDate && month
+                                        ? new Date(debit.dueDate) < new Date(parseInt(month.split("-")[0]), parseInt(month.split("-")[1]) - 1, 1)
+                                        : false;
+                                      return (
+                                        <TableRow key={debit.id} className="hover:bg-red-50">
+                                          {activeTab === "pendentes" && <TableCell className="w-10" />}
+                                          <TableCell className="text-xs text-red-700">
+                                            <div className="flex items-center gap-1.5">
+                                              {isCarryover && (
+                                                <Badge variant="outline" className="text-[9px] h-4 px-1 border bg-orange-50 text-orange-600 border-orange-200 shrink-0">
+                                                  Mês anterior
+                                                </Badge>
+                                              )}
+                                              <span>{debit.description}</span>
+                                            </div>
+                                          </TableCell>
+                                          <TableCell className="text-xs text-red-500">
+                                            {formatDate(debit.dueDate)}
+                                          </TableCell>
+                                          <TableCell>
+                                            <Badge variant="outline" className="text-[10px] h-5 border bg-red-100 text-red-700 border-red-200">
+                                              {debit.category}
+                                            </Badge>
+                                          </TableCell>
+                                          <TableCell className="text-right text-xs font-semibold text-red-600">
+                                            -{formatCurrency(debit.value)}
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
                                   </TableBody>
                                 </Table>
                               </div>

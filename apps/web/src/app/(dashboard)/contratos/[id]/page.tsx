@@ -778,6 +778,7 @@ export default function ContratoDetalhePage() {
                         <TableHead className="text-xs">Status</TableHead>
                         <TableHead className="text-xs">Boleto</TableHead>
                         <TableHead className="text-xs">Metodo</TableHead>
+                        <TableHead className="text-xs">Acoes</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -848,6 +849,30 @@ export default function ContratoDetalhePage() {
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               {payment.paymentMethod || "-"}
+                            </TableCell>
+                            <TableCell>
+                              {(payment.status === "ATRASADO" || (payment.status === "PENDENTE" && new Date(payment.dueDate) < new Date())) && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs gap-1 text-amber-700 border-amber-300 hover:bg-amber-50"
+                                  onClick={async () => {
+                                    if (!confirm(`Garantir aluguel de ${formatCurrency(payment.netToOwner ?? payment.splitOwnerValue ?? payment.value)} ao proprietário?`)) return;
+                                    try {
+                                      const res = await fetch(`/api/payments/${payment.id}/guarantee`, { method: "POST" });
+                                      const data = await res.json();
+                                      if (!res.ok) throw new Error(data.error || "Erro");
+                                      toast.success(data.message);
+                                      fetchContract();
+                                    } catch (err: any) {
+                                      toast.error(err.message || "Erro ao garantir");
+                                    }
+                                  }}
+                                >
+                                  <Shield className="h-3 w-3" />
+                                  Garantir
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         );

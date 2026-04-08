@@ -11,9 +11,9 @@ export async function GET(request: NextRequest) {
   const ownerIds = searchParams.get("ownerIds"); // comma-separated
   const format = searchParams.get("format") || "csv"; // csv or json
 
+  // Incluir TODOS os créditos pendentes (REPASSE, IPTU, CONDOMINIO, GARANTIA, etc.)
   const where: Record<string, unknown> = {
     type: "CREDITO",
-    category: "REPASSE",
     status: "PENDENTE",
   };
 

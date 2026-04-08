@@ -10,9 +10,9 @@ export async function GET(request: NextRequest) {
   const month = searchParams.get("month"); // YYYY-MM
   const status = searchParams.get("status"); // PENDENTE, PAGO, all
 
+  // Incluir TODOS os créditos do proprietário (REPASSE, IPTU, CONDOMINIO, GARANTIA, etc.)
   const creditWhere: Record<string, unknown> = {
     type: "CREDITO",
-    category: "REPASSE",
   };
 
   if (status && status !== "all") {

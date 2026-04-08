@@ -26,10 +26,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Buscar repasses pendentes
+    // Buscar todos os créditos pendentes (REPASSE, IPTU, CONDOMINIO, GARANTIA, etc.)
     const where: Record<string, unknown> = {
       type: "CREDITO",
-      category: "REPASSE",
       status: "PENDENTE",
     };
 

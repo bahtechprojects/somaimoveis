@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
 
   const validCategories = [
     "REPASSE", "REPARO", "TAXA_BANCARIA", "IPTU", "CONDOMINIO",
-    "INTERMEDIACAO", "DESCONTO", "ACORDO", "OUTROS",
+    "INTERMEDIACAO", "DESCONTO", "ACORDO", "GARANTIA", "OUTROS",
   ];
   if (!validCategories.includes(category)) {
     return NextResponse.json(
