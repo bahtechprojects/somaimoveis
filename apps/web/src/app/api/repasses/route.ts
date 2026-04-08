@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
       totalDebitos: Math.round(g.totalDebitos * 100) / 100,
       totalLiquido: Math.round((g.totalPendente - g.totalDebitos) * 100) / 100,
     }))
-    .sort((a, b) => b.totalLiquido - a.totalLiquido);
+    .sort((a, b) => a.owner.name.localeCompare(b.owner.name, "pt-BR"));
 
   return NextResponse.json(result);
 }

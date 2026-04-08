@@ -335,10 +335,12 @@ export async function POST(request: NextRequest) {
           netToOwner,
         });
 
+        // Buscar shares de proprietários (usado para repasse e créditos do locatário)
+        const ownerShares = contract.property?.id
+          ? await prisma.propertyOwner.findMany({ where: { propertyId: contract.property.id } })
+          : [];
+
         if (contract.property?.id) {
-          const ownerShares = await prisma.propertyOwner.findMany({
-            where: { propertyId: contract.property.id },
-          });
 
           if (ownerShares.length > 0) {
             // Multiple owners: create split entries for each
@@ -373,6 +375,62 @@ export async function POST(request: NextRequest) {
                 contractId: contract.id,
                 propertyId: contract.property.id,
                 notes: ownerEntryNotes,
+              },
+            });
+          }
+        }
+
+        // Criar créditos no proprietário para lançamentos do locatário com destino=PROPRIETARIO
+        // Ex: IPTU cobrado do locatário que deve ser repassado ao proprietário
+        const ownerCreditEntries = chargeEntries.filter(
+          (e) => e.destination === "PROPRIETARIO"
+        );
+        for (const tenantEntry of ownerCreditEntries) {
+          const categoryMap: Record<string, string> = {
+            IPTU: "IPTU",
+            CONDOMINIO: "CONDOMINIO",
+          };
+          const ownerCategory = categoryMap[tenantEntry.category] || tenantEntry.category;
+
+          if (ownerShares && ownerShares.length > 0) {
+            for (const share of ownerShares) {
+              const portion = Math.round(tenantEntry.value * (share.percentage / 100) * 100) / 100;
+              await prisma.ownerEntry.create({
+                data: {
+                  type: "CREDITO",
+                  category: ownerCategory,
+                  description: `${tenantEntry.category} ${mLabel} - ${contract.code} (${share.percentage}%)`,
+                  value: portion,
+                  dueDate,
+                  status: "PENDENTE",
+                  ownerId: share.ownerId,
+                  contractId: contract.id,
+                  propertyId: contract.property?.id,
+                  notes: JSON.stringify({
+                    tenantEntryId: tenantEntry.id,
+                    originalDescription: tenantEntry.description,
+                    destination: "PROPRIETARIO",
+                  }),
+                },
+              });
+            }
+          } else {
+            await prisma.ownerEntry.create({
+              data: {
+                type: "CREDITO",
+                category: ownerCategory,
+                description: `${tenantEntry.category} ${mLabel} - ${contract.code}`,
+                value: tenantEntry.value,
+                dueDate,
+                status: "PENDENTE",
+                ownerId: contract.ownerId,
+                contractId: contract.id,
+                propertyId: contract.property?.id,
+                notes: JSON.stringify({
+                  tenantEntryId: tenantEntry.id,
+                  originalDescription: tenantEntry.description,
+                  destination: "PROPRIETARIO",
+                }),
               },
             });
           }

@@ -955,6 +955,50 @@ export default function RepassesPage() {
                               )}
                             </div>
 
+                            {/* Composição resumida */}
+                            {(() => {
+                              const creditsByCategory: Record<string, number> = {};
+                              for (const e of group.entries) {
+                                if (e.status === "CANCELADO") continue;
+                                creditsByCategory[e.category] = (creditsByCategory[e.category] || 0) + e.value;
+                              }
+                              const debitsByCategory: Record<string, number> = {};
+                              for (const d of (group.debitEntries || [])) {
+                                debitsByCategory[d.category] = (debitsByCategory[d.category] || 0) + d.value;
+                              }
+                              const totalCreditos = Object.values(creditsByCategory).reduce((s, v) => s + v, 0);
+                              const totalDebitos = Object.values(debitsByCategory).reduce((s, v) => s + v, 0);
+                              const categoryLabels: Record<string, string> = {
+                                REPASSE: "Repasse Aluguel",
+                                GARANTIA: "Garantia Aluguel",
+                                IPTU: "Crédito IPTU",
+                                CONDOMINIO: "Crédito Condomínio",
+                                INTERMEDIACAO: "Intermediação",
+                                REPARO: "Reparo",
+                                TAXA_BANCARIA: "Taxa Bancária",
+                                DESCONTO: "Desconto",
+                                ACORDO: "Acordo",
+                                OUTROS: "Outros",
+                              };
+                              return (
+                                <div className="px-6 py-2 border-b bg-slate-50/50 flex flex-wrap items-center gap-x-6 gap-y-1 text-[11px]">
+                                  {Object.entries(creditsByCategory).map(([cat, val]) => (
+                                    <span key={cat} className="text-emerald-700 font-medium">
+                                      + {categoryLabels[cat] || cat}: {formatCurrency(Math.round(val * 100) / 100)}
+                                    </span>
+                                  ))}
+                                  {Object.entries(debitsByCategory).map(([cat, val]) => (
+                                    <span key={cat} className="text-red-600 font-medium">
+                                      - {categoryLabels[cat] || cat}: {formatCurrency(Math.round(val * 100) / 100)}
+                                    </span>
+                                  ))}
+                                  <span className="font-bold text-xs ml-auto">
+                                    = {formatCurrency(Math.round((totalCreditos - totalDebitos) * 100) / 100)}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+
                             {/* Entries table */}
                             <Table>
                               <TableHeader>
