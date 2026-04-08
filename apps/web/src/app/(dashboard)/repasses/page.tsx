@@ -961,9 +961,25 @@ export default function RepassesPage() {
                             {/* Composição resumida */}
                             {(() => {
                               const creditsByCategory: Record<string, number> = {};
+                              let totalAdminFee = 0;
+                              let adminFeePercent = 0;
+                              let totalAluguelBruto = 0;
+                              let totalIntermediacao = 0;
+                              let totalIrrf = 0;
                               for (const e of group.entries) {
                                 if (e.status === "CANCELADO") continue;
                                 creditsByCategory[e.category] = (creditsByCategory[e.category] || 0) + e.value;
+                                // Extrair taxa adm do notes dos entries REPASSE
+                                if (e.category === "REPASSE" && e.notes) {
+                                  try {
+                                    const n = JSON.parse(e.notes);
+                                    if (n.adminFeeValue) totalAdminFee += n.adminFeeValue;
+                                    if (n.adminFeePercent) adminFeePercent = n.adminFeePercent;
+                                    if (n.aluguelBruto) totalAluguelBruto += n.aluguelBruto;
+                                    if (n.intermediacao) totalIntermediacao += n.intermediacao;
+                                    if (n.irrfValue) totalIrrf += n.irrfValue;
+                                  } catch {}
+                                }
                               }
                               const debitsByCategory: Record<string, number> = {};
                               for (const d of (group.debitEntries || [])) {
@@ -985,6 +1001,26 @@ export default function RepassesPage() {
                               };
                               return (
                                 <div className="px-6 py-2 border-b bg-slate-50/50 flex flex-wrap items-center gap-x-6 gap-y-1 text-[11px]">
+                                  {totalAluguelBruto > 0 && (
+                                    <span className="text-muted-foreground">
+                                      Aluguel bruto: {formatCurrency(Math.round(totalAluguelBruto * 100) / 100)}
+                                    </span>
+                                  )}
+                                  {totalAdminFee > 0 && (
+                                    <span className="text-orange-600 font-medium">
+                                      Taxa adm ({adminFeePercent}%): -{formatCurrency(Math.round(totalAdminFee * 100) / 100)}
+                                    </span>
+                                  )}
+                                  {totalIntermediacao > 0 && (
+                                    <span className="text-orange-600 font-medium">
+                                      Intermediação: -{formatCurrency(Math.round(totalIntermediacao * 100) / 100)}
+                                    </span>
+                                  )}
+                                  {totalIrrf > 0 && (
+                                    <span className="text-orange-600 font-medium">
+                                      IRRF: -{formatCurrency(Math.round(totalIrrf * 100) / 100)}
+                                    </span>
+                                  )}
                                   {Object.entries(creditsByCategory).map(([cat, val]) => (
                                     <span key={cat} className="text-emerald-700 font-medium">
                                       + {categoryLabels[cat] || cat}: {formatCurrency(Math.round(val * 100) / 100)}
