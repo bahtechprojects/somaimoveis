@@ -36,10 +36,9 @@ export async function POST(request: NextRequest) {
       where: {
         status: "ATIVO",
         startDate: { lte: monthEnd },
-        OR: [
-          { endDate: null },
-          { endDate: { gte: monthStart } },
-        ],
+        NOT: {
+          endDate: { lt: monthStart },
+        },
       },
       include: {
         property: {
