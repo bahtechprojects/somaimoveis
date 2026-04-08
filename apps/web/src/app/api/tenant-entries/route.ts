@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       data: {
         type,
         category,
-        description,
+        description: `${description} ${1}/${installments}`,
         value: installmentValue,
         tenantId,
         dueDate: baseDueDate,
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
         data: {
           type,
           category,
-          description,
+          description: `${description} ${i}/${installments}`,
           value: i === installments ? lastInstallmentValue : installmentValue,
           tenantId,
           dueDate: entryDueDate,

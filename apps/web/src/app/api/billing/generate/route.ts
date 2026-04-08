@@ -391,6 +391,9 @@ export async function POST(request: NextRequest) {
             CONDOMINIO: "CONDOMINIO",
           };
           const ownerCategory = categoryMap[tenantEntry.category] || tenantEntry.category;
+          const installmentLabel = tenantEntry.installmentNumber && tenantEntry.installmentTotal
+            ? ` ${tenantEntry.installmentNumber}/${tenantEntry.installmentTotal}`
+            : "";
 
           if (ownerShares && ownerShares.length > 0) {
             for (const share of ownerShares) {
@@ -399,7 +402,7 @@ export async function POST(request: NextRequest) {
                 data: {
                   type: "CREDITO",
                   category: ownerCategory,
-                  description: `${tenantEntry.category} ${mLabel} - ${contract.code} (${share.percentage}%)`,
+                  description: `${tenantEntry.category}${installmentLabel} ${mLabel} - ${contract.code} (${share.percentage}%)`,
                   value: portion,
                   dueDate,
                   status: "PENDENTE",
@@ -419,7 +422,7 @@ export async function POST(request: NextRequest) {
               data: {
                 type: "CREDITO",
                 category: ownerCategory,
-                description: `${tenantEntry.category} ${mLabel} - ${contract.code}`,
+                description: `${tenantEntry.category}${installmentLabel} ${mLabel} - ${contract.code}`,
                 value: tenantEntry.value,
                 dueDate,
                 status: "PENDENTE",
