@@ -98,8 +98,8 @@ export async function GET(request: NextRequest) {
     const c = contractCache[cacheKey];
     if (c) {
       // Extrair porcentagem do co-proprietário da descrição (ex: "(50%)")
-      const pctMatch = entry.description.match(/\((\d+(?:\.\d+)?)%\)/);
-      const sharePercent = pctMatch ? parseFloat(pctMatch[1]) : undefined;
+      const pctMatch = entry.description.match(/\((\d+(?:[.,]\d+)?)%\)/);
+      const sharePercent = pctMatch ? parseFloat(pctMatch[1].replace(",", ".")) : undefined;
 
       // Taxa adm é sobre o valor TOTAL do contrato, depois divide pela porcentagem
       const totalAdminFee = Math.round(c.rentalValue * (c.adminFeePercent / 100) * 100) / 100;

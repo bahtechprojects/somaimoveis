@@ -278,7 +278,7 @@ export async function POST() {
           );
         } else {
           // Trocar porcentagem existente
-          desc = desc.replace(/\(\d+%\)/, `(${missing.percentage}%)`);
+          desc = desc.replace(/\(\d+(?:[.,]\d+)?%\)/, `(${missing.percentage}%)`);
         }
 
         try {
