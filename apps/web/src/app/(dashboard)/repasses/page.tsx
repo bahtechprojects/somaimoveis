@@ -1021,7 +1021,9 @@ export default function RepassesPage() {
                                       IRRF: -{formatCurrency(Math.round(totalIrrf * 100) / 100)}
                                     </span>
                                   )}
-                                  {Object.entries(creditsByCategory).map(([cat, val]) => (
+                                  {Object.entries(creditsByCategory)
+                                    .filter(([cat]) => !(cat === "REPASSE" && totalAluguelBruto > 0))
+                                    .map(([cat, val]) => (
                                     <span key={cat} className="text-emerald-700 font-medium">
                                       + {categoryLabels[cat] || cat}: {formatCurrency(Math.round(val * 100) / 100)}
                                     </span>
