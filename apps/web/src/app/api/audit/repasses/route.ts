@@ -18,7 +18,6 @@ export async function GET() {
     },
     include: {
       owner: { select: { name: true } },
-      contract: { select: { code: true } },
     },
     orderBy: { dueDate: "desc" },
   });
@@ -28,7 +27,6 @@ export async function GET() {
     entries: pagoEntries.map((e) => ({
       id: e.id,
       owner: e.owner.name,
-      contract: e.contract?.code || "-",
       value: e.value,
       dueDate: e.dueDate,
       paidAt: e.paidAt,
