@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
 
+  try {
   const { searchParams } = new URL(request.url);
   const month = searchParams.get("month"); // YYYY-MM
   const status = searchParams.get("status"); // PENDENTE, PAGO, all
@@ -55,68 +56,72 @@ export async function GET(request: NextRequest) {
   });
 
   // Para entries REPASSE/GARANTIA sem admin fee no notes, buscar do contrato
-  const contractCache: Record<string, { rentalValue: number; adminFeePercent: number }> = {};
-  for (const entry of entries) {
-    if (!["REPASSE", "GARANTIA"].includes(entry.category)) continue;
-    // Verificar se já tem admin fee no notes
-    let hasAdminFee = false;
-    if (entry.notes) {
-      try {
-        const n = JSON.parse(entry.notes);
-        if (n.adminFeePercent !== undefined) hasAdminFee = true;
-      } catch {}
-    }
-    if (hasAdminFee) continue;
-
-    // Buscar contrato e injetar no notes
-    const cacheKey = entry.contractId || `owner-${entry.ownerId}-${entry.propertyId}`;
-    if (!contractCache[cacheKey]) {
-      let contract: { rentalValue: number; adminFeePercent: number } | null = null;
-      if (entry.contractId) {
-        contract = await prisma.contract.findUnique({
-          where: { id: entry.contractId },
-          select: { rentalValue: true, adminFeePercent: true },
-        });
-      }
-      if (!contract) {
-        const contracts = await prisma.contract.findMany({
-          where: {
-            ownerId: entry.ownerId,
-            status: "ATIVO",
-            ...(entry.propertyId ? { propertyId: entry.propertyId } : {}),
-          },
-          select: { rentalValue: true, adminFeePercent: true },
-          take: 1,
-        });
-        if (contracts.length > 0) contract = contracts[0];
-      }
-      if (contract) {
-        contractCache[cacheKey] = contract;
-      }
-    }
-
-    const c = contractCache[cacheKey];
-    if (c) {
-      // Extrair porcentagem do co-proprietário da descrição (ex: "(50%)")
-      const pctMatch = entry.description.match(/\((\d+(?:[.,]\d+)?)%\)/);
-      const sharePercent = pctMatch ? parseFloat(pctMatch[1].replace(",", ".")) : undefined;
-
-      // Taxa adm é sobre o valor TOTAL do contrato, depois divide pela porcentagem
-      const totalAdminFee = Math.round(c.rentalValue * (c.adminFeePercent / 100) * 100) / 100;
-
-      let existingNotes: Record<string, unknown> = {};
+  try {
+    const contractCache: Record<string, { rentalValue: number; adminFeePercent: number }> = {};
+    for (const entry of entries) {
+      if (!["REPASSE", "GARANTIA"].includes(entry.category)) continue;
+      let hasAdminFee = false;
       if (entry.notes) {
-        try { existingNotes = JSON.parse(entry.notes); } catch {}
+        try {
+          const n = JSON.parse(entry.notes);
+          if (n.adminFeePercent !== undefined) hasAdminFee = true;
+        } catch {}
       }
-      (entry as any).notes = JSON.stringify({
-        ...existingNotes,
-        aluguelBruto: c.rentalValue,
-        adminFeePercent: c.adminFeePercent,
-        adminFeeValue: totalAdminFee,
-        sharePercent,
-        netToOwner: entry.value,
-      });
+      if (hasAdminFee) continue;
+
+      const cacheKey = entry.contractId || `owner-${entry.ownerId}-${entry.propertyId}`;
+      if (!contractCache[cacheKey]) {
+        try {
+          let contract: { rentalValue: number; adminFeePercent: number } | null = null;
+          if (entry.contractId) {
+            contract = await prisma.contract.findUnique({
+              where: { id: entry.contractId },
+              select: { rentalValue: true, adminFeePercent: true },
+            });
+          }
+          if (!contract) {
+            const contracts = await prisma.contract.findMany({
+              where: {
+                ownerId: entry.ownerId,
+                status: "ATIVO",
+                ...(entry.propertyId ? { propertyId: entry.propertyId } : {}),
+              },
+              select: { rentalValue: true, adminFeePercent: true },
+              take: 1,
+            });
+            if (contracts.length > 0) contract = contracts[0];
+          }
+          if (contract) {
+            contractCache[cacheKey] = contract;
+          }
+        } catch (err) {
+          console.error(`[Repasses] Erro ao buscar contrato para entry ${entry.id}:`, err);
+          continue;
+        }
+      }
+
+      const c = contractCache[cacheKey];
+      if (c) {
+        const pctMatch = entry.description.match(/\((\d+(?:[.,]\d+)?)%\)/);
+        const sharePercent = pctMatch ? parseFloat(pctMatch[1].replace(",", ".")) : undefined;
+        const totalAdminFee = Math.round(c.rentalValue * (c.adminFeePercent / 100) * 100) / 100;
+
+        let existingNotes: Record<string, unknown> = {};
+        if (entry.notes) {
+          try { existingNotes = JSON.parse(entry.notes); } catch {}
+        }
+        (entry as any).notes = JSON.stringify({
+          ...existingNotes,
+          aluguelBruto: c.rentalValue,
+          adminFeePercent: c.adminFeePercent,
+          adminFeeValue: totalAdminFee,
+          sharePercent,
+          netToOwner: entry.value,
+        });
+      }
     }
+  } catch (err) {
+    console.error("[Repasses] Erro no enriquecimento de notes:", err);
   }
 
   // Buscar debitos PENDENTES dos proprietarios para descontar do repasse
@@ -127,12 +132,12 @@ export async function GET(request: NextRequest) {
     ownerId: { in: ownerIds },
   };
   // Se filtro de mes, pegar debitos do mesmo mes ou anteriores (acumulados)
+  // Inclui débitos sem data OU com data anterior ao fim do mês
   if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [y, m] = month.split("-").map(Number);
-    debitWhere.OR = [
-      { dueDate: { lt: new Date(y, m, 1) } },
-      { dueDate: null },
-    ];
+    debitWhere.NOT = {
+      dueDate: { gte: new Date(y, m, 1) },
+    };
   }
   const debitEntries = await prisma.ownerEntry.findMany({
     where: debitWhere,
@@ -204,6 +209,13 @@ export async function GET(request: NextRequest) {
     .sort((a, b) => a.owner.name.localeCompare(b.owner.name, "pt-BR"));
 
   return NextResponse.json(result);
+  } catch (error) {
+    console.error("[Repasses GET] Erro:", error);
+    return NextResponse.json(
+      { error: "Erro ao buscar repasses", details: error instanceof Error ? error.message : "Erro desconhecido" },
+      { status: 500 }
+    );
+  }
 }
 
 // PATCH - batch update: mark multiple entries as PAGO

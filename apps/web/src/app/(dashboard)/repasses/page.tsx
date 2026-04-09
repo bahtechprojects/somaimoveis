@@ -197,9 +197,14 @@ export default function RepassesPage() {
       if (response.ok) {
         const data = await response.json();
         setGroups(data);
+      } else {
+        const errText = await response.text().catch(() => "");
+        console.error("Erro ao buscar repasses:", response.status, errText);
+        toast.error(`Erro ao carregar repasses (${response.status})`);
       }
     } catch (error) {
       console.error("Erro ao buscar repasses:", error);
+      toast.error("Erro de conexão ao carregar repasses");
     } finally {
       setLoading(false);
     }
