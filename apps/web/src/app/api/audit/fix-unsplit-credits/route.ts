@@ -197,10 +197,12 @@ export async function POST() {
       let ownerPct: number;
       if (ownerShare) {
         ownerPct = ownerShare.percentage;
-      } else if (contract && contract.ownerId === entry.ownerId && totalSharePct < 100) {
+      } else if (totalSharePct < 100) {
+        // Owner não está em PropertyOwner - assume o restante
         ownerPct = Math.round((100 - totalSharePct) * 100) / 100;
       } else {
-        continue;
+        // Tentar encontrar proporção igual (ex: 2 co-owners = 50% cada)
+        ownerPct = Math.round((100 / (shares.length + 1)) * 100) / 100;
       }
 
       const originalValue = entry.value; // Valor cheio (sem split)
