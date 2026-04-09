@@ -32,14 +32,45 @@ async function findFixes() {
   // Buscar contratos vinculados a essas propriedades
   const propertyIds = splitProperties.map(([pid]) => pid);
   const contracts = await prisma.contract.findMany({
-    where: { propertyId: { in: propertyIds } },
+    where: { propertyId: { in: propertyIds }, status: "ATIVO" },
     select: { id: true, propertyId: true, ownerId: true, rentalValue: true, adminFeePercent: true },
+    // include owner name for display
   });
   const contractsByProperty: Record<string, typeof contracts> = {};
   for (const c of contracts) {
     if (!c.propertyId) continue;
     if (!contractsByProperty[c.propertyId]) contractsByProperty[c.propertyId] = [];
     contractsByProperty[c.propertyId].push(c);
+  }
+
+  // Garantir que o proprietário do contrato está na lista de shares
+  // Se PropertyOwner só tem co-proprietário mas não o principal, incluir com o restante
+  for (const [propertyId, shares] of splitProperties) {
+    const propContracts = contractsByProperty[propertyId] || [];
+    for (const contract of propContracts) {
+      const ownerInShares = shares.some(s => s.ownerId === contract.ownerId);
+      if (!ownerInShares) {
+        const totalPct = shares.reduce((s, sh) => s + sh.percentage, 0);
+        if (totalPct < 100) {
+          const remainingPct = Math.round((100 - totalPct) * 100) / 100;
+          // Buscar dados do owner
+          const owner = await prisma.owner.findUnique({
+            where: { id: contract.ownerId },
+            select: { id: true, name: true },
+          });
+          if (owner) {
+            shares.push({
+              id: `virtual-${contract.ownerId}`,
+              propertyId,
+              ownerId: contract.ownerId,
+              percentage: remainingPct,
+              owner,
+              property: shares[0].property,
+            } as any);
+          }
+        }
+      }
+    }
   }
 
   const fixes = [];
@@ -187,15 +218,43 @@ export async function POST() {
     const splitProperties = Object.entries(sharesByProperty).filter(([, shares]) => shares.length >= 2);
 
     const propertyIds = splitProperties.map(([pid]) => pid);
-    const contracts = await prisma.contract.findMany({
-      where: { propertyId: { in: propertyIds } },
-      select: { id: true, propertyId: true },
+    const contractsForPost = await prisma.contract.findMany({
+      where: { propertyId: { in: propertyIds }, status: "ATIVO" },
+      select: { id: true, propertyId: true, ownerId: true },
     });
     const contractsByProperty: Record<string, string[]> = {};
-    for (const c of contracts) {
+    for (const c of contractsForPost) {
       if (!c.propertyId) continue;
       if (!contractsByProperty[c.propertyId]) contractsByProperty[c.propertyId] = [];
       contractsByProperty[c.propertyId].push(c.id);
+    }
+
+    // Incluir proprietário do contrato nos shares se não está em PropertyOwner
+    for (const [propertyId, shares] of splitProperties) {
+      const propContracts = contractsForPost.filter(c => c.propertyId === propertyId);
+      for (const contract of propContracts) {
+        const ownerInShares = shares.some(s => s.ownerId === contract.ownerId);
+        if (!ownerInShares) {
+          const totalPct = shares.reduce((s, sh) => s + sh.percentage, 0);
+          if (totalPct < 100) {
+            const remainingPct = Math.round((100 - totalPct) * 100) / 100;
+            const owner = await prisma.owner.findUnique({
+              where: { id: contract.ownerId },
+              select: { id: true, name: true },
+            });
+            if (owner) {
+              shares.push({
+                id: `virtual-${contract.ownerId}`,
+                propertyId,
+                ownerId: contract.ownerId,
+                percentage: remainingPct,
+                owner,
+                property: shares[0].property,
+              } as any);
+            }
+          }
+        }
+      }
     }
 
     let created = 0;

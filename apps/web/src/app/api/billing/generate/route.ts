@@ -353,6 +353,8 @@ export async function POST(request: NextRequest) {
 
           if (ownerShares.length > 0) {
             // Multiple owners: create split entries for each
+            const totalSharePercent = ownerShares.reduce((s, sh) => s + sh.percentage, 0);
+
             for (const share of ownerShares) {
               const ownerPortion = Math.round(splitOwnerValue * (share.percentage / 100) * 100) / 100;
               await prisma.ownerEntry.create({
@@ -367,6 +369,27 @@ export async function POST(request: NextRequest) {
                   contractId: contract.id,
                   propertyId: contract.property.id,
                   notes: buildOwnerNotes(share.percentage),
+                },
+              });
+            }
+
+            // Se a soma das porcentagens não dá 100%, o proprietário do contrato recebe o restante
+            const contractOwnerInShares = ownerShares.some(s => s.ownerId === contract.ownerId);
+            if (totalSharePercent < 100 && !contractOwnerInShares) {
+              const remainingPercent = Math.round((100 - totalSharePercent) * 100) / 100;
+              const remainingValue = Math.round(splitOwnerValue * (remainingPercent / 100) * 100) / 100;
+              await prisma.ownerEntry.create({
+                data: {
+                  type: "CREDITO",
+                  category: "REPASSE",
+                  description: `Repasse aluguel ${mLabel} - ${contract.code} (${remainingPercent}%)`,
+                  value: remainingValue,
+                  dueDate,
+                  status: "PENDENTE",
+                  ownerId: contract.ownerId,
+                  contractId: contract.id,
+                  propertyId: contract.property.id,
+                  notes: buildOwnerNotes(remainingPercent),
                 },
               });
             }
@@ -405,6 +428,8 @@ export async function POST(request: NextRequest) {
             : "";
 
           if (ownerShares && ownerShares.length > 0) {
+            const totalSharePctCredits = ownerShares.reduce((s, sh) => s + sh.percentage, 0);
+
             for (const share of ownerShares) {
               const portion = Math.round(tenantEntry.value * (share.percentage / 100) * 100) / 100;
               await prisma.ownerEntry.create({
@@ -416,6 +441,31 @@ export async function POST(request: NextRequest) {
                   dueDate,
                   status: "PENDENTE",
                   ownerId: share.ownerId,
+                  contractId: contract.id,
+                  propertyId: contract.property?.id,
+                  notes: JSON.stringify({
+                    tenantEntryId: tenantEntry.id,
+                    originalDescription: tenantEntry.description,
+                    destination: "PROPRIETARIO",
+                  }),
+                },
+              });
+            }
+
+            // Proprietário principal recebe o restante se soma < 100%
+            const contractOwnerInSharesCredits = ownerShares.some(s => s.ownerId === contract.ownerId);
+            if (totalSharePctCredits < 100 && !contractOwnerInSharesCredits) {
+              const remainPct = Math.round((100 - totalSharePctCredits) * 100) / 100;
+              const remainVal = Math.round(tenantEntry.value * (remainPct / 100) * 100) / 100;
+              await prisma.ownerEntry.create({
+                data: {
+                  type: "CREDITO",
+                  category: ownerCategory,
+                  description: `${tenantEntry.category}${installmentLabel} ${mLabel} - ${contract.code} (${remainPct}%)`,
+                  value: remainVal,
+                  dueDate,
+                  status: "PENDENTE",
+                  ownerId: contract.ownerId,
                   contractId: contract.id,
                   propertyId: contract.property?.id,
                   notes: JSON.stringify({
