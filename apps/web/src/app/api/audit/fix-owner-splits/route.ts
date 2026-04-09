@@ -4,18 +4,13 @@ import { requireAuth, isAuthError } from "@/lib/api-auth";
 
 /**
  * GET /api/audit/fix-owner-splits
- * Lista repasses que pertencem a imóveis com co-proprietários (PropertyOwner),
- * mas onde apenas um proprietário recebeu o repasse (faltam entries para os outros).
+ * Lista repasses onde co-proprietários estão faltando.
  *
  * POST /api/audit/fix-owner-splits
- * Corrige: para cada repasse com split faltando, cria entries para os co-proprietários
- * e ajusta os valores proporcionalmente.
+ * Cria entries faltantes e ajusta valores.
  */
 
-export async function GET() {
-  const auth = await requireAuth();
-  if (isAuthError(auth)) return auth;
-
+async function findFixes() {
   // Buscar todos os PropertyOwner (imóveis com co-proprietários)
   const allPropertyOwners = await prisma.propertyOwner.findMany({
     include: {
@@ -34,171 +29,42 @@ export async function GET() {
   // Apenas imóveis com 2+ co-proprietários
   const splitProperties = Object.entries(sharesByProperty).filter(([, shares]) => shares.length >= 2);
 
-  if (splitProperties.length === 0) {
-    return NextResponse.json({ message: "Nenhum imóvel com co-proprietários encontrado.", fixes: [] });
+  // Buscar contratos vinculados a essas propriedades
+  const propertyIds = splitProperties.map(([pid]) => pid);
+  const contracts = await prisma.contract.findMany({
+    where: { propertyId: { in: propertyIds } },
+    select: { id: true, propertyId: true, ownerId: true, rentalValue: true, adminFeePercent: true },
+  });
+  const contractsByProperty: Record<string, typeof contracts> = {};
+  for (const c of contracts) {
+    if (!c.propertyId) continue;
+    if (!contractsByProperty[c.propertyId]) contractsByProperty[c.propertyId] = [];
+    contractsByProperty[c.propertyId].push(c);
   }
 
   const fixes = [];
 
   for (const [propertyId, shares] of splitProperties) {
     const ownerIds = shares.map(s => s.ownerId);
+    const propContracts = contractsByProperty[propertyId] || [];
+    const contractIds = propContracts.map(c => c.id);
 
-    // Buscar todos os REPASSE/GARANTIA entries CREDITO para este imóvel
+    // Buscar TODOS entries CREDITO relevantes: por propertyId OU por contractId OU por ownerId dos co-proprietários
     const entries = await prisma.ownerEntry.findMany({
       where: {
-        propertyId,
-        type: "CREDITO",
-        category: { in: ["REPASSE", "GARANTIA"] },
-        status: { not: "CANCELADO" },
-      },
-      orderBy: { dueDate: "asc" },
-    });
-
-    // Agrupar entries por contractId + dueDate (mesmo período)
-    const groupKey = (e: typeof entries[0]) => {
-      const d = e.dueDate ? new Date(e.dueDate).toISOString().slice(0, 7) : "sem-data";
-      return `${e.contractId || "sem-contrato"}_${d}_${e.category}`;
-    };
-    const groups: Record<string, typeof entries> = {};
-    for (const e of entries) {
-      const k = groupKey(e);
-      if (!groups[k]) groups[k] = [];
-      groups[k].push(e);
-    }
-
-    // Verificar quais grupos NÃO têm entries para TODOS os co-proprietários
-    for (const [key, groupEntries] of Object.entries(groups)) {
-      const entryOwnerIds = new Set(groupEntries.map(e => e.ownerId));
-      const missingOwners = shares.filter(s => !entryOwnerIds.has(s.ownerId));
-
-      if (missingOwners.length > 0) {
-        // Existe entry para alguns owners mas não todos
-        const existingEntry = groupEntries[0];
-        // Verificar se o entry existente tem valor de 100% (não foi splitado)
-        const totalExistingValue = groupEntries.reduce((sum, e) => sum + e.value, 0);
-
-        fixes.push({
-          propertyId,
-          propertyTitle: shares[0].property.title,
-          category: existingEntry.category,
-          contractId: existingEntry.contractId,
-          dueDate: existingEntry.dueDate,
-          description: existingEntry.description,
-          existingEntries: groupEntries.map(e => ({
-            id: e.id,
-            ownerId: e.ownerId,
-            ownerName: shares.find(s => s.ownerId === e.ownerId)?.owner.name || "?",
-            value: e.value,
-            percentage: shares.find(s => s.ownerId === e.ownerId)?.percentage || 0,
-          })),
-          missingOwners: missingOwners.map(s => ({
-            ownerId: s.ownerId,
-            ownerName: s.owner.name,
-            percentage: s.percentage,
-          })),
-          totalExistingValue,
-        });
-      }
-    }
-
-    // Também verificar créditos IPTU/CONDOMINIO
-    const creditEntries = await prisma.ownerEntry.findMany({
-      where: {
-        propertyId,
-        type: "CREDITO",
-        category: { in: ["IPTU", "CONDOMINIO"] },
-        status: { not: "CANCELADO" },
-      },
-      orderBy: { dueDate: "asc" },
-    });
-
-    const creditGroups: Record<string, typeof creditEntries> = {};
-    for (const e of creditEntries) {
-      const k = `${e.contractId || "sem-contrato"}_${e.dueDate ? new Date(e.dueDate).toISOString().slice(0, 7) : "sem-data"}_${e.category}_${e.description}`;
-      if (!creditGroups[k]) creditGroups[k] = [];
-      creditGroups[k].push(e);
-    }
-
-    for (const [key, groupEntries] of Object.entries(creditGroups)) {
-      const entryOwnerIds = new Set(groupEntries.map(e => e.ownerId));
-      const missingOwners = shares.filter(s => !entryOwnerIds.has(s.ownerId));
-
-      if (missingOwners.length > 0) {
-        const existingEntry = groupEntries[0];
-        fixes.push({
-          propertyId,
-          propertyTitle: shares[0].property.title,
-          category: existingEntry.category,
-          contractId: existingEntry.contractId,
-          dueDate: existingEntry.dueDate,
-          description: existingEntry.description,
-          existingEntries: groupEntries.map(e => ({
-            id: e.id,
-            ownerId: e.ownerId,
-            ownerName: shares.find(s => s.ownerId === e.ownerId)?.owner.name || "?",
-            value: e.value,
-            percentage: shares.find(s => s.ownerId === e.ownerId)?.percentage || 0,
-          })),
-          missingOwners: missingOwners.map(s => ({
-            ownerId: s.ownerId,
-            ownerName: s.owner.name,
-            percentage: s.percentage,
-          })),
-          totalExistingValue: groupEntries.reduce((sum, e) => sum + e.value, 0),
-        });
-      }
-    }
-  }
-
-  return NextResponse.json({
-    splitProperties: splitProperties.map(([pid, shares]) => ({
-      propertyId: pid,
-      propertyTitle: shares[0].property.title,
-      owners: shares.map(s => ({ name: s.owner.name, percentage: s.percentage })),
-    })),
-    fixesNeeded: fixes.length,
-    fixes,
-  });
-}
-
-export async function POST() {
-  const auth = await requireAuth();
-  if (isAuthError(auth)) return auth;
-
-  // Mesma lógica do GET para identificar fixes
-  const allPropertyOwners = await prisma.propertyOwner.findMany({
-    include: {
-      owner: { select: { id: true, name: true } },
-      property: { select: { id: true, title: true } },
-    },
-  });
-
-  const sharesByProperty: Record<string, typeof allPropertyOwners> = {};
-  for (const po of allPropertyOwners) {
-    if (!sharesByProperty[po.propertyId]) sharesByProperty[po.propertyId] = [];
-    sharesByProperty[po.propertyId].push(po);
-  }
-
-  const splitProperties = Object.entries(sharesByProperty).filter(([, shares]) => shares.length >= 2);
-  let created = 0;
-  let adjusted = 0;
-  const errors: string[] = [];
-
-  for (const [propertyId, shares] of splitProperties) {
-    const totalPercentage = shares.reduce((sum, s) => sum + s.percentage, 0);
-
-    // Buscar REPASSE/GARANTIA/IPTU/CONDOMINIO entries para este imóvel
-    const entries = await prisma.ownerEntry.findMany({
-      where: {
-        propertyId,
         type: "CREDITO",
         category: { in: ["REPASSE", "GARANTIA", "IPTU", "CONDOMINIO"] },
         status: { not: "CANCELADO" },
+        OR: [
+          { propertyId },
+          ...(contractIds.length > 0 ? [{ contractId: { in: contractIds } }] : []),
+          { ownerId: { in: ownerIds }, contractId: { in: contractIds } },
+        ],
       },
       orderBy: { dueDate: "asc" },
     });
 
-    // Agrupar por período + categoria
+    // Agrupar por período + categoria + contrato
     const groupKey = (e: typeof entries[0]) => {
       const d = e.dueDate ? new Date(e.dueDate).toISOString().slice(0, 7) : "sem-data";
       return `${e.contractId || "sem-contrato"}_${d}_${e.category}`;
@@ -218,96 +84,252 @@ export async function POST() {
 
       const existingEntry = groupEntries[0];
 
-      // Calcular o valor total original (antes do split)
-      // Se existe apenas 1 entry e seu owner tem X%, o total original = value / (X/100)
+      // Calcular valor total original:
+      // Se 1 entry e owner tem X% < 100 → entry tem valor cheio (100%), originalTotal = entry.value
+      // Se 1 entry e owner tem 100% → valor é o total
+      // Se múltiplos entries → somar e calcular proporcionalmente
+      const existingOwnerShare = shares.find(s => s.ownerId === existingEntry.ownerId);
       let originalTotal: number;
-      if (groupEntries.length === 1 && totalPercentage >= 99) {
-        const ownerShare = shares.find(s => s.ownerId === existingEntry.ownerId);
-        if (ownerShare && ownerShare.percentage < 100) {
-          // Entry com valor de 100% mas deveria ser splitado
-          originalTotal = existingEntry.value;
+
+      if (groupEntries.length === 1 && existingOwnerShare) {
+        if (existingOwnerShare.percentage < 100) {
+          // Entry provavelmente tem valor de 100% (criado antes do split)
+          // OU já tem valor proporcional (se já foi ajustado)
+          // Verificar pela descrição se já tem porcentagem
+          const hasPercentInDesc = existingEntry.description.includes("%");
+          if (hasPercentInDesc) {
+            // Já foi ajustado, extrapolar o total
+            originalTotal = Math.round(existingEntry.value / (existingOwnerShare.percentage / 100) * 100) / 100;
+          } else {
+            // Valor de 100%, é o total original
+            originalTotal = existingEntry.value;
+          }
         } else {
           originalTotal = existingEntry.value;
         }
       } else {
-        originalTotal = groupEntries.reduce((sum, e) => sum + e.value, 0);
+        // Múltiplos entries - calcular total baseado nas proporções
+        let sumValues = groupEntries.reduce((sum, e) => sum + e.value, 0);
+        let sumPercent = groupEntries.reduce((sum, e) => {
+          const s = shares.find(s => s.ownerId === e.ownerId);
+          return sum + (s?.percentage || 0);
+        }, 0);
+        originalTotal = sumPercent > 0 ? Math.round(sumValues / (sumPercent / 100) * 100) / 100 : sumValues;
       }
 
-      // Recalcular: se o entry existente tem o valor CHEIO (100%), precisamos ajustá-lo
-      // e criar entries para os missing owners
-      if (groupEntries.length === 1) {
-        const ownerShare = shares.find(s => s.ownerId === existingEntry.ownerId);
-        if (ownerShare && ownerShare.percentage < 100) {
-          // Ajustar o entry existente para a porcentagem correta
-          const correctValue = Math.round(originalTotal * (ownerShare.percentage / 100) * 100) / 100;
-          if (Math.abs(existingEntry.value - correctValue) > 0.01) {
-            try {
-              // Atualizar descrição para incluir porcentagem
-              let newDesc = existingEntry.description;
-              if (!newDesc.includes("%")) {
-                newDesc = newDesc.replace(
-                  /( - CTR-\d+)/,
-                  `$1 (${ownerShare.percentage}%)`
-                );
-              }
-              await prisma.ownerEntry.update({
-                where: { id: existingEntry.id },
-                data: {
-                  value: correctValue,
-                  description: newDesc,
-                },
-              });
-              adjusted++;
-            } catch (err) {
-              errors.push(`Erro ao ajustar ${existingEntry.id}: ${err instanceof Error ? err.message : "?"}`);
-            }
-          }
-        }
-      }
-
-      // Criar entries para os co-proprietários faltando
-      for (const missing of missingOwners) {
-        const portion = Math.round(originalTotal * (missing.percentage / 100) * 100) / 100;
-        // Gerar descrição baseada no existente, trocando nome/porcentagem
-        let desc = existingEntry.description;
-        // Adicionar porcentagem se não tiver
-        if (!desc.includes("%")) {
-          desc = desc.replace(
-            /( - CTR-\d+)/,
-            `$1 (${missing.percentage}%)`
-          );
-        } else {
-          // Trocar porcentagem existente
-          desc = desc.replace(/\(\d+(?:[.,]\d+)?%\)/, `(${missing.percentage}%)`);
-        }
-
-        try {
-          await prisma.ownerEntry.create({
-            data: {
-              type: "CREDITO",
-              category: existingEntry.category,
-              description: desc,
-              value: portion,
-              dueDate: existingEntry.dueDate,
-              status: existingEntry.status,
-              ownerId: missing.ownerId,
-              contractId: existingEntry.contractId,
-              propertyId,
-              notes: existingEntry.notes,
-            },
-          });
-          created++;
-        } catch (err) {
-          errors.push(`Erro ao criar entry para ${missing.owner.name}: ${err instanceof Error ? err.message : "?"}`);
-        }
-      }
+      fixes.push({
+        propertyId,
+        propertyTitle: shares[0].property.title,
+        category: existingEntry.category,
+        contractId: existingEntry.contractId,
+        dueDate: existingEntry.dueDate,
+        description: existingEntry.description,
+        originalTotal,
+        existingEntries: groupEntries.map(e => ({
+          id: e.id,
+          ownerId: e.ownerId,
+          ownerName: shares.find(s => s.ownerId === e.ownerId)?.owner.name || "?",
+          value: e.value,
+          percentage: shares.find(s => s.ownerId === e.ownerId)?.percentage || 0,
+        })),
+        missingOwners: missingOwners.map(s => ({
+          ownerId: s.ownerId,
+          ownerName: s.owner.name,
+          percentage: s.percentage,
+        })),
+      });
     }
   }
 
-  return NextResponse.json({
-    created,
-    adjusted,
-    errors,
-    message: `${created} entry(ies) criado(s) para co-proprietários faltando. ${adjusted} entry(ies) ajustado(s) com valor proporcional. ${errors.length} erro(s).`,
-  });
+  return { splitProperties, fixes };
+}
+
+export async function GET() {
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
+
+  try {
+    const { splitProperties, fixes } = await findFixes();
+
+    return NextResponse.json({
+      splitProperties: splitProperties.map(([pid, shares]) => ({
+        propertyId: pid,
+        propertyTitle: shares[0].property.title,
+        owners: shares.map(s => ({ name: s.owner.name, percentage: s.percentage })),
+      })),
+      fixesNeeded: fixes.length,
+      fixes,
+    });
+  } catch (error) {
+    console.error("[fix-owner-splits GET]", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Erro" }, { status: 500 });
+  }
+}
+
+export async function POST() {
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
+
+  try {
+    const allPropertyOwners = await prisma.propertyOwner.findMany({
+      include: {
+        owner: { select: { id: true, name: true } },
+        property: { select: { id: true, title: true } },
+      },
+    });
+
+    const sharesByProperty: Record<string, typeof allPropertyOwners> = {};
+    for (const po of allPropertyOwners) {
+      if (!sharesByProperty[po.propertyId]) sharesByProperty[po.propertyId] = [];
+      sharesByProperty[po.propertyId].push(po);
+    }
+
+    const splitProperties = Object.entries(sharesByProperty).filter(([, shares]) => shares.length >= 2);
+
+    const propertyIds = splitProperties.map(([pid]) => pid);
+    const contracts = await prisma.contract.findMany({
+      where: { propertyId: { in: propertyIds } },
+      select: { id: true, propertyId: true },
+    });
+    const contractsByProperty: Record<string, string[]> = {};
+    for (const c of contracts) {
+      if (!c.propertyId) continue;
+      if (!contractsByProperty[c.propertyId]) contractsByProperty[c.propertyId] = [];
+      contractsByProperty[c.propertyId].push(c.id);
+    }
+
+    let created = 0;
+    let adjusted = 0;
+    const errors: string[] = [];
+
+    for (const [propertyId, shares] of splitProperties) {
+      const ownerIds = shares.map(s => s.ownerId);
+      const contractIds = contractsByProperty[propertyId] || [];
+
+      const entries = await prisma.ownerEntry.findMany({
+        where: {
+          type: "CREDITO",
+          category: { in: ["REPASSE", "GARANTIA", "IPTU", "CONDOMINIO"] },
+          status: { not: "CANCELADO" },
+          OR: [
+            { propertyId },
+            ...(contractIds.length > 0 ? [{ contractId: { in: contractIds } }] : []),
+            { ownerId: { in: ownerIds }, contractId: { in: contractIds } },
+          ],
+        },
+        orderBy: { dueDate: "asc" },
+      });
+
+      const groupKey = (e: typeof entries[0]) => {
+        const d = e.dueDate ? new Date(e.dueDate).toISOString().slice(0, 7) : "sem-data";
+        return `${e.contractId || "sem-contrato"}_${d}_${e.category}`;
+      };
+      const groups: Record<string, typeof entries> = {};
+      for (const e of entries) {
+        const k = groupKey(e);
+        if (!groups[k]) groups[k] = [];
+        groups[k].push(e);
+      }
+
+      for (const [, groupEntries] of Object.entries(groups)) {
+        const entryOwnerIds = new Set(groupEntries.map(e => e.ownerId));
+        const missingOwners = shares.filter(s => !entryOwnerIds.has(s.ownerId));
+
+        if (missingOwners.length === 0) continue;
+
+        const existingEntry = groupEntries[0];
+        const existingOwnerShare = shares.find(s => s.ownerId === existingEntry.ownerId);
+
+        // Calcular valor total original
+        let originalTotal: number;
+        if (groupEntries.length === 1 && existingOwnerShare) {
+          if (existingOwnerShare.percentage < 100) {
+            const hasPercentInDesc = existingEntry.description.includes("%");
+            if (hasPercentInDesc) {
+              originalTotal = Math.round(existingEntry.value / (existingOwnerShare.percentage / 100) * 100) / 100;
+            } else {
+              originalTotal = existingEntry.value;
+            }
+          } else {
+            originalTotal = existingEntry.value;
+          }
+        } else {
+          let sumValues = groupEntries.reduce((sum, e) => sum + e.value, 0);
+          let sumPercent = groupEntries.reduce((sum, e) => {
+            const s = shares.find(sh => sh.ownerId === e.ownerId);
+            return sum + (s?.percentage || 0);
+          }, 0);
+          originalTotal = sumPercent > 0 ? Math.round(sumValues / (sumPercent / 100) * 100) / 100 : sumValues;
+        }
+
+        // Ajustar entry existente se tem valor de 100% e deveria ter menos
+        if (groupEntries.length === 1 && existingOwnerShare && existingOwnerShare.percentage < 100) {
+          const hasPercentInDesc = existingEntry.description.includes("%");
+          if (!hasPercentInDesc) {
+            // Valor é 100%, precisa ajustar para a porcentagem correta
+            const correctValue = Math.round(originalTotal * (existingOwnerShare.percentage / 100) * 100) / 100;
+            try {
+              let newDesc = existingEntry.description.replace(
+                /( - CTR-\d+)/,
+                `$1 (${existingOwnerShare.percentage}%)`
+              );
+              // Se não tem CTR- na descrição, adicionar no final
+              if (newDesc === existingEntry.description) {
+                newDesc = `${existingEntry.description} (${existingOwnerShare.percentage}%)`;
+              }
+              await prisma.ownerEntry.update({
+                where: { id: existingEntry.id },
+                data: { value: correctValue, description: newDesc },
+              });
+              adjusted++;
+            } catch (err) {
+              errors.push(`Ajustar ${existingEntry.id}: ${err instanceof Error ? err.message : "?"}`);
+            }
+          }
+        }
+
+        // Criar entries para os co-proprietários faltando
+        for (const missing of missingOwners) {
+          const portion = Math.round(originalTotal * (missing.percentage / 100) * 100) / 100;
+          let desc = existingEntry.description;
+          if (!desc.includes("%")) {
+            const replaced = desc.replace(/( - CTR-\d+)/, `$1 (${missing.percentage}%)`);
+            desc = replaced !== desc ? replaced : `${desc} (${missing.percentage}%)`;
+          } else {
+            desc = desc.replace(/\(\d+(?:[.,]\d+)?%\)/, `(${missing.percentage}%)`);
+          }
+
+          try {
+            await prisma.ownerEntry.create({
+              data: {
+                type: "CREDITO",
+                category: existingEntry.category,
+                description: desc,
+                value: portion,
+                dueDate: existingEntry.dueDate,
+                status: existingEntry.status,
+                ownerId: missing.ownerId,
+                contractId: existingEntry.contractId,
+                propertyId: existingEntry.propertyId || propertyId,
+                notes: existingEntry.notes,
+              },
+            });
+            created++;
+          } catch (err) {
+            errors.push(`Criar para ${missing.owner.name}: ${err instanceof Error ? err.message : "?"}`);
+          }
+        }
+      }
+    }
+
+    return NextResponse.json({
+      created,
+      adjusted,
+      errors,
+      message: `${created} entry(ies) criado(s). ${adjusted} ajustado(s). ${errors.length} erro(s).`,
+    });
+  } catch (error) {
+    console.error("[fix-owner-splits POST]", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Erro" }, { status: 500 });
+  }
 }
