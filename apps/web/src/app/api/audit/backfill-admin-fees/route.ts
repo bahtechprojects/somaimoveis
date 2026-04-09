@@ -61,9 +61,12 @@ export async function GET() {
   });
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
+
+  const body = await request.json().catch(() => ({}));
+  const forceRecalc = body.force === true; // force=true recalcula TODOS
 
   const repasseEntries = await prisma.ownerEntry.findMany({
     where: {
@@ -73,90 +76,96 @@ export async function POST() {
     },
   });
 
+  // Cache de contratos para evitar queries repetidas
+  const contractCache: Record<string, { rentalValue: number; adminFeePercent: number } | null> = {};
+
   let updated = 0;
   let skipped = 0;
   const errors: string[] = [];
 
   for (const entry of repasseEntries) {
-    // Verificar se já tem dados de admin fee
-    let hasAdminFee = false;
     let existingNotes: Record<string, unknown> = {};
     if (entry.notes) {
       try {
         existingNotes = JSON.parse(entry.notes);
-        if (existingNotes.adminFeePercent !== undefined && existingNotes.adminFeeValue !== undefined) {
-          hasAdminFee = true;
-        }
       } catch {}
     }
 
-    if (hasAdminFee) {
+    // Se não é force e já tem admin fee, pular
+    if (!forceRecalc && existingNotes.adminFeePercent !== undefined && existingNotes.adminFeeValue !== undefined) {
       skipped++;
       continue;
     }
 
-    // Buscar contrato para obter taxa adm
-    let contract: {
-      rentalValue: number;
-      adminFeePercent: number;
-      code: string;
-    } | null = null;
-
-    if (entry.contractId) {
-      contract = await prisma.contract.findUnique({
-        where: { id: entry.contractId },
-        select: { rentalValue: true, adminFeePercent: true, code: true },
-      });
-    }
-
-    // Se não tem contractId, tentar via owner + propriedade
-    if (!contract && entry.ownerId) {
-      const contracts = await prisma.contract.findMany({
-        where: {
-          ownerId: entry.ownerId,
-          status: "ATIVO",
-          ...(entry.propertyId ? { propertyId: entry.propertyId } : {}),
-        },
-        select: { rentalValue: true, adminFeePercent: true, code: true },
-        take: 1,
-      });
-      if (contracts.length > 0) {
-        contract = contracts[0];
+    // Buscar contrato para obter taxa adm %
+    const cacheKey = entry.contractId || `owner-${entry.ownerId}-${entry.propertyId}`;
+    if (!(cacheKey in contractCache)) {
+      let contract: { rentalValue: number; adminFeePercent: number } | null = null;
+      if (entry.contractId) {
+        contract = await prisma.contract.findUnique({
+          where: { id: entry.contractId },
+          select: { rentalValue: true, adminFeePercent: true },
+        });
       }
+      if (!contract && entry.ownerId) {
+        const contracts = await prisma.contract.findMany({
+          where: {
+            ownerId: entry.ownerId,
+            status: "ATIVO",
+            ...(entry.propertyId ? { propertyId: entry.propertyId } : {}),
+          },
+          select: { rentalValue: true, adminFeePercent: true },
+          take: 1,
+        });
+        if (contracts.length > 0) contract = contracts[0];
+      }
+      contractCache[cacheKey] = contract;
     }
 
+    const contract = contractCache[cacheKey];
     if (!contract) {
       errors.push(`${entry.id}: sem contrato encontrado`);
       continue;
     }
 
     const adminFeePercent = contract.adminFeePercent || 10;
-    const aluguelBruto = contract.rentalValue;
-    const adminFeeValue = Math.round(aluguelBruto * (adminFeePercent / 100) * 100) / 100;
 
-    // Merge com notes existentes (preservar dados como originalCategory, guaranteedAt)
+    // Detectar sharePercent da descrição (co-proprietários)
+    const pctMatch = entry.description.match(/\((\d+(?:[.,]\d+)?)%\)/);
+    const sharePercent = pctMatch ? parseFloat(pctMatch[1].replace(",", ".")) : undefined;
+
+    // Calcular aluguel bruto REVERSO a partir do entry.value (respeita pro-rata)
+    // entry.value = aluguelBruto * (1 - adminFee/100) * (sharePercent/100)
+    const adminPct = adminFeePercent / 100;
+    const shareFactor = sharePercent ? sharePercent / 100 : 1;
+    const aluguelBruto = Math.round(entry.value / ((1 - adminPct) * shareFactor) * 100) / 100;
+    const adminFeeValue = Math.round(aluguelBruto * adminPct * 100) / 100;
+
     const newNotes = {
       ...existingNotes,
       aluguelBruto,
       adminFeePercent,
       adminFeeValue,
+      sharePercent,
       netToOwner: entry.value,
       backfilledAdminFeeAt: new Date().toISOString(),
     };
 
-    await prisma.ownerEntry.update({
-      where: { id: entry.id },
-      data: {
-        notes: JSON.stringify(newNotes),
-      },
-    });
-    updated++;
+    try {
+      await prisma.ownerEntry.update({
+        where: { id: entry.id },
+        data: { notes: JSON.stringify(newNotes) },
+      });
+      updated++;
+    } catch (err) {
+      errors.push(`${entry.id}: ${err instanceof Error ? err.message : "?"}`);
+    }
   }
 
   return NextResponse.json({
     updated,
     skipped,
     errors,
-    message: `${updated} repasse(s) atualizado(s) com taxa adm. ${skipped} já tinham. ${errors.length} erro(s).`,
+    message: `${updated} repasse(s) atualizado(s). ${skipped} já estavam ok. ${errors.length} erro(s).`,
   });
 }
