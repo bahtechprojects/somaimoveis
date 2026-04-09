@@ -7,7 +7,10 @@
 const EMPRESA_CNPJ = process.env.CNAB_EMPRESA_CNPJ || "";
 const EMPRESA_NOME = process.env.CNAB_EMPRESA_NOME || "SOMMA IMOVEIS";
 const EMPRESA_CONVENIO = process.env.CNAB_EMPRESA_CONVENIO || "";
-const EMPRESA_AGENCIA = process.env.CNAB_EMPRESA_AGENCIA || "";
+// Sicredi: agência = cooperativa (4 dígitos), posto separado
+const EMPRESA_COOPERATIVA = process.env.SICREDI_COOPERATIVA || "";
+const EMPRESA_POSTO = process.env.SICREDI_POSTO || "";
+const EMPRESA_AGENCIA = EMPRESA_COOPERATIVA || process.env.CNAB_EMPRESA_AGENCIA || "";
 const EMPRESA_AGENCIA_DV = process.env.CNAB_EMPRESA_AGENCIA_DV || " ";
 const EMPRESA_CONTA = process.env.CNAB_EMPRESA_CONTA || "";
 const EMPRESA_CONTA_DV = process.env.CNAB_EMPRESA_CONTA_DV || " ";

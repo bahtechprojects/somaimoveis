@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { month, ownerIds: requestOwnerIds, formaPagamento } = body;
+    const { month, ownerIds: requestOwnerIds, formaPagamento, sequencial } = body;
 
     if (!isCnab240Configured()) {
       return NextResponse.json(
@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
     // Gerar arquivo CNAB 240
     const result = generateCnab240(pagamentos, {
       formaPagamento: formaPagamento || "PIX",
-      sequencialArquivo: 1,
+      sequencialArquivo: sequencial || 1,
     });
 
     return new NextResponse(result.content, {
