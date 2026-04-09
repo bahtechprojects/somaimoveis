@@ -498,6 +498,90 @@ export async function POST(request: NextRequest) {
           }
         }
 
+        // Criar DÉBITOS no proprietário para descontos do locatário com destino=PROPRIETARIO
+        // Ex: Desconto dado ao locatário que o proprietário absorve
+        const ownerDebitEntries = discountEntries.filter(
+          (e) => e.destination === "PROPRIETARIO"
+        );
+        for (const tenantEntry of ownerDebitEntries) {
+          const ownerCategory = tenantEntry.category || "DESCONTO";
+          const installmentLabel = tenantEntry.installmentNumber && tenantEntry.installmentTotal
+            ? ` ${tenantEntry.installmentNumber}/${tenantEntry.installmentTotal}`
+            : "";
+
+          if (ownerShares && ownerShares.length > 0) {
+            const totalSharePctDebits = ownerShares.reduce((s, sh) => s + sh.percentage, 0);
+
+            for (const share of ownerShares) {
+              const portion = Math.round(tenantEntry.value * (share.percentage / 100) * 100) / 100;
+              await prisma.ownerEntry.create({
+                data: {
+                  type: "DEBITO",
+                  category: ownerCategory,
+                  description: `${tenantEntry.description || tenantEntry.category}${installmentLabel} ${mLabel} - ${contract.code} (${share.percentage}%)`,
+                  value: portion,
+                  dueDate,
+                  status: "PENDENTE",
+                  ownerId: share.ownerId,
+                  contractId: contract.id,
+                  propertyId: contract.property?.id,
+                  notes: JSON.stringify({
+                    tenantEntryId: tenantEntry.id,
+                    originalDescription: tenantEntry.description,
+                    destination: "PROPRIETARIO",
+                    type: "desconto_locatario",
+                  }),
+                },
+              });
+            }
+
+            const contractOwnerInSharesDebits = ownerShares.some(s => s.ownerId === contract.ownerId);
+            if (totalSharePctDebits < 100 && !contractOwnerInSharesDebits) {
+              const remainPct = Math.round((100 - totalSharePctDebits) * 100) / 100;
+              const remainVal = Math.round(tenantEntry.value * (remainPct / 100) * 100) / 100;
+              await prisma.ownerEntry.create({
+                data: {
+                  type: "DEBITO",
+                  category: ownerCategory,
+                  description: `${tenantEntry.description || tenantEntry.category}${installmentLabel} ${mLabel} - ${contract.code} (${remainPct}%)`,
+                  value: remainVal,
+                  dueDate,
+                  status: "PENDENTE",
+                  ownerId: contract.ownerId,
+                  contractId: contract.id,
+                  propertyId: contract.property?.id,
+                  notes: JSON.stringify({
+                    tenantEntryId: tenantEntry.id,
+                    originalDescription: tenantEntry.description,
+                    destination: "PROPRIETARIO",
+                    type: "desconto_locatario",
+                  }),
+                },
+              });
+            }
+          } else {
+            await prisma.ownerEntry.create({
+              data: {
+                type: "DEBITO",
+                category: ownerCategory,
+                description: `${tenantEntry.description || tenantEntry.category}${installmentLabel} ${mLabel} - ${contract.code}`,
+                value: tenantEntry.value,
+                dueDate,
+                status: "PENDENTE",
+                ownerId: contract.ownerId,
+                contractId: contract.id,
+                propertyId: contract.property?.id,
+                notes: JSON.stringify({
+                  tenantEntryId: tenantEntry.id,
+                  originalDescription: tenantEntry.description,
+                  destination: "PROPRIETARIO",
+                  type: "desconto_locatario",
+                }),
+              },
+            });
+          }
+        }
+
         generated++;
       } catch (err) {
         errors.push({

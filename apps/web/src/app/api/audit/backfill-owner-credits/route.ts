@@ -15,10 +15,11 @@ export async function GET() {
   if (isAuthError(auth)) return auth;
 
   // Buscar todos os lançamentos de locatário com destino PROPRIETARIO
+  // DEBITO locatário → CREDITO proprietário (ex: IPTU cobrado do inquilino)
+  // CREDITO locatário → DEBITO proprietário (ex: desconto dado ao inquilino)
   const tenantEntries = await prisma.tenantEntry.findMany({
     where: {
       destination: "PROPRIETARIO",
-      type: "DEBITO", // Débito do locatário = crédito pro proprietário
       status: { not: "CANCELADO" },
     },
     include: {
@@ -33,10 +34,12 @@ export async function GET() {
 
   for (const entry of tenantEntries) {
     // Buscar OwnerEntry que referencia este TenantEntry
+    // Tipo do owner entry: locatário DEBITO → owner CREDITO, locatário CREDITO → owner DEBITO
+    const ownerEntryType = entry.type === "DEBITO" ? "CREDITO" : "DEBITO";
     const ownerEntry = await prisma.ownerEntry.findFirst({
       where: {
         notes: { contains: entry.id },
-        type: "CREDITO",
+        type: ownerEntryType,
       },
     });
 
@@ -107,11 +110,10 @@ export async function POST() {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
 
-  // Buscar lançamentos do locatário com destino PROPRIETARIO
+  // Buscar lançamentos do locatário com destino PROPRIETARIO (DEBITO e CREDITO)
   const tenantEntries = await prisma.tenantEntry.findMany({
     where: {
       destination: "PROPRIETARIO",
-      type: "DEBITO",
       status: { not: "CANCELADO" },
     },
     include: {
@@ -125,10 +127,11 @@ export async function POST() {
 
   for (const entry of tenantEntries) {
     // Verificar se já existe
+    const ownerEntryType = entry.type === "DEBITO" ? "CREDITO" : "DEBITO";
     const existing = await prisma.ownerEntry.findFirst({
       where: {
         notes: { contains: entry.id },
-        type: "CREDITO",
+        type: ownerEntryType,
       },
     });
 
@@ -189,10 +192,17 @@ export async function POST() {
       ? await prisma.propertyOwner.findMany({ where: { propertyId } })
       : [];
 
+    // Locatário DEBITO → Owner CREDITO | Locatário CREDITO → Owner DEBITO
+    const ownerType = entry.type === "DEBITO" ? "CREDITO" : "DEBITO";
+    const descLabel = ownerType === "DEBITO"
+      ? `${entry.description || ownerCategory}`
+      : ownerCategory;
+
     const baseNotes = {
       tenantEntryId: entry.id,
       originalDescription: entry.description,
       destination: "PROPRIETARIO",
+      type: ownerType === "DEBITO" ? "desconto_locatario" : undefined,
       backfilledAt: new Date().toISOString(),
     };
 
@@ -204,9 +214,9 @@ export async function POST() {
         const portion = Math.round(entry.value * (share.percentage / 100) * 100) / 100;
         await prisma.ownerEntry.create({
           data: {
-            type: "CREDITO",
+            type: ownerType,
             category: ownerCategory,
-            description: `${ownerCategory} ${mLabel} - ${contractCode || "manual"} (${share.percentage}%)`,
+            description: `${descLabel} ${mLabel} - ${contractCode || "manual"} (${share.percentage}%)`,
             value: portion,
             dueDate: entry.dueDate,
             status: "PENDENTE",
@@ -225,9 +235,9 @@ export async function POST() {
         const remainVal = Math.round(entry.value * (remainPct / 100) * 100) / 100;
         await prisma.ownerEntry.create({
           data: {
-            type: "CREDITO",
+            type: ownerType,
             category: ownerCategory,
-            description: `${ownerCategory} ${mLabel} - ${contractCode || "manual"} (${remainPct}%)`,
+            description: `${descLabel} ${mLabel} - ${contractCode || "manual"} (${remainPct}%)`,
             value: remainVal,
             dueDate: entry.dueDate,
             status: "PENDENTE",
@@ -242,9 +252,9 @@ export async function POST() {
       // Proprietário único
       await prisma.ownerEntry.create({
         data: {
-          type: "CREDITO",
+          type: ownerType,
           category: ownerCategory,
-          description: `${ownerCategory} ${mLabel} - ${contractCode || "manual"}`,
+          description: `${descLabel} ${mLabel} - ${contractCode || "manual"}`,
           value: entry.value,
           dueDate: entry.dueDate,
           status: "PENDENTE",
