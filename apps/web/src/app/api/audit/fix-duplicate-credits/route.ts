@@ -147,3 +147,40 @@ export async function POST() {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Erro" }, { status: 500 });
   }
 }
+
+/**
+ * PUT /api/audit/fix-duplicate-credits
+ * DESFAZER: Restaura TODOS os créditos IPTU/CONDOMINIO que foram cancelados.
+ * Útil para reverter cancelamentos incorretos do POST.
+ */
+export async function PUT() {
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
+
+  try {
+    const cancelled = await prisma.ownerEntry.findMany({
+      where: {
+        type: "CREDITO",
+        category: { in: ["IPTU", "CONDOMINIO"] },
+        status: "CANCELADO",
+      },
+    });
+
+    let restored = 0;
+    for (const entry of cancelled) {
+      await prisma.ownerEntry.update({
+        where: { id: entry.id },
+        data: { status: "PENDENTE" },
+      });
+      restored++;
+    }
+
+    return NextResponse.json({
+      restored,
+      message: `${restored} crédito(s) IPTU/CONDOMINIO restaurado(s) de CANCELADO para PENDENTE.`,
+    });
+  } catch (error) {
+    console.error("[fix-duplicate-credits PUT]", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Erro" }, { status: 500 });
+  }
+}
