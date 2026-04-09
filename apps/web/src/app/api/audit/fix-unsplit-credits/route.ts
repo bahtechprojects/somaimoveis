@@ -94,49 +94,39 @@ export async function POST() {
   if (isAuthError(auth)) return auth;
 
   try {
-    // ==========================================
-    // PASSO 1: Restaurar entries canceladas indevidamente
-    // ==========================================
-    const cancelledEntries = await prisma.ownerEntry.findMany({
-      where: {
-        type: "CREDITO",
-        category: { in: ["IPTU", "CONDOMINIO"] },
-        status: "CANCELADO",
-      },
-    });
-
-    let restored = 0;
-    for (const entry of cancelledEntries) {
-      let hasLegitSource = false;
-      if (entry.notes) {
-        try {
-          const n = JSON.parse(entry.notes);
-          if (n.tenantEntryId) hasLegitSource = true;
-        } catch {}
-      }
-      if (hasLegitSource) {
-        await prisma.ownerEntry.update({
-          where: { id: entry.id },
-          data: { status: "PENDENTE" },
-        });
-        restored++;
-      }
-    }
-
-    // ==========================================
-    // PASSO 2: Buscar TODOS os créditos ativos (após restauração)
-    // ==========================================
+    // Buscar TUDO (incluindo CANCELADO para restaurar)
     const allEntries = await prisma.ownerEntry.findMany({
       where: {
         type: "CREDITO",
         category: { in: ["IPTU", "CONDOMINIO"] },
-        status: { not: "CANCELADO" },
       },
       orderBy: { dueDate: "asc" },
     });
 
-    // PropertyOwner e contratos
-    const propertyIds = [...new Set(allEntries.map(e => e.propertyId).filter(Boolean))] as string[];
+    // PASSO 1: Restaurar cancelados com tenantEntryId
+    let restored = 0;
+    for (const entry of allEntries) {
+      if (entry.status !== "CANCELADO") continue;
+      if (entry.notes) {
+        try {
+          const n = JSON.parse(entry.notes);
+          if (n.tenantEntryId) {
+            await prisma.ownerEntry.update({
+              where: { id: entry.id },
+              data: { status: "PENDENTE" },
+            });
+            entry.status = "PENDENTE"; // atualizar em memória
+            restored++;
+          }
+        } catch {}
+      }
+    }
+
+    // Filtrar ativos
+    const activeEntries = allEntries.filter(e => e.status !== "CANCELADO");
+
+    // PropertyOwner
+    const propertyIds = [...new Set(activeEntries.map(e => e.propertyId).filter(Boolean))] as string[];
     const allShares = await prisma.propertyOwner.findMany({
       where: { propertyId: { in: propertyIds } },
     });
@@ -146,50 +136,22 @@ export async function POST() {
       sharesByProperty[s.propertyId].push(s);
     }
 
-    const contractIds = [...new Set(allEntries.map(e => e.contractId).filter(Boolean))] as string[];
-    const contracts = await prisma.contract.findMany({
-      where: { id: { in: contractIds } },
-      select: { id: true, ownerId: true, propertyId: true },
-    });
-    const contractMap: Record<string, typeof contracts[0]> = {};
-    for (const c of contracts) contractMap[c.id] = c;
-
-    // ==========================================
-    // PASSO 3: Para cada entry sem (%), em imóvel com co-owners:
-    // - Ajustar valor para a % do owner
-    // - Adicionar (%) na descrição
-    // - Criar entries faltantes para outros co-owners
-    // ==========================================
-    let updated = 0;
-    let created = 0;
-    const errors: string[] = [];
-
-    // Agrupar entries por owner+contract+month+categoria para detectar o que já existe
-    const entryIndex: Record<string, typeof allEntries> = {};
-    for (const e of allEntries) {
-      const key = `${e.ownerId}_${e.contractId}_${monthKey(e.dueDate)}_${e.category}`;
-      if (!entryIndex[key]) entryIndex[key] = [];
-      entryIndex[key].push(e);
-    }
-
     // Entries sem (%) em imóveis com co-proprietários
-    const unsplitEntries = allEntries.filter(e =>
+    const unsplitEntries = activeEntries.filter(e =>
       !/\(\d+(?:[.,]\d+)?%\)/.test(e.description) &&
       e.propertyId &&
       sharesByProperty[e.propertyId]?.length > 0
     );
 
-    const processedEntryIds = new Set<string>();
+    let updated = 0;
+    let created = 0;
+    const errors: string[] = [];
+    const debug: string[] = [];
+
+    debug.push(`activeEntries: ${activeEntries.length}, propertyIds: ${propertyIds.length}, sharesFound: ${allShares.length}, unsplitEntries: ${unsplitEntries.length}`);
 
     for (const entry of unsplitEntries) {
-      if (processedEntryIds.has(entry.id)) continue;
-      processedEntryIds.add(entry.id);
-
-      if (!entry.propertyId) continue;
-      const shares = sharesByProperty[entry.propertyId];
-      if (!shares || shares.length === 0) continue;
-
-      const contract = entry.contractId ? contractMap[entry.contractId] : null;
+      const shares = sharesByProperty[entry.propertyId!];
       const totalSharePct = shares.reduce((s, sh) => s + sh.percentage, 0);
 
       // Determinar a % deste owner
@@ -198,17 +160,17 @@ export async function POST() {
       if (ownerShare) {
         ownerPct = ownerShare.percentage;
       } else if (totalSharePct < 100) {
-        // Owner não está em PropertyOwner - assume o restante
         ownerPct = Math.round((100 - totalSharePct) * 100) / 100;
       } else {
-        // Tentar encontrar proporção igual (ex: 2 co-owners = 50% cada)
         ownerPct = Math.round((100 / (shares.length + 1)) * 100) / 100;
       }
 
-      const originalValue = entry.value; // Valor cheio (sem split)
+      const originalValue = entry.value;
       const correctedValue = Math.round(originalValue * (ownerPct / 100) * 100) / 100;
 
-      // Atualizar este entry com valor corrigido + (%)
+      debug.push(`${entry.description} val=${originalValue} pct=${ownerPct} → ${correctedValue}`);
+
+      // Atualizar entry
       try {
         let existingNotes: Record<string, unknown> = {};
         if (entry.notes) {
@@ -234,44 +196,60 @@ export async function POST() {
         continue;
       }
 
-      // Criar entries para co-owners que não têm
-      const allOwnersNeedingEntry: { ownerId: string; pct: number }[] = [];
+      // Criar entries faltantes para co-owners
       for (const share of shares) {
         if (share.ownerId === entry.ownerId) continue;
-        allOwnersNeedingEntry.push({ ownerId: share.ownerId, pct: share.percentage });
-      }
-      // Proprietário principal (restante)
-      if (contract && totalSharePct < 100) {
-        const isContractOwnerInShares = shares.some(s => s.ownerId === contract.ownerId);
-        if (!isContractOwnerInShares && contract.ownerId !== entry.ownerId) {
-          allOwnersNeedingEntry.push({
-            ownerId: contract.ownerId,
-            pct: Math.round((100 - totalSharePct) * 100) / 100,
+
+        // Verificar se já existe
+        const alreadyExists = activeEntries.some(e =>
+          e.ownerId === share.ownerId &&
+          e.contractId === entry.contractId &&
+          e.category === entry.category &&
+          e.propertyId === entry.propertyId &&
+          e.dueDate?.getTime() === entry.dueDate?.getTime()
+        );
+        if (alreadyExists) continue;
+
+        const portion = Math.round(originalValue * (share.percentage / 100) * 100) / 100;
+        try {
+          await prisma.ownerEntry.create({
+            data: {
+              type: "CREDITO",
+              category: entry.category,
+              description: `${entry.description} (${share.percentage}%)`,
+              value: portion,
+              dueDate: entry.dueDate,
+              status: "PENDENTE",
+              ownerId: share.ownerId,
+              contractId: entry.contractId,
+              propertyId: entry.propertyId,
+              notes: JSON.stringify({
+                createdFromSplit: entry.id,
+                splitPercent: share.percentage,
+              }),
+            },
           });
+          created++;
+        } catch (err) {
+          errors.push(`create: ${err instanceof Error ? err.message : "?"}`);
         }
       }
+    }
 
-      for (const needed of allOwnersNeedingEntry) {
-        // Verificar se já existe entry para este co-owner (com ou sem %)
-        const existKey = `${needed.ownerId}_${entry.contractId}_${monthKey(entry.dueDate)}_${entry.category}`;
-        const existingEntries = entryIndex[existKey] || [];
+    return NextResponse.json({
+      restored,
+      updated,
+      created,
+      errors,
+      debug,
+      message: `${restored} restaurado(s), ${updated} corrigido(s), ${created} criado(s). ${errors.length} erro(s).`,
+    });
+  } catch (error) {
+    console.error("[fix-unsplit-credits POST]", error);
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Erro" }, { status: 500 });
+  }
+}
 
-        // Se já tem entry com valor proporcional, pular
-        const expectedVal = Math.round(originalValue * (needed.pct / 100) * 100) / 100;
-        const alreadyHasCorrect = existingEntries.some(e =>
-          Math.abs(e.value - expectedVal) < 0.02 ||
-          /\(\d+(?:[.,]\d+)?%\)/.test(e.description)
-        );
-        if (alreadyHasCorrect) continue;
-
-        // Se tem entry sem split com valor cheio, também pular (será corrigida pelo próximo loop)
-        const hasUnsplit = existingEntries.some(e =>
-          Math.abs(e.value - originalValue) < 0.02 &&
-          !/\(\d+(?:[.,]\d+)?%\)/.test(e.description)
-        );
-        if (hasUnsplit) continue;
-
-        try {
           const newEntry = await prisma.ownerEntry.create({
             data: {
               type: "CREDITO",
