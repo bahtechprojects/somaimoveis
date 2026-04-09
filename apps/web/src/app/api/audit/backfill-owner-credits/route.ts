@@ -184,26 +184,77 @@ export async function POST() {
     const d = new Date(dueDate);
     const mLabel = `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 
-    // Criar OwnerEntry
-    await prisma.ownerEntry.create({
-      data: {
-        type: "CREDITO",
-        category: ownerCategory,
-        description: `${ownerCategory} ${mLabel} - ${contractCode || "manual"}`,
-        value: entry.value,
-        dueDate: entry.dueDate,
-        status: "PENDENTE",
-        ownerId,
-        contractId: entry.contractId,
-        propertyId: propertyId || entry.propertyId,
-        notes: JSON.stringify({
-          tenantEntryId: entry.id,
-          originalDescription: entry.description,
-          destination: "PROPRIETARIO",
-          backfilledAt: new Date().toISOString(),
-        }),
-      },
-    });
+    // Buscar co-proprietários do imóvel
+    const ownerShares = propertyId
+      ? await prisma.propertyOwner.findMany({ where: { propertyId } })
+      : [];
+
+    const baseNotes = {
+      tenantEntryId: entry.id,
+      originalDescription: entry.description,
+      destination: "PROPRIETARIO",
+      backfilledAt: new Date().toISOString(),
+    };
+
+    if (ownerShares.length > 0) {
+      // Split por co-proprietários
+      const totalSharePct = ownerShares.reduce((s, sh) => s + sh.percentage, 0);
+
+      for (const share of ownerShares) {
+        const portion = Math.round(entry.value * (share.percentage / 100) * 100) / 100;
+        await prisma.ownerEntry.create({
+          data: {
+            type: "CREDITO",
+            category: ownerCategory,
+            description: `${ownerCategory} ${mLabel} - ${contractCode || "manual"} (${share.percentage}%)`,
+            value: portion,
+            dueDate: entry.dueDate,
+            status: "PENDENTE",
+            ownerId: share.ownerId,
+            contractId: entry.contractId,
+            propertyId: propertyId || entry.propertyId,
+            notes: JSON.stringify(baseNotes),
+          },
+        });
+      }
+
+      // Proprietário principal recebe o restante se soma < 100%
+      const contractOwnerInShares = ownerShares.some(s => s.ownerId === ownerId);
+      if (totalSharePct < 100 && !contractOwnerInShares) {
+        const remainPct = Math.round((100 - totalSharePct) * 100) / 100;
+        const remainVal = Math.round(entry.value * (remainPct / 100) * 100) / 100;
+        await prisma.ownerEntry.create({
+          data: {
+            type: "CREDITO",
+            category: ownerCategory,
+            description: `${ownerCategory} ${mLabel} - ${contractCode || "manual"} (${remainPct}%)`,
+            value: remainVal,
+            dueDate: entry.dueDate,
+            status: "PENDENTE",
+            ownerId,
+            contractId: entry.contractId,
+            propertyId: propertyId || entry.propertyId,
+            notes: JSON.stringify(baseNotes),
+          },
+        });
+      }
+    } else {
+      // Proprietário único
+      await prisma.ownerEntry.create({
+        data: {
+          type: "CREDITO",
+          category: ownerCategory,
+          description: `${ownerCategory} ${mLabel} - ${contractCode || "manual"}`,
+          value: entry.value,
+          dueDate: entry.dueDate,
+          status: "PENDENTE",
+          ownerId,
+          contractId: entry.contractId,
+          propertyId: propertyId || entry.propertyId,
+          notes: JSON.stringify(baseNotes),
+        },
+      });
+    }
     created++;
   }
 
