@@ -418,12 +418,13 @@ export default function RepassesPage() {
   }
 
   const selectedTotal = groups.reduce((sum, g) => {
-    return (
-      sum +
-      g.entries
-        .filter((e) => selectedEntries.has(e.id))
-        .reduce((s, e) => s + e.value, 0)
-    );
+    const selectedCredits = g.entries
+      .filter((e) => selectedEntries.has(e.id))
+      .reduce((s, e) => s + e.value, 0);
+    if (selectedCredits === 0) return sum;
+    // Se selecionou entries deste proprietário, descontar débitos pendentes
+    const debitos = (g.debitEntries || []).reduce((s, d) => s + d.value, 0);
+    return sum + selectedCredits - debitos;
   }, 0);
 
   return (
@@ -513,7 +514,7 @@ export default function RepassesPage() {
                     {selectedEntries.size} selecionado(s)
                   </Badge>
                   <span className="text-sm font-semibold">
-                    Total: {formatCurrency(selectedTotal)}
+                    Total líquido: {formatCurrency(selectedTotal)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1261,7 +1262,7 @@ export default function RepassesPage() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmAction === "PAGO"
-                ? `Deseja marcar ${selectedEntries.size} repasse(s) como PAGO no valor total de ${formatCurrency(selectedTotal)}? Esta acao confirma que o repasse foi realizado.`
+                ? `Deseja marcar ${selectedEntries.size} repasse(s) como PAGO no valor líquido de ${formatCurrency(selectedTotal)}? Esta acao confirma que o repasse foi realizado.`
                 : `Deseja reverter ${selectedEntries.size} repasse(s) para PENDENTE?`}
             </AlertDialogDescription>
           </AlertDialogHeader>
