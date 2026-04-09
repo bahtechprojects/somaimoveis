@@ -439,12 +439,13 @@ export function generateCnab240(
 
   const content = linhas.join("\r\n");
 
-  // Gerar nome do arquivo
+  // Gerar nome do arquivo - Sicredi exige XXXXXXXX.REM (exatamente 8 caracteres)
   const now = new Date();
   const dd = String(now.getDate()).padStart(2, "0");
   const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const yy = String(now.getFullYear()).slice(-2);
   const seq = String(config.sequencialArquivo || 1).padStart(2, "0");
-  const filename = `REMESSA_${dd}${mm}${now.getFullYear()}_${seq}.rem`;
+  const filename = `RM${dd}${mm}${yy}${seq}.REM`;
 
   return {
     content,
