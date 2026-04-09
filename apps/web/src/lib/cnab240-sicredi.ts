@@ -8,7 +8,11 @@ const EMPRESA_CNPJ = process.env.CNAB_EMPRESA_CNPJ || "";
 const EMPRESA_NOME = process.env.CNAB_EMPRESA_NOME || "SOMMA IMOVEIS";
 const EMPRESA_CONVENIO = process.env.CNAB_EMPRESA_CONVENIO || "";
 const EMPRESA_AGENCIA = process.env.CNAB_EMPRESA_AGENCIA || "";
-const EMPRESA_AGENCIA_DV = process.env.CNAB_EMPRESA_AGENCIA_DV || " ";
+// DV pode vir como "02" no env, mas o campo CNAB é 1 posição - pegar último dígito
+const EMPRESA_AGENCIA_DV_RAW = process.env.CNAB_EMPRESA_AGENCIA_DV || " ";
+const EMPRESA_AGENCIA_DV = EMPRESA_AGENCIA_DV_RAW.length > 1
+  ? EMPRESA_AGENCIA_DV_RAW.slice(-1) // "02" → "2"
+  : EMPRESA_AGENCIA_DV_RAW;
 const EMPRESA_CONTA = process.env.CNAB_EMPRESA_CONTA || "";
 const EMPRESA_CONTA_DV = process.env.CNAB_EMPRESA_CONTA_DV || " ";
 const EMPRESA_ENDERECO = process.env.CNAB_EMPRESA_ENDERECO || "";
