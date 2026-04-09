@@ -1009,12 +1009,12 @@ export default function RepassesPage() {
                                 if (["REPASSE", "GARANTIA"].includes(e.category) && e.notes) {
                                   try {
                                     const n = JSON.parse(e.notes);
-                                    // Valores TOTAIS do contrato (não proporcionais)
-                                    if (n.adminFeeValue && !totalAdminFee) totalAdminFee = n.adminFeeValue;
+                                    // Somar valores de TODOS os contratos do proprietário
+                                    if (n.adminFeeValue) totalAdminFee += n.adminFeeValue;
                                     if (n.adminFeePercent) adminFeePercent = n.adminFeePercent;
-                                    if (n.aluguelBruto && !totalAluguelBruto) totalAluguelBruto = n.aluguelBruto;
-                                    if (n.intermediacao && !totalIntermediacao) totalIntermediacao = n.intermediacao;
-                                    if (n.irrfValue && !totalIrrf) totalIrrf = n.irrfValue;
+                                    if (n.aluguelBruto) totalAluguelBruto += n.aluguelBruto;
+                                    if (n.intermediacao) totalIntermediacao += n.intermediacao;
+                                    if (n.irrfValue) totalIrrf += n.irrfValue;
                                     if (n.sharePercent) sharePercent = n.sharePercent;
                                   } catch {}
                                 }
