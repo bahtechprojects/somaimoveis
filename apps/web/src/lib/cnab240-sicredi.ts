@@ -6,7 +6,18 @@
 // Dados da empresa pagadora (configurados via .env)
 const EMPRESA_CNPJ = process.env.CNAB_EMPRESA_CNPJ || "";
 const EMPRESA_NOME = process.env.CNAB_EMPRESA_NOME || "SOMMA IMOVEIS";
-const EMPRESA_CONVENIO = process.env.CNAB_EMPRESA_CONVENIO || "";
+
+// Convênio Sicredi = cooperativa(4) + posto(2) + beneficiário(5) + brancos(9) = 20 posições
+// Ex: cooperativa=0156, posto=10, beneficiário=00405 → "01561000405         "
+const SICREDI_COOPERATIVA = process.env.SICREDI_COOPERATIVA || "";
+const SICREDI_POSTO = process.env.SICREDI_POSTO || "";
+const SICREDI_BENEFICIARIO = process.env.SICREDI_BENEFICIARIO || process.env.CNAB_EMPRESA_CONVENIO || "";
+const EMPRESA_CONVENIO = SICREDI_COOPERATIVA && SICREDI_POSTO && SICREDI_BENEFICIARIO
+  ? SICREDI_COOPERATIVA.padStart(4, "0") +
+    SICREDI_POSTO.padStart(2, "0") +
+    SICREDI_BENEFICIARIO.padStart(5, "0")
+  : process.env.CNAB_EMPRESA_CONVENIO || "";
+
 const EMPRESA_AGENCIA = process.env.CNAB_EMPRESA_AGENCIA || "";
 // DV pode vir como "02" no env, mas o campo CNAB é 1 posição - pegar último dígito
 const EMPRESA_AGENCIA_DV_RAW = process.env.CNAB_EMPRESA_AGENCIA_DV || " ";

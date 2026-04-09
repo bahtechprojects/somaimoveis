@@ -163,6 +163,7 @@ export default function RepassesPage() {
   const [confirmAction, setConfirmAction] = useState<"PAGO" | "PENDENTE">("PAGO");
   const [actionLoading, setActionLoading] = useState(false);
   const [cnabLoading, setCnabLoading] = useState(false);
+  const [cnabSequencial, setCnabSequencial] = useState(1);
   const [guaranteeLoading, setGuaranteeLoading] = useState<Record<string, boolean>>({});
 
   async function handleGuarantee(ownerId: string, ownerName: string) {
@@ -366,6 +367,7 @@ export default function RepassesPage() {
           month,
           ownerIds,
           formaPagamento: "PIX",
+          sequencial: cnabSequencial,
         }),
       });
 
@@ -535,16 +537,26 @@ export default function RepassesPage() {
                     <Download className="h-3.5 w-3.5" />
                     CSV
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 h-8 text-xs"
-                    onClick={handleGenerateCnab}
-                    disabled={cnabLoading}
-                  >
-                    <FileText className="h-3.5 w-3.5" />
-                    {cnabLoading ? "Gerando..." : "CNAB 240"}
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      type="number"
+                      min={1}
+                      value={cnabSequencial}
+                      onChange={(e) => setCnabSequencial(Number(e.target.value) || 1)}
+                      className="h-8 w-16 text-xs text-center"
+                      title="Sequencial CNAB"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-8 text-xs"
+                      onClick={handleGenerateCnab}
+                      disabled={cnabLoading}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      {cnabLoading ? "Gerando..." : "CNAB 240"}
+                    </Button>
+                  </div>
                   <Button
                     size="sm"
                     className="gap-1.5 h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
@@ -607,20 +619,31 @@ export default function RepassesPage() {
                       <span className="hidden sm:inline">Exportar CSV</span>
                       <span className="sm:hidden">CSV</span>
                     </Button>
-                    <Button
-                      size="sm"
-                      className="gap-1.5 h-10 sm:h-8 text-xs bg-blue-600 hover:bg-blue-700"
-                      onClick={handleGenerateCnab}
-                      disabled={cnabLoading}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">
-                        {cnabLoading ? "Gerando..." : "Gerar Remessa CNAB"}
-                      </span>
-                      <span className="sm:hidden">
-                        {cnabLoading ? "..." : "CNAB"}
-                      </span>
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="number"
+                        min={1}
+                        value={cnabSequencial}
+                        onChange={(e) => setCnabSequencial(Number(e.target.value) || 1)}
+                        className="h-10 sm:h-8 w-16 text-xs text-center"
+                        title="Seq."
+                        placeholder="Seq."
+                      />
+                      <Button
+                        size="sm"
+                        className="gap-1.5 h-10 sm:h-8 text-xs bg-blue-600 hover:bg-blue-700"
+                        onClick={handleGenerateCnab}
+                        disabled={cnabLoading}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">
+                          {cnabLoading ? "Gerando..." : "Gerar Remessa CNAB"}
+                        </span>
+                        <span className="sm:hidden">
+                          {cnabLoading ? "..." : "CNAB"}
+                        </span>
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>
