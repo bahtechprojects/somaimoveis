@@ -26,15 +26,11 @@ async function findFixes() {
     sharesByProperty[po.propertyId].push(po);
   }
 
-  // Apenas imóveis com 2+ co-proprietários
-  const splitProperties = Object.entries(sharesByProperty).filter(([, shares]) => shares.length >= 2);
-
-  // Buscar contratos vinculados a essas propriedades
-  const propertyIds = splitProperties.map(([pid]) => pid);
+  // Buscar contratos para TODAS as propriedades com co-proprietários (mesmo com 1 só)
+  const allPropertyIds = Object.keys(sharesByProperty);
   const contracts = await prisma.contract.findMany({
-    where: { propertyId: { in: propertyIds }, status: "ATIVO" },
+    where: { propertyId: { in: allPropertyIds }, status: "ATIVO" },
     select: { id: true, propertyId: true, ownerId: true, rentalValue: true, adminFeePercent: true },
-    // include owner name for display
   });
   const contractsByProperty: Record<string, typeof contracts> = {};
   for (const c of contracts) {
@@ -44,8 +40,8 @@ async function findFixes() {
   }
 
   // Garantir que o proprietário do contrato está na lista de shares
-  // Se PropertyOwner só tem co-proprietário mas não o principal, incluir com o restante
-  for (const [propertyId, shares] of splitProperties) {
+  // ANTES de filtrar por >= 2, para que propriedades com 1 co-proprietário + proprietário do contrato sejam incluídas
+  for (const [propertyId, shares] of Object.entries(sharesByProperty)) {
     const propContracts = contractsByProperty[propertyId] || [];
     for (const contract of propContracts) {
       const ownerInShares = shares.some(s => s.ownerId === contract.ownerId);
@@ -53,7 +49,6 @@ async function findFixes() {
         const totalPct = shares.reduce((s, sh) => s + sh.percentage, 0);
         if (totalPct < 100) {
           const remainingPct = Math.round((100 - totalPct) * 100) / 100;
-          // Buscar dados do owner
           const owner = await prisma.owner.findUnique({
             where: { id: contract.ownerId },
             select: { id: true, name: true },
@@ -72,6 +67,9 @@ async function findFixes() {
       }
     }
   }
+
+  // Agora filtrar: imóveis com 2+ proprietários (incluindo virtuais)
+  const splitProperties = Object.entries(sharesByProperty).filter(([, shares]) => shares.length >= 2);
 
   const fixes = [];
 
@@ -215,22 +213,15 @@ export async function POST() {
       sharesByProperty[po.propertyId].push(po);
     }
 
-    const splitProperties = Object.entries(sharesByProperty).filter(([, shares]) => shares.length >= 2);
-
-    const propertyIds = splitProperties.map(([pid]) => pid);
+    // Buscar contratos ANTES de filtrar, para incluir proprietários do contrato
+    const allPropertyIdsPost = Object.keys(sharesByProperty);
     const contractsForPost = await prisma.contract.findMany({
-      where: { propertyId: { in: propertyIds }, status: "ATIVO" },
+      where: { propertyId: { in: allPropertyIdsPost }, status: "ATIVO" },
       select: { id: true, propertyId: true, ownerId: true },
     });
-    const contractsByProperty: Record<string, string[]> = {};
-    for (const c of contractsForPost) {
-      if (!c.propertyId) continue;
-      if (!contractsByProperty[c.propertyId]) contractsByProperty[c.propertyId] = [];
-      contractsByProperty[c.propertyId].push(c.id);
-    }
 
-    // Incluir proprietário do contrato nos shares se não está em PropertyOwner
-    for (const [propertyId, shares] of splitProperties) {
+    // Incluir proprietário do contrato nos shares ANTES do filtro
+    for (const [propertyId, shares] of Object.entries(sharesByProperty)) {
       const propContracts = contractsForPost.filter(c => c.propertyId === propertyId);
       for (const contract of propContracts) {
         const ownerInShares = shares.some(s => s.ownerId === contract.ownerId);
@@ -255,6 +246,16 @@ export async function POST() {
           }
         }
       }
+    }
+
+    // Agora filtrar: 2+ proprietários (incluindo virtuais)
+    const splitProperties = Object.entries(sharesByProperty).filter(([, shares]) => shares.length >= 2);
+
+    const contractsByProperty: Record<string, string[]> = {};
+    for (const c of contractsForPost) {
+      if (!c.propertyId) continue;
+      if (!contractsByProperty[c.propertyId]) contractsByProperty[c.propertyId] = [];
+      contractsByProperty[c.propertyId].push(c.id);
     }
 
     let created = 0;
