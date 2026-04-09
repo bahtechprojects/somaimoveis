@@ -130,10 +130,14 @@ export async function POST(request: NextRequest) {
 
       const ownerShares = contract.propertyId ? (sharesByProperty[contract.propertyId] || []) : [];
 
+      // Calcular aluguelBruto a partir do splitOwnerValue (respeita pro-rata)
+      const aluguelBruto = Math.round(splitOwnerValue / (1 - adminFeePercent / 100) * 100) / 100;
+      const adminFeeValue = Math.round(aluguelBruto * (adminFeePercent / 100) * 100) / 100;
+
       const notes = JSON.stringify({
-        aluguelBruto: contract.rentalValue,
+        aluguelBruto,
         adminFeePercent,
-        adminFeeValue: Math.round(contract.rentalValue * (adminFeePercent / 100) * 100) / 100,
+        adminFeeValue,
         netToOwner: payment.netToOwner || splitOwnerValue,
         backfilledAt: new Date().toISOString(),
       });

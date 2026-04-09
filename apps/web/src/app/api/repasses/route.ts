@@ -104,7 +104,13 @@ export async function GET(request: NextRequest) {
       if (c) {
         const pctMatch = entry.description.match(/\((\d+(?:[.,]\d+)?)%\)/);
         const sharePercent = pctMatch ? parseFloat(pctMatch[1].replace(",", ".")) : undefined;
-        const totalAdminFee = Math.round(c.rentalValue * (c.adminFeePercent / 100) * 100) / 100;
+
+        // Calcular aluguel bruto a partir do valor do entry (pode ser pro-rata)
+        // entry.value = aluguelBruto * (1 - adminFee/100) * (sharePercent/100)
+        const adminPct = c.adminFeePercent / 100;
+        const shareFactor = sharePercent ? sharePercent / 100 : 1;
+        const aluguelBruto = Math.round(entry.value / ((1 - adminPct) * shareFactor) * 100) / 100;
+        const adminFeeValue = Math.round(aluguelBruto * adminPct * 100) / 100;
 
         let existingNotes: Record<string, unknown> = {};
         if (entry.notes) {
@@ -112,9 +118,9 @@ export async function GET(request: NextRequest) {
         }
         (entry as any).notes = JSON.stringify({
           ...existingNotes,
-          aluguelBruto: c.rentalValue,
+          aluguelBruto,
           adminFeePercent: c.adminFeePercent,
-          adminFeeValue: totalAdminFee,
+          adminFeeValue,
           sharePercent,
           netToOwner: entry.value,
         });
