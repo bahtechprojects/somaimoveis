@@ -94,6 +94,8 @@ interface OwnerGroup {
   totalPago: number;
   totalDebitos?: number;
   totalLiquido?: number;
+  isCoOwner?: boolean;
+  sharePercent?: number | null;
 }
 
 function formatCurrency(value: number): string {
@@ -651,9 +653,10 @@ export default function RepassesPage() {
                     const allSelected =
                       pendingEntries.length > 0 &&
                       pendingEntries.every((e) => selectedEntries.has(e.id));
+                    const isNegativoMobile = (group.totalLiquido ?? group.totalPendente) < 0;
 
                     return (
-                      <div key={group.owner.id}>
+                      <div key={group.owner.id} className={cn(isNegativoMobile && "bg-red-50/50")}>
                         {/* Owner header */}
                         <div
                           className="p-4 cursor-pointer active:bg-muted/50"
@@ -661,7 +664,7 @@ export default function RepassesPage() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-3 min-w-0">
-                              {activeTab === "pendentes" && pendingEntries.length > 0 && (
+                              {activeTab === "pendentes" && pendingEntries.length > 0 && !isNegativoMobile && (
                                 <Checkbox
                                   checked={allSelected}
                                   onCheckedChange={() =>
@@ -672,9 +675,16 @@ export default function RepassesPage() {
                                 />
                               )}
                               <div className="min-w-0">
-                                <p className="text-sm font-semibold truncate">
-                                  {group.owner.name}
-                                </p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-sm font-semibold truncate">
+                                    {group.owner.name}
+                                  </p>
+                                  {group.isCoOwner ? (
+                                    <Badge variant="outline" className="text-[9px] h-4 px-1 bg-blue-50 text-blue-700 border-blue-200 shrink-0">
+                                      {group.sharePercent}%
+                                    </Badge>
+                                  ) : null}
+                                </div>
                                 {group.owner.thirdPartyName && (
                                   <p className="text-[11px] text-muted-foreground">
                                     Recebedor: {group.owner.thirdPartyName}
@@ -837,9 +847,10 @@ export default function RepassesPage() {
                     const allSelected =
                       pendingEntries.length > 0 &&
                       pendingEntries.every((e) => selectedEntries.has(e.id));
+                    const isNegativo = (group.totalLiquido ?? group.totalPendente) < 0;
 
                     return (
-                      <div key={group.owner.id} className="border-b last:border-0">
+                      <div key={group.owner.id} className={cn("border-b last:border-0", isNegativo && "bg-red-50/50")}>
                         {/* Owner row */}
                         <div
                           className={cn(
@@ -848,7 +859,7 @@ export default function RepassesPage() {
                           )}
                           onClick={() => toggleOwner(group.owner.id)}
                         >
-                          {activeTab === "pendentes" && pendingEntries.length > 0 && (
+                          {activeTab === "pendentes" && pendingEntries.length > 0 && !isNegativo && (
                             <Checkbox
                               checked={allSelected}
                               onCheckedChange={() =>
@@ -870,6 +881,15 @@ export default function RepassesPage() {
                               <span className="text-xs text-muted-foreground">
                                 ({group.owner.cpfCnpj})
                               </span>
+                              {group.isCoOwner ? (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-blue-50 text-blue-700 border-blue-200">
+                                  Co-proprietário {group.sharePercent}%
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-slate-50 text-slate-600 border-slate-200">
+                                  Proprietário
+                                </Badge>
+                              )}
                             </div>
                             {group.owner.thirdPartyName && (
                               <p className="text-xs text-muted-foreground">
@@ -913,11 +933,20 @@ export default function RepassesPage() {
                                 Débitos: -{formatCurrency(group.totalDebitos!)}
                               </Badge>
                             )}
-                            {group.totalPendente > 0 && (
-                              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs font-bold">
-                                Líq: {formatCurrency(group.totalLiquido ?? group.totalPendente)}
-                              </Badge>
-                            )}
+                            {(() => {
+                              const liq = group.totalLiquido ?? group.totalPendente;
+                              if (liq < 0) return (
+                                <Badge className="bg-red-600 text-white border-red-700 text-xs font-bold">
+                                  Negativado: {formatCurrency(liq)}
+                                </Badge>
+                              );
+                              if (group.totalPendente > 0) return (
+                                <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200 text-xs font-bold">
+                                  Líq: {formatCurrency(liq)}
+                                </Badge>
+                              );
+                              return null;
+                            })()}
                             {group.totalPago > 0 && (
                               <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs">
                                 {formatCurrency(group.totalPago)}
@@ -1070,7 +1099,7 @@ export default function RepassesPage() {
                                   <TableRow key={entry.id} className="hover:bg-muted/30">
                                     {activeTab === "pendentes" && (
                                       <TableCell>
-                                        {entry.status === "PENDENTE" && (
+                                        {entry.status === "PENDENTE" && !isNegativo && (
                                           <Checkbox
                                             checked={selectedEntries.has(entry.id)}
                                             onCheckedChange={() => toggleEntry(entry.id)}

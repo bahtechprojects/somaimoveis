@@ -185,14 +185,22 @@ export async function GET(request: NextRequest) {
   }
 
   // Calcular valor liquido (repasse - debitos)
+  // Detectar co-proprietários: entries com "(%)" na descrição
   const result = Object.values(grouped)
-    .map((g) => ({
-      ...g,
-      totalPendente: Math.round(g.totalPendente * 100) / 100,
-      totalPago: Math.round(g.totalPago * 100) / 100,
-      totalDebitos: Math.round(g.totalDebitos * 100) / 100,
-      totalLiquido: Math.round((g.totalPendente - g.totalDebitos) * 100) / 100,
-    }))
+    .map((g) => {
+      const repasseEntry = g.entries.find(e => ["REPASSE", "GARANTIA"].includes(e.category));
+      const pctMatch = repasseEntry?.description.match(/\((\d+(?:[.,]\d+)?)%\)/);
+      const sharePercent = pctMatch ? parseFloat(pctMatch[1].replace(",", ".")) : null;
+      return {
+        ...g,
+        totalPendente: Math.round(g.totalPendente * 100) / 100,
+        totalPago: Math.round(g.totalPago * 100) / 100,
+        totalDebitos: Math.round(g.totalDebitos * 100) / 100,
+        totalLiquido: Math.round((g.totalPendente - g.totalDebitos) * 100) / 100,
+        isCoOwner: sharePercent !== null && sharePercent < 100,
+        sharePercent,
+      };
+    })
     .sort((a, b) => a.owner.name.localeCompare(b.owner.name, "pt-BR"));
 
   return NextResponse.json(result);
