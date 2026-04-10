@@ -7,19 +7,13 @@
 const EMPRESA_CNPJ = process.env.CNAB_EMPRESA_CNPJ || "";
 const EMPRESA_NOME = process.env.CNAB_EMPRESA_NOME || "SOMMA IMOVEIS";
 
-// Convênio Sicredi para Pagamento a Fornecedor:
-// Posições 033-052 = código convênio (20 chars)
-// Formato composto: cooperativa(4) + posto(2) + beneficiário(5) = 11 chars + 9 brancos
-// Ex: "0156" + "10" + "00405" = "01561000405         "
+// Convênio Sicredi - Pagamento a Fornecedor (Nota G002 do manual):
+// Posições 033-036 = código convênio X(004) = exatamente 4 chars
+// Posições 037-052 = Filler X(016) = brancos obrigatórios
+// Código de contrato entre Sicredi e empresa (verificar com gerente de conta)
 const SICREDI_BENEFICIARIO = process.env.SICREDI_BENEFICIARIO || process.env.CNAB_EMPRESA_CONVENIO || "";
-const SICREDI_COOP = process.env.SICREDI_COOPERATIVA || "";
-const SICREDI_POSTO_CONV = process.env.SICREDI_POSTO || "";
-// Convênio composto: cooperativa + posto + beneficiário
-const EMPRESA_CONVENIO = SICREDI_COOP && SICREDI_POSTO_CONV
-  ? SICREDI_COOP + SICREDI_POSTO_CONV + SICREDI_BENEFICIARIO
-  : SICREDI_BENEFICIARIO.trim();
-// Convênio para nome do arquivo (4 chars): últimos 4 dígitos do beneficiário
-const CONVENIO_FILENAME = SICREDI_BENEFICIARIO.replace(/^0+/, "").padStart(4, "0").slice(-4);
+// Convênio 4 chars: derivado do beneficiário (ex: "00405" → "0405")
+const EMPRESA_CONVENIO = SICREDI_BENEFICIARIO.replace(/^0+/, "").padStart(4, "0").slice(-4);
 
 // No Sicredi, "agência" no CNAB = cooperativa (ex: "0156"), NÃO o posto ("10")
 const EMPRESA_AGENCIA = process.env.SICREDI_COOPERATIVA || process.env.CNAB_EMPRESA_AGENCIA || "";
@@ -180,7 +174,8 @@ function headerArquivo(config: CnabConfig): string {
   registro += padStr("", 9); // 009-017: brancos
   registro += tipoInscricao(EMPRESA_CNPJ); // 018: tipo inscricao
   registro += padNum(EMPRESA_CNPJ, 14); // 019-032: CNPJ
-  registro += padStr(EMPRESA_CONVENIO, 20); // 033-052: codigo convenio (20 chars)
+  registro += padStr(EMPRESA_CONVENIO, 4); // 033-036: codigo convenio (4 chars)
+  registro += padStr("", 16); // 037-052: filler brancos
   registro += padNum(EMPRESA_AGENCIA, 5); // 053-057: agencia
   registro += padStr(EMPRESA_AGENCIA_DV, 1); // 058: DV agencia
   registro += padNum(EMPRESA_CONTA, 12); // 059-070: conta
@@ -214,7 +209,8 @@ function headerLote(loteNum: number, forma: "PIX" | "TED" | "CC"): string {
   registro += " "; // 017: branco
   registro += tipoInscricao(EMPRESA_CNPJ); // 018: tipo inscricao
   registro += padNum(EMPRESA_CNPJ, 14); // 019-032: CNPJ
-  registro += padStr(EMPRESA_CONVENIO, 20); // 033-052: convenio (20 chars)
+  registro += padStr(EMPRESA_CONVENIO, 4); // 033-036: codigo convenio (4 chars)
+  registro += padStr("", 16); // 037-052: filler brancos
   registro += padNum(EMPRESA_AGENCIA, 5); // 053-057: agencia
   registro += padStr(EMPRESA_AGENCIA_DV, 1); // 058: DV
   registro += padNum(EMPRESA_CONTA, 12); // 059-070: conta
@@ -479,7 +475,7 @@ export function generateCnab240(
   const now = new Date();
   const dd = String(now.getDate()).padStart(2, "0");
   const seqFile = String(config.sequencialArquivo || 1).padStart(2, "0").slice(-2);
-  const filename = `${CONVENIO_FILENAME}${dd}${seqFile}.REM`;
+  const filename = `${EMPRESA_CONVENIO}${dd}${seqFile}.REM`;
 
   return {
     content,
