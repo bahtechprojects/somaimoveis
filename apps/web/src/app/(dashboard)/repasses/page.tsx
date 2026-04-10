@@ -175,6 +175,8 @@ export default function RepassesPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [cnabLoading, setCnabLoading] = useState(false);
   const [cnabNextSeq, setCnabNextSeq] = useState<number | null>(null);
+  const [cnabSeqEditing, setCnabSeqEditing] = useState(false);
+  const [cnabSeqInput, setCnabSeqInput] = useState("");
   const [guaranteeLoading, setGuaranteeLoading] = useState<Record<string, boolean>>({});
 
   async function handleGuarantee(ownerId: string, ownerName: string) {
@@ -362,10 +364,13 @@ export default function RepassesPage() {
     }
   }
 
-  async function handleAjustarSequencial() {
-    const input = prompt("Informe o próximo sequencial CNAB:", String(cnabNextSeq || 1));
-    if (!input) return;
-    const num = parseInt(input);
+  function openSeqEdit() {
+    setCnabSeqInput(String(cnabNextSeq || 1));
+    setCnabSeqEditing(true);
+  }
+
+  async function saveSeqEdit() {
+    const num = parseInt(cnabSeqInput);
     if (isNaN(num) || num < 1) { toast.error("Número inválido"); return; }
     try {
       const res = await fetch("/api/repasses/cnab240", {
@@ -375,7 +380,8 @@ export default function RepassesPage() {
       });
       if (res.ok) {
         setCnabNextSeq(num);
-        toast.success(`Próximo sequencial definido: ${num}`);
+        setCnabSeqEditing(false);
+        toast.success(`Sequencial definido: ${num}`);
       } else {
         toast.error("Erro ao ajustar sequencial");
       }
@@ -586,8 +592,23 @@ export default function RepassesPage() {
                     CSV
                   </Button>
                   <div className="flex items-center gap-1">
-                    {cnabNextSeq && (
-                      <button onClick={handleAjustarSequencial} className="text-[10px] text-muted-foreground mr-1 hover:text-primary hover:underline" title="Clique para ajustar o sequencial">Seq: {cnabNextSeq}</button>
+                    {cnabNextSeq != null && (
+                      cnabSeqEditing ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            type="number"
+                            min={1}
+                            value={cnabSeqInput}
+                            onChange={(e) => setCnabSeqInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") saveSeqEdit(); if (e.key === "Escape") setCnabSeqEditing(false); }}
+                            className="h-7 w-16 text-xs text-center"
+                            autoFocus
+                          />
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={saveSeqEdit}>OK</Button>
+                        </div>
+                      ) : (
+                        <button onClick={openSeqEdit} className="text-[10px] text-muted-foreground mr-1 hover:text-primary hover:underline" title="Clique para ajustar o sequencial">Seq: {cnabNextSeq}</button>
+                      )
                     )}
                     <Button
                       size="sm"
