@@ -151,6 +151,17 @@ function getRecipientName(owner: OwnerData): string {
   return owner.thirdPartyName || owner.name;
 }
 
+/** Detecta se o proprietário tem dados para PIX, TED ou ambos */
+function getOwnerPaymentTypes(owner: OwnerData): ("PIX" | "TED")[] {
+  const types: ("PIX" | "TED")[] = [];
+  const pix = owner.thirdPartyPix || owner.bankPix;
+  const ag = owner.thirdPartyAgency || owner.bankAgency;
+  const cc = owner.thirdPartyAccount || owner.bankAccount;
+  if (pix) types.push("PIX");
+  if (ag && cc) types.push("TED");
+  return types;
+}
+
 export default function RepassesPage() {
   const [groups, setGroups] = useState<OwnerGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -164,6 +175,7 @@ export default function RepassesPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [cnabLoading, setCnabLoading] = useState(false);
   const [cnabSequencial, setCnabSequencial] = useState(1);
+  const [cnabFormaPagamento, setCnabFormaPagamento] = useState<"PIX" | "TED">("PIX");
   const [guaranteeLoading, setGuaranteeLoading] = useState<Record<string, boolean>>({});
 
   async function handleGuarantee(ownerId: string, ownerName: string) {
@@ -366,7 +378,7 @@ export default function RepassesPage() {
         body: JSON.stringify({
           month,
           ownerIds,
-          formaPagamento: "PIX",
+          formaPagamento: cnabFormaPagamento,
           sequencial: cnabSequencial,
         }),
       });
@@ -538,13 +550,23 @@ export default function RepassesPage() {
                     CSV
                   </Button>
                   <div className="flex items-center gap-1">
+                    <div className="flex h-8 rounded-md border overflow-hidden">
+                      <button
+                        className={cn("px-2 text-xs font-medium transition-colors", cnabFormaPagamento === "PIX" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80")}
+                        onClick={() => setCnabFormaPagamento("PIX")}
+                      >PIX</button>
+                      <button
+                        className={cn("px-2 text-xs font-medium transition-colors border-l", cnabFormaPagamento === "TED" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80")}
+                        onClick={() => setCnabFormaPagamento("TED")}
+                      >TED</button>
+                    </div>
                     <Input
                       type="number"
                       min={1}
                       value={cnabSequencial}
                       onChange={(e) => setCnabSequencial(Number(e.target.value) || 1)}
-                      className="h-8 w-16 text-xs text-center"
-                      title="Sequencial CNAB"
+                      className="h-8 w-14 text-xs text-center"
+                      title="Seq."
                     />
                     <Button
                       size="sm"
@@ -554,7 +576,7 @@ export default function RepassesPage() {
                       disabled={cnabLoading}
                     >
                       <FileText className="h-3.5 w-3.5" />
-                      {cnabLoading ? "Gerando..." : "CNAB 240"}
+                      {cnabLoading ? "Gerando..." : "CNAB"}
                     </Button>
                   </div>
                   <Button
@@ -620,14 +642,23 @@ export default function RepassesPage() {
                       <span className="sm:hidden">CSV</span>
                     </Button>
                     <div className="flex items-center gap-1">
+                      <div className="flex h-10 sm:h-8 rounded-md border overflow-hidden">
+                        <button
+                          className={cn("px-2 text-xs font-medium transition-colors", cnabFormaPagamento === "PIX" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80")}
+                          onClick={() => setCnabFormaPagamento("PIX")}
+                        >PIX</button>
+                        <button
+                          className={cn("px-2 text-xs font-medium transition-colors border-l", cnabFormaPagamento === "TED" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80")}
+                          onClick={() => setCnabFormaPagamento("TED")}
+                        >TED</button>
+                      </div>
                       <Input
                         type="number"
                         min={1}
                         value={cnabSequencial}
                         onChange={(e) => setCnabSequencial(Number(e.target.value) || 1)}
-                        className="h-10 sm:h-8 w-16 text-xs text-center"
+                        className="h-10 sm:h-8 w-14 text-xs text-center"
                         title="Seq."
-                        placeholder="Seq."
                       />
                       <Button
                         size="sm"
@@ -763,6 +794,11 @@ export default function RepassesPage() {
                                     <span className="font-medium">
                                       {getRecipientName(group.owner)}
                                     </span>
+                                    {getOwnerPaymentTypes(group.owner).map((t) => (
+                                      <Badge key={t} variant={t === "PIX" ? "default" : "secondary"} className="text-[10px] px-1.5 py-0 h-4">
+                                        {t}
+                                      </Badge>
+                                    ))}
                                   </div>
                                   {getBankDisplay(group.owner) && (
                                     <p className="mt-0.5 ml-5">
@@ -994,6 +1030,11 @@ export default function RepassesPage() {
                                 <span className="font-medium">
                                   {getRecipientName(group.owner)}
                                 </span>
+                                {getOwnerPaymentTypes(group.owner).map((t) => (
+                                  <Badge key={t} variant={t === "PIX" ? "default" : "secondary"} className="text-[10px] px-1.5 py-0 h-4">
+                                    {t}
+                                  </Badge>
+                                ))}
                               </div>
                               {getBankDisplay(group.owner) && (
                                 <span>{getBankDisplay(group.owner)}</span>
