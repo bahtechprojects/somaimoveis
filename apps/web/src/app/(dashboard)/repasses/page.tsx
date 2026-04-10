@@ -175,7 +175,6 @@ export default function RepassesPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [cnabLoading, setCnabLoading] = useState(false);
   const [cnabSequencial, setCnabSequencial] = useState(1);
-  const [cnabFormaPagamento, setCnabFormaPagamento] = useState<"PIX" | "TED">("PIX");
   const [guaranteeLoading, setGuaranteeLoading] = useState<Record<string, boolean>>({});
 
   async function handleGuarantee(ownerId: string, ownerName: string) {
@@ -357,20 +356,26 @@ export default function RepassesPage() {
     }
   }
 
-  async function handleGenerateCnab() {
+  async function handleGenerateCnab(forma: "PIX" | "TED") {
     setCnabLoading(true);
     try {
-      // Get selected owner IDs if any entries are selected
-      let ownerIds: string[] | undefined;
-      if (selectedEntries.size > 0) {
-        const ids = new Set<string>();
-        groups.forEach((g) => {
-          if (g.entries.some((e) => selectedEntries.has(e.id))) {
-            ids.add(g.owner.id);
-          }
-        });
-        ownerIds = Array.from(ids);
+      // Filter owners by payment type automatically
+      const filteredGroups = groups.filter((g) => {
+        // If entries are selected, only include groups with selected entries
+        if (selectedEntries.size > 0 && !g.entries.some((e) => selectedEntries.has(e.id))) {
+          return false;
+        }
+        const types = getOwnerPaymentTypes(g.owner);
+        return types.includes(forma);
+      });
+
+      if (filteredGroups.length === 0) {
+        toast.error(`Nenhum proprietário com dados para ${forma} encontrado.`);
+        setCnabLoading(false);
+        return;
       }
+
+      const ownerIds = filteredGroups.map((g) => g.owner.id);
 
       const response = await fetch("/api/repasses/cnab240", {
         method: "POST",
@@ -378,7 +383,7 @@ export default function RepassesPage() {
         body: JSON.stringify({
           month,
           ownerIds,
-          formaPagamento: cnabFormaPagamento,
+          formaPagamento: forma,
           sequencial: cnabSequencial,
         }),
       });
@@ -550,33 +555,33 @@ export default function RepassesPage() {
                     CSV
                   </Button>
                   <div className="flex items-center gap-1">
-                    <div className="flex h-8 rounded-md border overflow-hidden">
-                      <button
-                        className={cn("px-2 text-xs font-medium transition-colors", cnabFormaPagamento === "PIX" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80")}
-                        onClick={() => setCnabFormaPagamento("PIX")}
-                      >PIX</button>
-                      <button
-                        className={cn("px-2 text-xs font-medium transition-colors border-l", cnabFormaPagamento === "TED" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80")}
-                        onClick={() => setCnabFormaPagamento("TED")}
-                      >TED</button>
-                    </div>
                     <Input
                       type="number"
                       min={1}
                       value={cnabSequencial}
                       onChange={(e) => setCnabSequencial(Number(e.target.value) || 1)}
                       className="h-8 w-14 text-xs text-center"
-                      title="Seq."
+                      title="Sequencial"
                     />
                     <Button
                       size="sm"
                       variant="outline"
                       className="gap-1.5 h-8 text-xs"
-                      onClick={handleGenerateCnab}
+                      onClick={() => handleGenerateCnab("PIX")}
                       disabled={cnabLoading}
                     >
                       <FileText className="h-3.5 w-3.5" />
-                      {cnabLoading ? "Gerando..." : "CNAB"}
+                      {cnabLoading ? "..." : "CNAB PIX"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-8 text-xs"
+                      onClick={() => handleGenerateCnab("TED")}
+                      disabled={cnabLoading}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      {cnabLoading ? "..." : "CNAB TED"}
                     </Button>
                   </div>
                   <Button
@@ -642,16 +647,6 @@ export default function RepassesPage() {
                       <span className="sm:hidden">CSV</span>
                     </Button>
                     <div className="flex items-center gap-1">
-                      <div className="flex h-10 sm:h-8 rounded-md border overflow-hidden">
-                        <button
-                          className={cn("px-2 text-xs font-medium transition-colors", cnabFormaPagamento === "PIX" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80")}
-                          onClick={() => setCnabFormaPagamento("PIX")}
-                        >PIX</button>
-                        <button
-                          className={cn("px-2 text-xs font-medium transition-colors border-l", cnabFormaPagamento === "TED" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/80")}
-                          onClick={() => setCnabFormaPagamento("TED")}
-                        >TED</button>
-                      </div>
                       <Input
                         type="number"
                         min={1}
@@ -663,15 +658,29 @@ export default function RepassesPage() {
                       <Button
                         size="sm"
                         className="gap-1.5 h-10 sm:h-8 text-xs bg-blue-600 hover:bg-blue-700"
-                        onClick={handleGenerateCnab}
+                        onClick={() => handleGenerateCnab("PIX")}
                         disabled={cnabLoading}
                       >
                         <FileText className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">
-                          {cnabLoading ? "Gerando..." : "Gerar Remessa CNAB"}
+                          {cnabLoading ? "Gerando..." : "CNAB PIX"}
                         </span>
                         <span className="sm:hidden">
-                          {cnabLoading ? "..." : "CNAB"}
+                          {cnabLoading ? "..." : "PIX"}
+                        </span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-1.5 h-10 sm:h-8 text-xs bg-indigo-600 hover:bg-indigo-700"
+                        onClick={() => handleGenerateCnab("TED")}
+                        disabled={cnabLoading}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">
+                          {cnabLoading ? "Gerando..." : "CNAB TED"}
+                        </span>
+                        <span className="sm:hidden">
+                          {cnabLoading ? "..." : "TED"}
                         </span>
                       </Button>
                     </div>
