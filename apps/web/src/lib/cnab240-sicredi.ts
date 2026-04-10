@@ -466,7 +466,7 @@ export function generateCnab240(
     }
   }
 
-  const content = linhas.join("\r\n");
+  const content = linhas.join("\r\n") + "\r\n"; // finalizador hexadecimal 0D0A obrigatório
 
   // Nome do arquivo: CCCCDDSS.REM (convênio 4 digs + dia + sequencial)
   // Ex: convênio=0405, dia=10, seq=22 → "04051022.REM"
