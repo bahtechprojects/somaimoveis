@@ -8,11 +8,13 @@ const EMPRESA_CNPJ = process.env.CNAB_EMPRESA_CNPJ || "";
 const EMPRESA_NOME = process.env.CNAB_EMPRESA_NOME || "SOMMA IMOVEIS";
 
 // Convênio Sicredi para Pagamento a Fornecedor:
-// Posições 033-036 = código convênio (4 chars), 037-052 = filler brancos
-// O código do convênio é o beneficiário sem zeros à esquerda (ex: "00405" → "0405")
+// Posições 033-052 = código convênio (20 chars, preenchido com brancos à direita)
+// Usar valor exato do env sem alterar (ex: "00405" fica "00405" + 15 brancos)
 const SICREDI_BENEFICIARIO = process.env.SICREDI_BENEFICIARIO || process.env.CNAB_EMPRESA_CONVENIO || "";
-// Convênio: últimos 4 dígitos do beneficiário
-const EMPRESA_CONVENIO = SICREDI_BENEFICIARIO.replace(/^0+/, "").padStart(4, "0").slice(-4);
+// Convênio: valor exato, sem remover zeros à esquerda
+const EMPRESA_CONVENIO = SICREDI_BENEFICIARIO.trim();
+// Convênio para nome do arquivo (4 chars): usado apenas no filename CCCCDDSS.REM
+const CONVENIO_FILENAME = EMPRESA_CONVENIO.replace(/^0+/, "").padStart(4, "0").slice(-4);
 
 const EMPRESA_AGENCIA = process.env.CNAB_EMPRESA_AGENCIA || "";
 // DV pode vir como "02" no env, mas o campo CNAB é 1 posição - pegar último dígito
@@ -171,8 +173,7 @@ function headerArquivo(config: CnabConfig): string {
   registro += padStr("", 9); // 009-017: brancos
   registro += tipoInscricao(EMPRESA_CNPJ); // 018: tipo inscricao
   registro += padNum(EMPRESA_CNPJ, 14); // 019-032: CNPJ
-  registro += padStr(EMPRESA_CONVENIO, 4); // 033-036: codigo convenio (4 chars)
-  registro += padStr("", 16); // 037-052: filler brancos
+  registro += padStr(EMPRESA_CONVENIO, 20); // 033-052: codigo convenio (20 chars)
   registro += padNum(EMPRESA_AGENCIA, 5); // 053-057: agencia
   registro += padStr(EMPRESA_AGENCIA_DV, 1); // 058: DV agencia
   registro += padNum(EMPRESA_CONTA, 12); // 059-070: conta
@@ -206,8 +207,7 @@ function headerLote(loteNum: number, forma: "PIX" | "TED" | "CC"): string {
   registro += " "; // 017: branco
   registro += tipoInscricao(EMPRESA_CNPJ); // 018: tipo inscricao
   registro += padNum(EMPRESA_CNPJ, 14); // 019-032: CNPJ
-  registro += padStr(EMPRESA_CONVENIO, 4); // 033-036: convenio (4 chars)
-  registro += padStr("", 16); // 037-052: filler brancos
+  registro += padStr(EMPRESA_CONVENIO, 20); // 033-052: convenio (20 chars)
   registro += padNum(EMPRESA_AGENCIA, 5); // 053-057: agencia
   registro += padStr(EMPRESA_AGENCIA_DV, 1); // 058: DV
   registro += padNum(EMPRESA_CONTA, 12); // 059-070: conta
@@ -472,7 +472,7 @@ export function generateCnab240(
   const now = new Date();
   const dd = String(now.getDate()).padStart(2, "0");
   const seqFile = String(config.sequencialArquivo || 1).padStart(2, "0").slice(-2);
-  const filename = `${EMPRESA_CONVENIO}${dd}${seqFile}.REM`;
+  const filename = `${CONVENIO_FILENAME}${dd}${seqFile}.REM`;
 
   return {
     content,
