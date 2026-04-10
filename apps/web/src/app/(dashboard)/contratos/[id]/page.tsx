@@ -252,6 +252,46 @@ export default function ContratoDetalhePage() {
   const [docsLoading, setDocsLoading] = useState(false);
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [pdfPreviewName, setPdfPreviewName] = useState<string>("");
+  const [codesDialogOpen, setCodesDialogOpen] = useState(false);
+  const [codesForm, setCodesForm] = useState({ registrationNumber: "", iptuNumber: "", energyMeter: "", waterMeter: "", gasMeter: "", condoAdmin: "" });
+  const [codesSaving, setCodesSaving] = useState(false);
+
+  function openCodesDialog() {
+    if (contract?.property) {
+      setCodesForm({
+        registrationNumber: contract.property.registrationNumber || "",
+        iptuNumber: contract.property.iptuNumber || "",
+        energyMeter: contract.property.energyMeter || "",
+        waterMeter: contract.property.waterMeter || "",
+        gasMeter: contract.property.gasMeter || "",
+        condoAdmin: contract.property.condoAdmin || "",
+      });
+    }
+    setCodesDialogOpen(true);
+  }
+
+  async function saveCodes() {
+    if (!contract) return;
+    setCodesSaving(true);
+    try {
+      const res = await fetch(`/api/properties/${contract.propertyId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(codesForm),
+      });
+      if (res.ok) {
+        toast.success("Códigos atualizados!");
+        setCodesDialogOpen(false);
+        fetchContract();
+      } else {
+        toast.error("Erro ao salvar códigos");
+      }
+    } catch {
+      toast.error("Erro ao salvar códigos");
+    } finally {
+      setCodesSaving(false);
+    }
+  }
 
   async function fetchContract() {
     setLoading(true);
@@ -932,10 +972,16 @@ export default function ContratoDetalhePage() {
             </Card>
 
             {/* Códigos e Registros do Imóvel */}
-            {(contract.property?.registrationNumber || contract.property?.iptuNumber || contract.property?.energyMeter || contract.property?.waterMeter || contract.property?.gasMeter || contract.property?.condoAdmin) && (
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-6">
+            <Card className="border-0 shadow-sm">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-4">
                   <SectionTitle icon={FileText} title="Códigos e Registros" />
+                  <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={openCodesDialog}>
+                    <Pencil className="h-3 w-3" />
+                    Editar
+                  </Button>
+                </div>
+                {(contract.property?.registrationNumber || contract.property?.iptuNumber || contract.property?.energyMeter || contract.property?.waterMeter || contract.property?.gasMeter || contract.property?.condoAdmin) ? (
                   <div className="grid grid-cols-1 gap-3">
                     {contract.property.registrationNumber && (
                       <div>
@@ -974,9 +1020,11 @@ export default function ContratoDetalhePage() {
                       </div>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                ) : (
+                  <p className="text-xs text-muted-foreground">Nenhum código cadastrado. Clique em Editar para adicionar.</p>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Garantia */}
             <Card className="border-0 shadow-sm">
@@ -1327,6 +1375,49 @@ export default function ContratoDetalhePage() {
               title={pdfPreviewName}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Códigos e Registros */}
+      <Dialog open={codesDialogOpen} onOpenChange={setCodesDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Códigos e Registros do Imóvel</DialogTitle>
+            <DialogDescription>Preencha os códigos de referência do imóvel.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="registrationNumber">Matrícula</Label>
+              <Input id="registrationNumber" value={codesForm.registrationNumber} onChange={(e) => setCodesForm(f => ({ ...f, registrationNumber: e.target.value }))} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="iptuNumber">N° do IPTU</Label>
+              <Input id="iptuNumber" value={codesForm.iptuNumber} onChange={(e) => setCodesForm(f => ({ ...f, iptuNumber: e.target.value }))} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="energyMeter">Medidor Energia</Label>
+              <Input id="energyMeter" value={codesForm.energyMeter} onChange={(e) => setCodesForm(f => ({ ...f, energyMeter: e.target.value }))} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="waterMeter">Medidor Água</Label>
+              <Input id="waterMeter" value={codesForm.waterMeter} onChange={(e) => setCodesForm(f => ({ ...f, waterMeter: e.target.value }))} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="gasMeter">Medidor Gás</Label>
+              <Input id="gasMeter" value={codesForm.gasMeter} onChange={(e) => setCodesForm(f => ({ ...f, gasMeter: e.target.value }))} />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="condoAdmin">Adm. Condomínio</Label>
+              <Input id="condoAdmin" value={codesForm.condoAdmin} onChange={(e) => setCodesForm(f => ({ ...f, condoAdmin: e.target.value }))} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCodesDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={saveCodes} disabled={codesSaving}>
+              {codesSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Salvar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
