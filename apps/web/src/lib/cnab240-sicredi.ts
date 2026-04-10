@@ -11,7 +11,7 @@ const EMPRESA_NOME = process.env.CNAB_EMPRESA_NOME || "SOMMA IMOVEIS";
 // Posições 033-036 = código convênio X(004) = exatamente 4 chars alfanuméricos
 // Posições 037-052 = Filler X(016) = brancos obrigatórios
 // Código atribuído pelo Sicredi (ex: "762F") - verificar com gerente de conta
-const EMPRESA_CONVENIO = process.env.CNAB_CONVENIO_CODIGO || "762F";
+const EMPRESA_CONVENIO = process.env.CNAB_CONVENIO_CODIGO || "76ZF";
 
 // No Sicredi, "agência" no CNAB = cooperativa (ex: "0156"), NÃO o posto ("10")
 const EMPRESA_AGENCIA = process.env.SICREDI_COOPERATIVA || process.env.CNAB_EMPRESA_AGENCIA || "";
