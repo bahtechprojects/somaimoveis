@@ -8,12 +8,10 @@ const EMPRESA_CNPJ = process.env.CNAB_EMPRESA_CNPJ || "";
 const EMPRESA_NOME = process.env.CNAB_EMPRESA_NOME || "SOMMA IMOVEIS";
 
 // Convênio Sicredi - Pagamento a Fornecedor (Nota G002 do manual):
-// Posições 033-036 = código convênio X(004) = exatamente 4 chars
+// Posições 033-036 = código convênio X(004) = exatamente 4 chars alfanuméricos
 // Posições 037-052 = Filler X(016) = brancos obrigatórios
-// Código de contrato entre Sicredi e empresa (verificar com gerente de conta)
-const SICREDI_BENEFICIARIO = process.env.SICREDI_BENEFICIARIO || process.env.CNAB_EMPRESA_CONVENIO || "";
-// Convênio 4 chars: derivado do beneficiário (ex: "00405" → "0405")
-const EMPRESA_CONVENIO = SICREDI_BENEFICIARIO.replace(/^0+/, "").padStart(4, "0").slice(-4);
+// Código atribuído pelo Sicredi (ex: "762F") - verificar com gerente de conta
+const EMPRESA_CONVENIO = process.env.CNAB_CONVENIO_CODIGO || "762F";
 
 // No Sicredi, "agência" no CNAB = cooperativa (ex: "0156"), NÃO o posto ("10")
 const EMPRESA_AGENCIA = process.env.SICREDI_COOPERATIVA || process.env.CNAB_EMPRESA_AGENCIA || "";
