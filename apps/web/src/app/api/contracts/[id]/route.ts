@@ -13,7 +13,7 @@ export async function GET(
     const contract = await prisma.contract.findUnique({
       where: { id },
       include: {
-        property: { select: { id: true, title: true } },
+        property: { select: { id: true, title: true, registrationNumber: true, iptuNumber: true, energyMeter: true, waterMeter: true, gasMeter: true, condoAdmin: true } },
         owner: { select: { id: true, name: true, paymentDay: true } },
         tenant: { select: { id: true, name: true, paymentDay: true } },
         tenant2: { select: { id: true, name: true } },

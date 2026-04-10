@@ -97,7 +97,7 @@ interface Contract {
   type: string;
   status: string;
   propertyId: string;
-  property: { id: string; title: string; address?: string };
+  property: { id: string; title: string; address?: string; registrationNumber?: string | null; iptuNumber?: string | null; energyMeter?: string | null; waterMeter?: string | null; gasMeter?: string | null; condoAdmin?: string | null };
   ownerId: string;
   owner: { id: string; name: string; email?: string; paymentDay?: number };
   tenantId: string;
@@ -930,6 +930,53 @@ export default function ContratoDetalhePage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Códigos e Registros do Imóvel */}
+            {(contract.property?.registrationNumber || contract.property?.iptuNumber || contract.property?.energyMeter || contract.property?.waterMeter || contract.property?.gasMeter || contract.property?.condoAdmin) && (
+              <Card className="border-0 shadow-sm">
+                <CardContent className="p-6">
+                  <SectionTitle icon={FileText} title="Códigos e Registros" />
+                  <div className="grid grid-cols-1 gap-3">
+                    {contract.property.registrationNumber && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Matrícula</p>
+                        <p className="text-sm font-medium">{contract.property.registrationNumber}</p>
+                      </div>
+                    )}
+                    {contract.property.iptuNumber && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">N° do IPTU</p>
+                        <p className="text-sm font-medium">{contract.property.iptuNumber}</p>
+                      </div>
+                    )}
+                    {contract.property.energyMeter && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Medidor Energia</p>
+                        <p className="text-sm font-medium">{contract.property.energyMeter}</p>
+                      </div>
+                    )}
+                    {contract.property.waterMeter && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Medidor Água</p>
+                        <p className="text-sm font-medium">{contract.property.waterMeter}</p>
+                      </div>
+                    )}
+                    {contract.property.gasMeter && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Medidor Gás</p>
+                        <p className="text-sm font-medium">{contract.property.gasMeter}</p>
+                      </div>
+                    )}
+                    {contract.property.condoAdmin && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Adm. Condomínio</p>
+                        <p className="text-sm font-medium">{contract.property.condoAdmin}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Garantia */}
             <Card className="border-0 shadow-sm">
