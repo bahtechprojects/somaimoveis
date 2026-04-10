@@ -8,13 +8,18 @@ const EMPRESA_CNPJ = process.env.CNAB_EMPRESA_CNPJ || "";
 const EMPRESA_NOME = process.env.CNAB_EMPRESA_NOME || "SOMMA IMOVEIS";
 
 // Convênio Sicredi para Pagamento a Fornecedor:
-// Posições 033-052 = código convênio (20 chars, preenchido com brancos à direita)
-// Usar valor exato do env sem alterar (ex: "00405" fica "00405" + 15 brancos)
+// Posições 033-052 = código convênio (20 chars)
+// Formato composto: cooperativa(4) + posto(2) + beneficiário(5) = 11 chars + 9 brancos
+// Ex: "0156" + "10" + "00405" = "01561000405         "
 const SICREDI_BENEFICIARIO = process.env.SICREDI_BENEFICIARIO || process.env.CNAB_EMPRESA_CONVENIO || "";
-// Convênio: valor exato, sem remover zeros à esquerda
-const EMPRESA_CONVENIO = SICREDI_BENEFICIARIO.trim();
-// Convênio para nome do arquivo (4 chars): usado apenas no filename CCCCDDSS.REM
-const CONVENIO_FILENAME = EMPRESA_CONVENIO.replace(/^0+/, "").padStart(4, "0").slice(-4);
+const SICREDI_COOP = process.env.SICREDI_COOPERATIVA || "";
+const SICREDI_POSTO_CONV = process.env.SICREDI_POSTO || "";
+// Convênio composto: cooperativa + posto + beneficiário
+const EMPRESA_CONVENIO = SICREDI_COOP && SICREDI_POSTO_CONV
+  ? SICREDI_COOP + SICREDI_POSTO_CONV + SICREDI_BENEFICIARIO
+  : SICREDI_BENEFICIARIO.trim();
+// Convênio para nome do arquivo (4 chars): últimos 4 dígitos do beneficiário
+const CONVENIO_FILENAME = SICREDI_BENEFICIARIO.replace(/^0+/, "").padStart(4, "0").slice(-4);
 
 // No Sicredi, "agência" no CNAB = cooperativa (ex: "0156"), NÃO o posto ("10")
 const EMPRESA_AGENCIA = process.env.SICREDI_COOPERATIVA || process.env.CNAB_EMPRESA_AGENCIA || "";
