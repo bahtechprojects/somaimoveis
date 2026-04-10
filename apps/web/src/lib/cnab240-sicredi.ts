@@ -7,16 +7,12 @@
 const EMPRESA_CNPJ = process.env.CNAB_EMPRESA_CNPJ || "";
 const EMPRESA_NOME = process.env.CNAB_EMPRESA_NOME || "SOMMA IMOVEIS";
 
-// Convênio Sicredi = cooperativa(4) + posto(2) + beneficiário(5) + brancos(9) = 20 posições
-// Ex: cooperativa=0156, posto=10, beneficiário=00405 → "01561000405         "
-const SICREDI_COOPERATIVA = process.env.SICREDI_COOPERATIVA || "";
-const SICREDI_POSTO = process.env.SICREDI_POSTO || "";
+// Convênio Sicredi para Pagamento a Fornecedor:
+// Posições 033-036 = código convênio (4 chars), 037-052 = filler brancos
+// O código do convênio é o beneficiário sem zeros à esquerda (ex: "00405" → "0405")
 const SICREDI_BENEFICIARIO = process.env.SICREDI_BENEFICIARIO || process.env.CNAB_EMPRESA_CONVENIO || "";
-const EMPRESA_CONVENIO = SICREDI_COOPERATIVA && SICREDI_POSTO && SICREDI_BENEFICIARIO
-  ? SICREDI_COOPERATIVA.padStart(4, "0") +
-    SICREDI_POSTO.padStart(2, "0") +
-    SICREDI_BENEFICIARIO.padStart(5, "0")
-  : process.env.CNAB_EMPRESA_CONVENIO || "";
+// Convênio: últimos 4 dígitos do beneficiário
+const EMPRESA_CONVENIO = SICREDI_BENEFICIARIO.replace(/^0+/, "").padStart(4, "0").slice(-4);
 
 const EMPRESA_AGENCIA = process.env.CNAB_EMPRESA_AGENCIA || "";
 // DV pode vir como "02" no env, mas o campo CNAB é 1 posição - pegar último dígito
@@ -145,20 +141,20 @@ function formaLancamento(forma: "PIX" | "TED" | "CC"): string {
   }
 }
 
-/** Tipo de chave PIX para CNAB */
+/** Tipo de chave PIX para CNAB Sicredi (2 posições: 015-016) */
 function tipoChavePixCnab(tipo: string | undefined): string {
   switch (tipo?.toUpperCase()) {
     case "TELEFONE":
-      return "001";
+      return "01";
     case "EMAIL":
-      return "002";
+      return "02";
     case "CPF":
     case "CNPJ":
-      return "003";
+      return "03";
     case "ALEATORIA":
-      return "004";
+      return "04";
     default:
-      return "005"; // Dados bancarios (sem chave)
+      return "05"; // Dados bancarios (sem chave)
   }
 }
 
@@ -175,7 +171,8 @@ function headerArquivo(config: CnabConfig): string {
   registro += padStr("", 9); // 009-017: brancos
   registro += tipoInscricao(EMPRESA_CNPJ); // 018: tipo inscricao
   registro += padNum(EMPRESA_CNPJ, 14); // 019-032: CNPJ
-  registro += padStr(EMPRESA_CONVENIO, 20); // 033-052: codigo convenio
+  registro += padStr(EMPRESA_CONVENIO, 4); // 033-036: codigo convenio (4 chars)
+  registro += padStr("", 16); // 037-052: filler brancos
   registro += padNum(EMPRESA_AGENCIA, 5); // 053-057: agencia
   registro += padStr(EMPRESA_AGENCIA_DV, 1); // 058: DV agencia
   registro += padNum(EMPRESA_CONTA, 12); // 059-070: conta
@@ -203,13 +200,14 @@ function headerLote(loteNum: number, forma: "PIX" | "TED" | "CC"): string {
   registro += padNum(loteNum, 4); // 004-007: lote
   registro += "1"; // 008: tipo registro
   registro += "C"; // 009: tipo operacao (credito)
-  registro += "98"; // 010-011: tipo servico (pagamentos diversos)
+  registro += "20"; // 010-011: tipo servico (20 = Pagamento Fornecedor)
   registro += formaLancamento(forma); // 012-013: forma lancamento
   registro += "045"; // 014-016: versao layout lote
   registro += " "; // 017: branco
   registro += tipoInscricao(EMPRESA_CNPJ); // 018: tipo inscricao
   registro += padNum(EMPRESA_CNPJ, 14); // 019-032: CNPJ
-  registro += padStr(EMPRESA_CONVENIO, 20); // 033-052: convenio
+  registro += padStr(EMPRESA_CONVENIO, 4); // 033-036: convenio (4 chars)
+  registro += padStr("", 16); // 037-052: filler brancos
   registro += padNum(EMPRESA_AGENCIA, 5); // 053-057: agencia
   registro += padStr(EMPRESA_AGENCIA_DV, 1); // 058: DV
   registro += padNum(EMPRESA_CONTA, 12); // 059-070: conta
@@ -296,35 +294,49 @@ function segmentoB(
   registro += "B"; // 014: segmento
 
   if (isPix) {
-    registro += tipoChavePixCnab(fav.tipoChavePix); // 015-017: tipo chave PIX
+    // Segmento B PIX (layout Sicredi pag. 11)
+    registro += tipoChavePixCnab(fav.tipoChavePix); // 015-016: tipo chave PIX (2 pos)
+    registro += " "; // 017: filler branco
+
+    const tipoChave = fav.tipoChavePix?.toUpperCase();
+    const isCpfCnpjKey = tipoChave === "CPF" || tipoChave === "CNPJ";
+    const isDadosBancarios = !fav.chavePix || tipoChave === "DADOS_BANCARIOS";
+
+    registro += tipoInscricao(fav.documento); // 018: tipo inscricao
+    registro += padNum(fav.documento, 14); // 019-032: CPF/CNPJ
+    registro += padStr("", 30); // 033-062: informacao 10
+
+    if (isDadosBancarios) {
+      // PIX Dados Bancários: pos 063-067 livre, 068-091 chave, 092-232 brancos
+      registro += padStr("", 5); // 063-067: informacao 11
+      // Chave = CPF/CNPJ(14) + ISPB banco(8) + tipo conta(2) = 24 chars
+      const ispb = ""; // ISPB do banco favorecido - precisa mapear
+      const tipoConta = "01"; // 01=CC, 02=Poupança
+      const chaveDadosBanc = padNum(fav.documento, 14) + padStr(ispb, 8) + tipoConta;
+      registro += padStr(chaveDadosBanc, 24); // 068-091: chave PIX dados bancários
+      registro += padStr("", 141); // 092-232: brancos
+    } else if (isCpfCnpjKey) {
+      // PIX CPF/CNPJ: chave vai no campo 019-032, pos 063-232 livres
+      registro += padStr("", 65); // 063-127: informacao 11
+      registro += padStr("", 99); // 128-226: chave PIX (vazio para CPF/CNPJ)
+      registro += padStr("", 6); // 227-232: brancos
+    } else {
+      // PIX Telefone/Email/Aleatória: chave em pos 128-226
+      registro += padStr("", 65); // 063-127: informacao 11
+      registro += padStr(fav.chavePix || "", 99); // 128-226: chave PIX (99 pos)
+      registro += padStr("", 6); // 227-232: brancos
+    }
   } else {
+    // Segmento B TED/CC (layout Sicredi pag. 10)
     registro += padStr("", 3); // 015-017: brancos
-  }
-
-  registro += tipoInscricao(fav.documento); // 018: tipo inscricao
-  registro += padNum(fav.documento, 14); // 019-032: CPF/CNPJ
-
-  if (isPix && fav.chavePix && fav.tipoChavePix?.toUpperCase() !== "DADOS_BANCARIOS") {
-    // Para PIX: endereco normal ate pos 127, depois chave PIX em pos 128-227
+    registro += tipoInscricao(fav.documento); // 018: tipo inscricao
+    registro += padNum(fav.documento, 14); // 019-032: CPF/CNPJ
     registro += padStr(fav.endereco || "", 30); // 033-062: logradouro
     registro += padNum(fav.numero || "0", 5); // 063-067: numero
     registro += padStr(fav.complemento || "", 15); // 068-082: complemento
     registro += padStr(fav.bairro || "", 15); // 083-097: bairro
     registro += padStr(fav.cidade || "", 20); // 098-117: cidade
-    registro += padNum((fav.cep || "").replace("-", "").slice(0, 5), 5); // 118-122: CEP
-    registro += padStr((fav.cep || "").replace("-", "").slice(5, 8), 3); // 123-125: complemento CEP
-    registro += padStr(fav.uf || "", 2); // 126-127: UF
-    // 128-227: Chave PIX (100 posicoes)
-    registro += padStr(fav.chavePix || "", 100);
-  } else {
-    // Para TED/CC: campos de endereco normais
-    registro += padStr(fav.endereco || "", 30); // 033-062: logradouro
-    registro += padNum(fav.numero || "0", 5); // 063-067: numero
-    registro += padStr(fav.complemento || "", 15); // 068-082: complemento
-    registro += padStr(fav.bairro || "", 15); // 083-097: bairro
-    registro += padStr(fav.cidade || "", 20); // 098-117: cidade
-    registro += padNum((fav.cep || "").replace("-", "").slice(0, 5), 5); // 118-122: CEP
-    registro += padStr((fav.cep || "").replace("-", "").slice(5, 8), 3); // 123-125: complemento CEP
+    registro += padNum((fav.cep || "").replace("-", ""), 8); // 118-125: CEP (8 pos)
     registro += padStr(fav.uf || "", 2); // 126-127: UF
     registro += padNum(0, 8); // 128-135: data vencimento
     registro += padNum(0, 15); // 136-150: valor documento
@@ -334,7 +346,8 @@ function segmentoB(
     registro += padNum(0, 15); // 196-210: multa
     registro += padStr("", 15); // 211-225: codigo documento favorecido
     registro += "0"; // 226: aviso favorecido
-    registro += padNum(0, 6); // 227-232: exclusivo SIAPE
+    registro += padStr("", 6); // 227-232: exclusivo SIAPE
+    registro += padStr("", 8); // 233-240: brancos
   }
 
   // Preencher ate 240 caracteres
@@ -454,13 +467,12 @@ export function generateCnab240(
 
   const content = linhas.join("\r\n");
 
-  // Gerar nome do arquivo - Sicredi exige XXXXXXXX.REM (exatamente 8 caracteres)
-  // RM + DD + MM + seq(2) = 2+2+2+2 = 8 caracteres
+  // Nome do arquivo: CCCCDDSS.REM (convênio 4 digs + dia + sequencial)
+  // Ex: convênio=0405, dia=10, seq=00 → "04051000.REM"
   const now = new Date();
   const dd = String(now.getDate()).padStart(2, "0");
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const seq = String(config.sequencialArquivo || 1).padStart(2, "0");
-  const filename = `RM${dd}${mm}${seq}.REM`;
+  const seqFile = String((config.sequencialArquivo || 1) - 1).padStart(2, "0").slice(-2);
+  const filename = `${EMPRESA_CONVENIO}${dd}${seqFile}.REM`;
 
   return {
     content,
