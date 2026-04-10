@@ -23,13 +23,8 @@ const EMPRESA_AGENCIA_DV_RAW = process.env.CNAB_EMPRESA_AGENCIA_DV || " ";
 const EMPRESA_AGENCIA_DV = EMPRESA_AGENCIA_DV_RAW.length > 1
   ? EMPRESA_AGENCIA_DV_RAW.slice(-1) // "02" → "2"
   : EMPRESA_AGENCIA_DV_RAW;
-// Posto Sicredi (usado no campo conta para compor posto+conta)
-const SICREDI_POSTO = process.env.SICREDI_POSTO || "";
-const EMPRESA_CONTA_RAW = process.env.CNAB_EMPRESA_CONTA || "";
-// Conta no Sicredi: posto(2) + conta(5) = 7 dígitos (ex: "10" + "00784" = "1000784")
-const EMPRESA_CONTA = SICREDI_POSTO
-  ? SICREDI_POSTO + EMPRESA_CONTA_RAW.replace(/\D/g, "")
-  : EMPRESA_CONTA_RAW;
+// Conta: usar valor direto do env (sistema Sicredi mostra C/C: 0000784-3, sem posto)
+const EMPRESA_CONTA = process.env.CNAB_EMPRESA_CONTA || "";
 const EMPRESA_CONTA_DV = process.env.CNAB_EMPRESA_CONTA_DV || " ";
 const EMPRESA_ENDERECO = process.env.CNAB_EMPRESA_ENDERECO || "";
 const EMPRESA_NUMERO = process.env.CNAB_EMPRESA_NUMERO || "";
