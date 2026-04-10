@@ -166,7 +166,7 @@ export default function RepassesPage() {
   const [groups, setGroups] = useState<OwnerGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState("pendentes");
+  const [activeTab, setActiveTab] = useState("pix");
   const [month, setMonth] = useState(getCurrentMonth());
   const [expandedOwners, setExpandedOwners] = useState<Set<string>>(new Set());
   const [selectedEntries, setSelectedEntries] = useState<Set<string>>(new Set());
@@ -204,8 +204,10 @@ export default function RepassesPage() {
     try {
       const params = new URLSearchParams();
       if (month) params.set("month", month);
-      if (activeTab !== "todos") {
-        params.set("status", activeTab === "pendentes" ? "PENDENTE" : "PAGO");
+      if (activeTab === "pix" || activeTab === "ted") {
+        params.set("status", "PENDENTE");
+      } else if (activeTab === "pagos") {
+        params.set("status", "PAGO");
       }
       const response = await fetch(`/api/repasses?${params}`);
       if (response.ok) {
@@ -236,6 +238,8 @@ export default function RepassesPage() {
     }).catch(() => {});
   }, []);
 
+  const isPendente = activeTab === "pix" || activeTab === "ted";
+
   // Summary
   const totalPendente = groups.reduce((sum, g) => sum + g.totalPendente, 0);
   const totalPago = groups.reduce((sum, g) => sum + g.totalPago, 0);
@@ -246,6 +250,11 @@ export default function RepassesPage() {
 
   // Filter by search
   const filteredGroups = groups.filter((g) => {
+    // Filter by payment type on pix/ted tabs
+    if (activeTab === "pix" || activeTab === "ted") {
+      const types = getOwnerPaymentTypes(g.owner);
+      if (!types.includes(activeTab === "pix" ? "PIX" : "TED")) return false;
+    }
     if (!search) return true;
     const term = search.toLowerCase();
     return (
@@ -393,23 +402,19 @@ export default function RepassesPage() {
   async function handleGenerateCnab(forma: "PIX" | "TED") {
     setCnabLoading(true);
     try {
-      // Filter owners by payment type automatically
-      const filteredGroups = groups.filter((g) => {
-        // If entries are selected, only include groups with selected entries
-        if (selectedEntries.size > 0 && !g.entries.some((e) => selectedEntries.has(e.id))) {
-          return false;
-        }
-        const types = getOwnerPaymentTypes(g.owner);
-        return types.includes(forma);
-      });
+      // Use owners visible in current tab (already filtered by payment type)
+      let cnabGroups = filteredGroups;
+      if (selectedEntries.size > 0) {
+        cnabGroups = cnabGroups.filter((g) => g.entries.some((e) => selectedEntries.has(e.id)));
+      }
 
-      if (filteredGroups.length === 0) {
+      if (cnabGroups.length === 0) {
         toast.error(`Nenhum proprietário com dados para ${forma} encontrado.`);
         setCnabLoading(false);
         return;
       }
 
-      const ownerIds = filteredGroups.map((g) => g.owner.id);
+      const ownerIds = cnabGroups.map((g) => g.owner.id);
 
       const response = await fetch("/api/repasses/cnab240", {
         method: "POST",
@@ -614,21 +619,11 @@ export default function RepassesPage() {
                       size="sm"
                       variant="outline"
                       className="gap-1.5 h-8 text-xs"
-                      onClick={() => handleGenerateCnab("PIX")}
+                      onClick={() => handleGenerateCnab(activeTab === "pix" ? "PIX" : "TED")}
                       disabled={cnabLoading}
                     >
                       <FileText className="h-3.5 w-3.5" />
-                      {cnabLoading ? "..." : "CNAB PIX"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5 h-8 text-xs"
-                      onClick={() => handleGenerateCnab("TED")}
-                      disabled={cnabLoading}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      {cnabLoading ? "..." : "CNAB TED"}
+                      {cnabLoading ? "..." : `CNAB ${activeTab === "pix" ? "PIX" : "TED"}`}
                     </Button>
                   </div>
                   <Button
@@ -652,8 +647,11 @@ export default function RepassesPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
                   <TabsList className="h-9 sm:h-8">
-                    <TabsTrigger value="pendentes" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">
-                      A Repassar
+                    <TabsTrigger value="pix" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">
+                      A Repassar PIX
+                    </TabsTrigger>
+                    <TabsTrigger value="ted" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">
+                      A Repassar TED
                     </TabsTrigger>
                     <TabsTrigger value="pagos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">
                       Repassados
@@ -671,7 +669,7 @@ export default function RepassesPage() {
                   className="h-10 sm:h-8 w-auto text-sm sm:text-xs"
                 />
 
-                {activeTab === "pendentes" && (
+                {isPendente && (
                   <>
                     <Button
                       size="sm"
@@ -694,35 +692,36 @@ export default function RepassesPage() {
                       <span className="sm:hidden">CSV</span>
                     </Button>
                     <div className="flex items-center gap-1">
-                      {cnabNextSeq && (
-                        <button onClick={handleAjustarSequencial} className="text-[10px] text-muted-foreground mr-1 hover:text-primary hover:underline" title="Clique para ajustar o sequencial">Seq: {cnabNextSeq}</button>
+                      {cnabNextSeq != null && (
+                        cnabSeqEditing ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              min={1}
+                              value={cnabSeqInput}
+                              onChange={(e) => setCnabSeqInput(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") saveSeqEdit(); if (e.key === "Escape") setCnabSeqEditing(false); }}
+                              className="h-7 w-16 text-xs text-center"
+                              autoFocus
+                            />
+                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={saveSeqEdit}>OK</Button>
+                          </div>
+                        ) : (
+                          <button onClick={openSeqEdit} className="text-[10px] text-muted-foreground mr-1 hover:text-primary hover:underline" title="Clique para ajustar o sequencial">Seq: {cnabNextSeq}</button>
+                        )
                       )}
                       <Button
                         size="sm"
-                        className="gap-1.5 h-10 sm:h-8 text-xs bg-blue-600 hover:bg-blue-700"
-                        onClick={() => handleGenerateCnab("PIX")}
+                        className={cn("gap-1.5 h-10 sm:h-8 text-xs", activeTab === "pix" ? "bg-blue-600 hover:bg-blue-700" : "bg-indigo-600 hover:bg-indigo-700")}
+                        onClick={() => handleGenerateCnab(activeTab === "pix" ? "PIX" : "TED")}
                         disabled={cnabLoading}
                       >
                         <FileText className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">
-                          {cnabLoading ? "Gerando..." : "CNAB PIX"}
+                          {cnabLoading ? "Gerando..." : `Gerar CNAB ${activeTab === "pix" ? "PIX" : "TED"}`}
                         </span>
                         <span className="sm:hidden">
-                          {cnabLoading ? "..." : "PIX"}
-                        </span>
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="gap-1.5 h-10 sm:h-8 text-xs bg-indigo-600 hover:bg-indigo-700"
-                        onClick={() => handleGenerateCnab("TED")}
-                        disabled={cnabLoading}
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">
-                          {cnabLoading ? "Gerando..." : "CNAB TED"}
-                        </span>
-                        <span className="sm:hidden">
-                          {cnabLoading ? "..." : "TED"}
+                          {cnabLoading ? "..." : "CNAB"}
                         </span>
                       </Button>
                     </div>
@@ -749,7 +748,7 @@ export default function RepassesPage() {
                 <p className="text-sm text-muted-foreground">
                   {search
                     ? "Nenhum proprietario encontrado."
-                    : `Nenhum repasse ${activeTab === "pendentes" ? "a repassar" : activeTab === "pagos" ? "repassado" : ""} para ${formatMonthLabel(month)}.`}
+                    : `Nenhum repasse ${activeTab === "pix" ? "PIX a repassar" : activeTab === "ted" ? "TED a repassar" : activeTab === "pagos" ? "repassado" : ""} para ${formatMonthLabel(month)}.`}
                 </p>
               </div>
             ) : (
@@ -775,7 +774,7 @@ export default function RepassesPage() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-3 min-w-0">
-                              {activeTab === "pendentes" && pendingEntries.length > 0 && !isNegativoMobile && (
+                              {isPendente && pendingEntries.length > 0 && !isNegativoMobile && (
                                 <Checkbox
                                   checked={allSelected}
                                   onCheckedChange={() =>
@@ -975,7 +974,7 @@ export default function RepassesPage() {
                           )}
                           onClick={() => toggleOwner(group.owner.id)}
                         >
-                          {activeTab === "pendentes" && pendingEntries.length > 0 && !isNegativo && (
+                          {isPendente && pendingEntries.length > 0 && !isNegativo && (
                             <Checkbox
                               checked={allSelected}
                               onCheckedChange={() =>
@@ -1091,7 +1090,7 @@ export default function RepassesPage() {
                                 <span>{getBankDisplay(group.owner)}</span>
                               )}
                               <span>PIX: {getPixDisplay(group.owner)}</span>
-                              {activeTab === "pendentes" && (
+                              {isPendente && (
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -1206,7 +1205,7 @@ export default function RepassesPage() {
                             <Table>
                               <TableHeader>
                                 <TableRow className="hover:bg-transparent">
-                                  {activeTab === "pendentes" && (
+                                  {isPendente && (
                                     <TableHead className="w-10"></TableHead>
                                   )}
                                   <TableHead className="text-xs">Descricao</TableHead>
@@ -1218,7 +1217,7 @@ export default function RepassesPage() {
                               <TableBody>
                                 {group.entries.map((entry) => (
                                   <TableRow key={entry.id} className="hover:bg-muted/30">
-                                    {activeTab === "pendentes" && (
+                                    {isPendente && (
                                       <TableCell>
                                         {entry.status === "PENDENTE" && !isNegativo && (
                                           <Checkbox
@@ -1315,7 +1314,7 @@ export default function RepassesPage() {
                                         : false;
                                       return (
                                         <TableRow key={debit.id} className="hover:bg-red-50">
-                                          {activeTab === "pendentes" && <TableCell className="w-10" />}
+                                          {isPendente && <TableCell className="w-10" />}
                                           <TableCell className="text-xs text-red-700">
                                             <div className="flex items-center gap-1.5">
                                               {isCarryover && (
