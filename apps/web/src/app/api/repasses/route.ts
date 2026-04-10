@@ -259,8 +259,83 @@ export async function PATCH(request: NextRequest) {
     data,
   });
 
+  // Se marcou como PAGO, verificar se algum proprietário ficou negativado
+  // e criar débito automático para o mês seguinte
+  const carryForwardResults: { owner: string; valor: number }[] = [];
+  if (status === "PAGO") {
+    // Buscar as entries que foram marcadas para saber os owners e o mês
+    const markedEntries = await prisma.ownerEntry.findMany({
+      where: { id: { in: entryIds } },
+      select: { ownerId: true, dueDate: true },
+    });
+
+    // Agrupar por owner
+    const ownerDates: Record<string, Date> = {};
+    for (const e of markedEntries) {
+      if (!ownerDates[e.ownerId] && e.dueDate) {
+        ownerDates[e.ownerId] = e.dueDate;
+      }
+    }
+
+    for (const [ownerId, dueDate] of Object.entries(ownerDates)) {
+      // Calcular saldo do owner no mês atual
+      const monthStart = new Date(dueDate.getFullYear(), dueDate.getMonth(), 1);
+      const monthEnd = new Date(dueDate.getFullYear(), dueDate.getMonth() + 1, 1);
+
+      const credits = await prisma.ownerEntry.aggregate({
+        where: { ownerId, type: "CREDITO", status: "PAGO", dueDate: { gte: monthStart, lt: monthEnd } },
+        _sum: { value: true },
+      });
+      const debits = await prisma.ownerEntry.aggregate({
+        where: { ownerId, type: "DEBITO", status: { in: ["PENDENTE", "PAGO"] }, dueDate: { gte: monthStart, lt: monthEnd } },
+        _sum: { value: true },
+      });
+
+      const saldo = (credits._sum.value || 0) - (debits._sum.value || 0);
+
+      if (saldo < 0) {
+        // Próximo mês
+        const nextMonth = new Date(dueDate.getFullYear(), dueDate.getMonth() + 1, 10);
+        const nextMonthStart = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 1);
+        const nextMonthEnd = new Date(nextMonth.getFullYear(), nextMonth.getMonth() + 1, 1);
+        const mmOrig = String(dueDate.getMonth() + 1).padStart(2, "0");
+        const yyyyOrig = dueDate.getFullYear();
+
+        // Verificar se já existe débito carry-forward para este owner neste mês
+        const existing = await prisma.ownerEntry.findFirst({
+          where: {
+            ownerId,
+            type: "DEBITO",
+            category: "SALDO_NEGATIVO",
+            status: "PENDENTE",
+            dueDate: { gte: nextMonthStart, lt: nextMonthEnd },
+          },
+        });
+
+        const valorNeg = Math.round(Math.abs(saldo) * 100) / 100;
+
+        if (!existing) {
+          const owner = await prisma.owner.findUnique({ where: { id: ownerId }, select: { name: true } });
+          await prisma.ownerEntry.create({
+            data: {
+              type: "DEBITO",
+              category: "SALDO_NEGATIVO",
+              description: `Saldo negativo ref. ${mmOrig}/${yyyyOrig}`,
+              value: valorNeg,
+              dueDate: nextMonth,
+              status: "PENDENTE",
+              ownerId,
+            },
+          });
+          carryForwardResults.push({ owner: owner?.name || ownerId, valor: valorNeg });
+        }
+      }
+    }
+  }
+
   return NextResponse.json({
     updated: updated.count,
     message: `${updated.count} repasse(s) atualizado(s) para ${status}`,
+    carryForward: carryForwardResults.length > 0 ? carryForwardResults : undefined,
   });
 }

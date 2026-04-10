@@ -254,6 +254,9 @@ export default function RepassesPage() {
     if (activeTab === "pix" || activeTab === "ted") {
       const types = getOwnerPaymentTypes(g.owner);
       if (!types.includes(activeTab === "pix" ? "PIX" : "TED")) return false;
+      // Ocultar negativados das abas PIX/TED (viram débito no próximo mês)
+      const liq = g.totalLiquido ?? g.totalPendente;
+      if (liq <= 0) return false;
     }
     if (!search) return true;
     const term = search.toLowerCase();
@@ -332,6 +335,10 @@ export default function RepassesPage() {
         return;
       }
       toast.success(data.message);
+      if (data.carryForward?.length > 0) {
+        const lista = data.carryForward.map((cf: { owner: string; valor: number }) => `${cf.owner}: R$ ${cf.valor.toFixed(2)}`).join("\n");
+        toast.info(`Saldo negativo transferido para próximo mês:\n${lista}`, { duration: 8000 });
+      }
       setSelectedEntries(new Set());
       fetchRepasses();
     } catch (error) {
