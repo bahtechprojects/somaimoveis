@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { month, ownerIds: requestOwnerIds, formaPagamento, sequencial } = body;
+    const { month, ownerIds: requestOwnerIds, formaPagamento } = body;
 
     if (!isCnab240Configured()) {
       return NextResponse.json(
@@ -231,10 +231,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ler e incrementar sequencial automaticamente
+    const seqSetting = await prisma.appSetting.findUnique({ where: { key: "cnab_sequencial" } });
+    const nextSeq = seqSetting ? (JSON.parse(seqSetting.value) as number) + 1 : 1;
+
     // Gerar arquivo CNAB 240
     const result = generateCnab240(pagamentos, {
       formaPagamento: formaPagamento || "PIX",
-      sequencialArquivo: sequencial || 1,
+      sequencialArquivo: nextSeq,
+    });
+
+    // Salvar sequencial usado
+    await prisma.appSetting.upsert({
+      where: { key: "cnab_sequencial" },
+      update: { value: JSON.stringify(nextSeq) },
+      create: { key: "cnab_sequencial", value: JSON.stringify(nextSeq) },
     });
 
     return new NextResponse(result.content, {
@@ -266,9 +277,35 @@ export async function GET() {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
 
+  const seqSetting = await prisma.appSetting.findUnique({ where: { key: "cnab_sequencial" } });
+  const lastSeq = seqSetting ? (JSON.parse(seqSetting.value) as number) : 0;
+
   return NextResponse.json({
     configured: isCnab240Configured(),
     empresa: process.env.CNAB_EMPRESA_NOME || null,
     agencia: process.env.CNAB_EMPRESA_AGENCIA || null,
+    proximoSequencial: lastSeq + 1,
   });
+}
+
+// PUT - Ajustar sequencial manualmente
+export async function PUT(request: NextRequest) {
+  const auth = await requireAuth();
+  if (isAuthError(auth)) return auth;
+
+  try {
+    const { sequencial } = await request.json();
+    if (!sequencial || typeof sequencial !== "number" || sequencial < 0) {
+      return NextResponse.json({ error: "Sequencial inválido" }, { status: 400 });
+    }
+    // Salva o valor anterior ao próximo desejado (próximo = sequencial)
+    await prisma.appSetting.upsert({
+      where: { key: "cnab_sequencial" },
+      update: { value: JSON.stringify(sequencial - 1) },
+      create: { key: "cnab_sequencial", value: JSON.stringify(sequencial - 1) },
+    });
+    return NextResponse.json({ proximoSequencial: sequencial });
+  } catch {
+    return NextResponse.json({ error: "Erro ao atualizar sequencial" }, { status: 500 });
+  }
 }

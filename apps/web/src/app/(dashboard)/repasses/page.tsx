@@ -174,7 +174,7 @@ export default function RepassesPage() {
   const [confirmAction, setConfirmAction] = useState<"PAGO" | "PENDENTE">("PAGO");
   const [actionLoading, setActionLoading] = useState(false);
   const [cnabLoading, setCnabLoading] = useState(false);
-  const [cnabSequencial, setCnabSequencial] = useState(1);
+  const [cnabNextSeq, setCnabNextSeq] = useState<number | null>(null);
   const [guaranteeLoading, setGuaranteeLoading] = useState<Record<string, boolean>>({});
 
   async function handleGuarantee(ownerId: string, ownerName: string) {
@@ -227,6 +227,12 @@ export default function RepassesPage() {
     setSelectedEntries(new Set());
     setExpandedOwners(new Set());
   }, [month, activeTab]);
+
+  useEffect(() => {
+    fetch("/api/repasses/cnab240").then(r => r.json()).then(d => {
+      if (d.proximoSequencial) setCnabNextSeq(d.proximoSequencial);
+    }).catch(() => {});
+  }, []);
 
   // Summary
   const totalPendente = groups.reduce((sum, g) => sum + g.totalPendente, 0);
@@ -356,6 +362,28 @@ export default function RepassesPage() {
     }
   }
 
+  async function handleAjustarSequencial() {
+    const input = prompt("Informe o próximo sequencial CNAB:", String(cnabNextSeq || 1));
+    if (!input) return;
+    const num = parseInt(input);
+    if (isNaN(num) || num < 1) { toast.error("Número inválido"); return; }
+    try {
+      const res = await fetch("/api/repasses/cnab240", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sequencial: num }),
+      });
+      if (res.ok) {
+        setCnabNextSeq(num);
+        toast.success(`Próximo sequencial definido: ${num}`);
+      } else {
+        toast.error("Erro ao ajustar sequencial");
+      }
+    } catch {
+      toast.error("Erro ao ajustar sequencial");
+    }
+  }
+
   async function handleGenerateCnab(forma: "PIX" | "TED") {
     setCnabLoading(true);
     try {
@@ -384,7 +412,6 @@ export default function RepassesPage() {
           month,
           ownerIds,
           formaPagamento: forma,
-          sequencial: cnabSequencial,
         }),
       });
 
@@ -421,6 +448,10 @@ export default function RepassesPage() {
         msg += `. ${erros.length} proprietario(s) ignorado(s) por dados bancarios incompletos.`;
       }
       toast.success(msg);
+      // Atualizar próximo sequencial
+      fetch("/api/repasses/cnab240").then(r => r.json()).then(d => {
+        if (d.proximoSequencial) setCnabNextSeq(d.proximoSequencial);
+      }).catch(() => {});
     } catch (error) {
       toast.error("Erro ao gerar remessa CNAB 240");
     } finally {
@@ -555,14 +586,9 @@ export default function RepassesPage() {
                     CSV
                   </Button>
                   <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      min={1}
-                      value={cnabSequencial}
-                      onChange={(e) => setCnabSequencial(Number(e.target.value) || 1)}
-                      className="h-8 w-14 text-xs text-center"
-                      title="Sequencial"
-                    />
+                    {cnabNextSeq && (
+                      <button onClick={handleAjustarSequencial} className="text-[10px] text-muted-foreground mr-1 hover:text-primary hover:underline" title="Clique para ajustar o sequencial">Seq: {cnabNextSeq}</button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -647,14 +673,9 @@ export default function RepassesPage() {
                       <span className="sm:hidden">CSV</span>
                     </Button>
                     <div className="flex items-center gap-1">
-                      <Input
-                        type="number"
-                        min={1}
-                        value={cnabSequencial}
-                        onChange={(e) => setCnabSequencial(Number(e.target.value) || 1)}
-                        className="h-10 sm:h-8 w-14 text-xs text-center"
-                        title="Seq."
-                      />
+                      {cnabNextSeq && (
+                        <button onClick={handleAjustarSequencial} className="text-[10px] text-muted-foreground mr-1 hover:text-primary hover:underline" title="Clique para ajustar o sequencial">Seq: {cnabNextSeq}</button>
+                      )}
                       <Button
                         size="sm"
                         className="gap-1.5 h-10 sm:h-8 text-xs bg-blue-600 hover:bg-blue-700"
