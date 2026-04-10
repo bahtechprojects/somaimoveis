@@ -468,10 +468,10 @@ export function generateCnab240(
   const content = linhas.join("\r\n");
 
   // Nome do arquivo: CCCCDDSS.REM (convênio 4 digs + dia + sequencial)
-  // Ex: convênio=0405, dia=10, seq=00 → "04051000.REM"
+  // Ex: convênio=0405, dia=10, seq=22 → "04051022.REM"
   const now = new Date();
   const dd = String(now.getDate()).padStart(2, "0");
-  const seqFile = String((config.sequencialArquivo || 1) - 1).padStart(2, "0").slice(-2);
+  const seqFile = String(config.sequencialArquivo || 1).padStart(2, "0").slice(-2);
   const filename = `${EMPRESA_CONVENIO}${dd}${seqFile}.REM`;
 
   return {
