@@ -207,7 +207,7 @@ export async function GET(request: NextRequest) {
         totalPendente: Math.round(g.totalPendente * 100) / 100,
         totalPago: Math.round(g.totalPago * 100) / 100,
         totalDebitos: Math.round(g.totalDebitos * 100) / 100,
-        totalLiquido: Math.round((g.totalPendente - g.totalDebitos) * 100) / 100,
+        totalLiquido: Math.round((g.totalPendente + g.totalPago - g.totalDebitos) * 100) / 100,
         isCoOwner: sharePercent !== null && sharePercent < 100,
         sharePercent,
       };
