@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ import {
   DollarSign,
   Users,
   Download,
+  Upload,
   Send,
   ChevronDown,
   ChevronRight,
@@ -47,6 +48,8 @@ import {
   Copy,
   FileText,
   Shield,
+  X,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -178,6 +181,10 @@ export default function RepassesPage() {
   const [cnabSeqEditing, setCnabSeqEditing] = useState(false);
   const [cnabSeqInput, setCnabSeqInput] = useState("");
   const [guaranteeLoading, setGuaranteeLoading] = useState<Record<string, boolean>>({});
+  const [retornoLoading, setRetornoLoading] = useState(false);
+  const [retornoResult, setRetornoResult] = useState<any>(null);
+  const [retornoDialogOpen, setRetornoDialogOpen] = useState(false);
+  const retornoFileRef = useRef<HTMLInputElement>(null);
 
   async function handleGuarantee(ownerId: string, ownerName: string) {
     if (!confirm(`Garantir aluguel atrasado de ${ownerName} para ${formatMonthLabel(month)}?\n\nIsso cria um crédito de garantia na conta do proprietário.`)) return;
@@ -196,6 +203,39 @@ export default function RepassesPage() {
       toast.error(err.message || "Erro ao garantir aluguel");
     } finally {
       setGuaranteeLoading((prev) => ({ ...prev, [ownerId]: false }));
+    }
+  }
+
+  async function handleRetornoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input para permitir re-upload do mesmo arquivo
+    e.target.value = "";
+
+    setRetornoLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("autoConfirm", "true");
+
+      const res = await fetch("/api/repasses/cnab240-retorno", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao processar retorno");
+
+      setRetornoResult(data);
+      setRetornoDialogOpen(true);
+
+      if (data.resumo.marcadosPago > 0) {
+        toast.success(`${data.resumo.marcadosPago} repasse(s) marcado(s) como PAGO automaticamente`);
+        fetchRepasses();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao importar retorno");
+    } finally {
+      setRetornoLoading(false);
     }
   }
 
@@ -675,6 +715,29 @@ export default function RepassesPage() {
                   onChange={(e) => setMonth(e.target.value)}
                   className="h-10 sm:h-8 w-auto text-sm sm:text-xs"
                 />
+
+                <input
+                  ref={retornoFileRef}
+                  type="file"
+                  accept=".ret,.RET,.txt"
+                  className="hidden"
+                  onChange={handleRetornoUpload}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-10 sm:h-8 text-xs"
+                  onClick={() => retornoFileRef.current?.click()}
+                  disabled={retornoLoading}
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">
+                    {retornoLoading ? "Processando..." : "Importar Retorno"}
+                  </span>
+                  <span className="sm:hidden">
+                    {retornoLoading ? "..." : "Retorno"}
+                  </span>
+                </Button>
 
                 {isPendente && (
                   <>
@@ -1404,6 +1467,112 @@ export default function RepassesPage() {
                   ? "Confirmar Repasse"
                   : "Reverter"}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Retorno CNAB dialog */}
+      <AlertDialog open={retornoDialogOpen} onOpenChange={setRetornoDialogOpen}>
+        <AlertDialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Resultado da Importacao - Retorno CNAB 240
+            </AlertDialogTitle>
+            {retornoResult && (
+              <div className="space-y-4 text-sm">
+                {/* Resumo do arquivo */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                  <div className="bg-blue-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-blue-600 font-medium">Total</p>
+                    <p className="text-lg font-bold text-blue-700">{retornoResult.resumo.totalPagamentos}</p>
+                  </div>
+                  <div className="bg-emerald-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-emerald-600 font-medium">Sucesso</p>
+                    <p className="text-lg font-bold text-emerald-700">{retornoResult.resumo.sucesso}</p>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-red-600 font-medium">Erro</p>
+                    <p className="text-lg font-bold text-red-700">{retornoResult.resumo.erro}</p>
+                  </div>
+                  <div className="bg-violet-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-violet-600 font-medium">Marcados PAGO</p>
+                    <p className="text-lg font-bold text-violet-700">{retornoResult.resumo.marcadosPago}</p>
+                  </div>
+                </div>
+
+                <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                  <span>Data: {retornoResult.arquivo.dataGeracao}</span>
+                  <span>Empresa: {retornoResult.arquivo.empresa}</span>
+                  <span>Seq: {retornoResult.arquivo.sequencial}</span>
+                  <span>Valor total: {formatCurrency(retornoResult.resumo.valorTotal)}</span>
+                  <span>Valor efetivado: {formatCurrency(retornoResult.resumo.valorEfetivado)}</span>
+                </div>
+
+                {/* Tabela de resultados */}
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Favorecido</TableHead>
+                        <TableHead className="text-xs">Valor</TableHead>
+                        <TableHead className="text-xs">Status</TableHead>
+                        <TableHead className="text-xs">Ocorrencias</TableHead>
+                        <TableHead className="text-xs">Match</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {retornoResult.resultados.map((r: any, i: number) => (
+                        <TableRow key={i} className={cn(
+                          r.status === "erro" && "bg-red-50/50",
+                          r.status === "sucesso" && r.marcadoPago && "bg-emerald-50/50",
+                        )}>
+                          <TableCell className="text-xs">
+                            <div>{r.favorecido}</div>
+                            {r.ownerName && r.ownerName !== r.favorecido && (
+                              <div className="text-muted-foreground text-[10px]">{r.ownerName}</div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs font-medium">
+                            {formatCurrency(r.valor)}
+                          </TableCell>
+                          <TableCell>
+                            {r.status === "sucesso" ? (
+                              <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">
+                                <CheckCircle2 className="h-3 w-3 mr-0.5" />
+                                OK
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-red-100 text-red-700 border-red-200 text-[10px]">
+                                <AlertCircle className="h-3 w-3 mr-0.5" />
+                                ERRO
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-[10px] text-muted-foreground max-w-[200px] truncate" title={r.ocorrencias}>
+                            {r.ocorrencias}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {r.entryId ? (
+                              r.marcadoPago ? (
+                                <Badge className="bg-violet-100 text-violet-700 border-violet-200 text-[10px]">PAGO</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px]">Encontrado</Badge>
+                              )
+                            ) : (
+                              <span className="text-muted-foreground text-[10px]">Sem match</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>Fechar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
