@@ -1496,8 +1496,8 @@ export default function RepassesPage() {
                     <p className="text-lg font-bold text-red-700">{retornoResult.resumo.erro}</p>
                   </div>
                   <div className="bg-violet-50 rounded-lg p-3 text-center">
-                    <p className="text-xs text-violet-600 font-medium">Marcados PAGO</p>
-                    <p className="text-lg font-bold text-violet-700">{retornoResult.resumo.marcadosPago}</p>
+                    <p className="text-xs text-violet-600 font-medium">Entries PAGO</p>
+                    <p className="text-lg font-bold text-violet-700">{retornoResult.resumo.entriesMarcadas || retornoResult.resumo.marcadosPago}</p>
                   </div>
                 </div>
 
@@ -1553,9 +1553,11 @@ export default function RepassesPage() {
                             {r.ocorrencias}
                           </TableCell>
                           <TableCell className="text-xs">
-                            {r.entryId ? (
+                            {(r.entryIds?.length > 0 || r.entryId) ? (
                               r.marcadoPago ? (
-                                <Badge className="bg-violet-100 text-violet-700 border-violet-200 text-[10px]">PAGO</Badge>
+                                <Badge className="bg-violet-100 text-violet-700 border-violet-200 text-[10px]">
+                                  PAGO {r.entriesMarcadas > 1 ? `(${r.entriesMarcadas})` : ""}
+                                </Badge>
                               ) : (
                                 <Badge variant="outline" className="text-[10px]">Encontrado</Badge>
                               )

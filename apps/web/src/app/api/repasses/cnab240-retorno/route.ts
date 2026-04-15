@@ -53,9 +53,10 @@ export async function POST(request: NextRequest) {
       valor: number;
       status: "sucesso" | "erro" | "sem_match";
       ocorrencias: string;
-      entryId?: string;
+      entryIds?: string[];
       ownerName?: string;
       marcadoPago?: boolean;
+      entriesMarcadas?: number;
     }[] = [];
 
     const entryIdsToMarkPago: string[] = [];
@@ -64,15 +65,14 @@ export async function POST(request: NextRequest) {
       const docEmpresa = pgto.documentoEmpresa.trim();
 
       // Tentar match pelo documentoEmpresa
+      // O CNAB remessa agrupa TODOS os créditos de um proprietário em um único pagamento,
+      // então precisamos marcar TODAS as entries PENDENTES desse proprietário como PAGO.
       const matchedEntries = entriesByCpfSuffix[docEmpresa] || [];
-
-      // Filtrar para PENDENTE (preferir match com pendente)
       const pendentes = matchedEntries.filter(e => e.status === "PENDENTE");
-      const matchEntry = pendentes.length > 0 ? pendentes[0] : (matchedEntries.length > 0 ? matchedEntries[0] : null);
 
       const ocorrenciasStr = pgto.ocorrencias.map(o => `${o.codigo}: ${o.descricao}`).join("; ");
 
-      if (!matchEntry) {
+      if (matchedEntries.length === 0) {
         resultados.push({
           favorecido: pgto.favorecidoNome,
           documento: docEmpresa,
@@ -89,15 +89,19 @@ export async function POST(request: NextRequest) {
         valor: pgto.valorPagamento,
         status: pgto.sucesso ? "sucesso" : "erro",
         ocorrencias: ocorrenciasStr,
-        entryId: matchEntry.id,
-        ownerName: matchEntry.owner.name,
+        entryIds: matchedEntries.map(e => e.id),
+        ownerName: matchedEntries[0].owner.name,
         marcadoPago: false,
+        entriesMarcadas: 0,
       };
 
-      // Se sucesso e autoConfirm, marcar para PAGO
-      if (pgto.sucesso && autoConfirm && matchEntry.status === "PENDENTE") {
-        entryIdsToMarkPago.push(matchEntry.id);
+      // Se sucesso e autoConfirm, marcar TODAS as entries PENDENTES desse proprietário
+      if (pgto.sucesso && autoConfirm && pendentes.length > 0) {
+        for (const entry of pendentes) {
+          entryIdsToMarkPago.push(entry.id);
+        }
         resultado.marcadoPago = true;
+        resultado.entriesMarcadas = pendentes.length;
       }
 
       resultados.push(resultado);
@@ -128,9 +132,10 @@ export async function POST(request: NextRequest) {
         erro: retorno.resumo.erro,
         valorTotal: retorno.resumo.valorTotal,
         valorEfetivado: retorno.resumo.valorEfetivado,
-        matchados: resultados.filter(r => r.entryId).length,
-        semMatch: resultados.filter(r => !r.entryId).length,
+        matchados: resultados.filter(r => r.entryIds && r.entryIds.length > 0).length,
+        semMatch: resultados.filter(r => !r.entryIds || r.entryIds.length === 0).length,
         marcadosPago: totalMarcados,
+        entriesMarcadas: resultados.reduce((s, r) => s + (r.entriesMarcadas || 0), 0),
       },
       resultados,
     });
