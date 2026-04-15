@@ -56,6 +56,8 @@ import { ImportSpreadsheet } from "@/components/forms/import-spreadsheet";
 import { ImportContractPdf } from "@/components/forms/import-contract-pdf";
 import { FileSpreadsheet, FileSearch } from "lucide-react";
 import Link from "next/link";
+import { useContextMenu } from "@/components/ui/context-menu-custom";
+import { ExternalLink, Eye } from "lucide-react";
 
 interface Contract {
   id: string;
@@ -128,6 +130,7 @@ function ContratosContent() {
   const [batchUploadOpen, setBatchUploadOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importContractPdfOpen, setImportContractPdfOpen] = useState(false);
+  const [openCtxMenu, CtxMenuPortal] = useContextMenu();
 
   async function fetchContracts() {
     setLoading(true);
@@ -449,12 +452,22 @@ function ContratosContent() {
                       className: "bg-muted text-muted-foreground",
                     };
                     return (
-                      <TableRow key={contract.id} className="cursor-pointer" onClick={() => router.push(`/contratos/${contract.id}`)}>
+                      <TableRow
+                        key={contract.id}
+                        className="cursor-pointer"
+                        onClick={() => router.push(`/contratos/${contract.id}`)}
+                        onContextMenu={(e) => openCtxMenu(e, [
+                          { label: "Abrir", icon: Eye, onClick: () => router.push(`/contratos/${contract.id}`) },
+                          { label: "Abrir em nova guia", icon: ExternalLink, onClick: () => window.open(`/contratos/${contract.id}`, "_blank") },
+                          { label: "Editar", icon: Pencil, onClick: () => handleEditContract(contract) },
+                          { label: "Excluir", icon: Trash2, onClick: () => handleDeleteClick(contract), variant: "destructive", separator: true },
+                        ])}
+                      >
                         <TableCell className="font-medium text-xs">
-                          <Link href={`/contratos/${contract.id}`} className="flex items-center gap-2 hover:underline" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-muted-foreground" />
                             {contract.code}
-                          </Link>
+                          </div>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground max-w-[300px]">
                           <span className="block truncate" title={contract.property?.title || "N/A"}>
@@ -569,6 +582,8 @@ function ContratosContent() {
         onOpenChange={setImportContractPdfOpen}
         onSuccess={() => fetchContracts()}
       />
+
+      <CtxMenuPortal />
     </div>
   );
 }

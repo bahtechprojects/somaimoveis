@@ -50,6 +50,7 @@ import {
   Shield,
   X,
   AlertCircle,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -518,6 +519,60 @@ export default function RepassesPage() {
       toast.error("Erro ao gerar remessa CNAB 240");
     } finally {
       setCnabLoading(false);
+    }
+  }
+
+  async function handleDeleteEntry(entryId: string, description: string) {
+    if (!confirm(`Excluir lançamento "${description}"?\n\nEsta ação não pode ser desfeita.`)) return;
+    try {
+      const res = await fetch(`/api/owner-entries/${entryId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Erro ao excluir");
+      }
+      toast.success("Lançamento excluído");
+      fetchRepasses();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao excluir lançamento");
+    }
+  }
+
+  async function handleCreateEntry(ownerId: string, ownerName: string) {
+    const description = prompt(`Novo lançamento para ${ownerName}\n\nDescrição:`);
+    if (!description) return;
+    const valueStr = prompt("Valor (R$):");
+    if (!valueStr) return;
+    const value = parseFloat(valueStr.replace(",", "."));
+    if (isNaN(value) || value <= 0) { toast.error("Valor inválido"); return; }
+
+    const typeStr = prompt("Tipo:\n1 - Crédito (proprietário recebe)\n2 - Débito (descontar do repasse)") || "1";
+    const type = typeStr === "2" ? "DEBITO" : "CREDITO";
+    const category = prompt("Categoria (REPASSE, IPTU, CONDOMINIO, REPARO, TAXA_BANCARIA, DESCONTO, ACORDO, OUTROS):") || "OUTROS";
+
+    try {
+      const [y, m] = month.split("-").map(Number);
+      const dueDate = new Date(y, m - 1, 10);
+      const res = await fetch("/api/owner-entries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          category: category.toUpperCase(),
+          description,
+          value,
+          ownerId,
+          dueDate: dueDate.toISOString(),
+          status: "PENDENTE",
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Erro ao criar");
+      }
+      toast.success(`Lançamento criado: ${description} - ${formatCurrency(value)}`);
+      fetchRepasses();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao criar lançamento");
     }
   }
 
@@ -1184,21 +1239,35 @@ export default function RepassesPage() {
                                 <span>{getBankDisplay(group.owner)}</span>
                               )}
                               <span>PIX: {getPixDisplay(group.owner)}</span>
-                              {isPendente && (
+                              <div className="flex items-center gap-1.5 ml-auto">
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-6 px-2 text-[11px] gap-1 text-amber-700 border-amber-300 hover:bg-amber-50 ml-auto"
-                                  disabled={guaranteeLoading[group.owner.id]}
+                                  className="h-6 px-2 text-[11px] gap-1 text-blue-700 border-blue-300 hover:bg-blue-50"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleGuarantee(group.owner.id, group.owner.name);
+                                    handleCreateEntry(group.owner.id, group.owner.name);
                                   }}
                                 >
-                                  <Shield className="h-3 w-3" />
-                                  {guaranteeLoading[group.owner.id] ? "..." : "Garantir Aluguel"}
+                                  <Plus className="h-3 w-3" />
+                                  Novo Lançamento
                                 </Button>
-                              )}
+                                {isPendente && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-6 px-2 text-[11px] gap-1 text-amber-700 border-amber-300 hover:bg-amber-50"
+                                    disabled={guaranteeLoading[group.owner.id]}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleGuarantee(group.owner.id, group.owner.name);
+                                    }}
+                                  >
+                                    <Shield className="h-3 w-3" />
+                                    {guaranteeLoading[group.owner.id] ? "..." : "Garantir Aluguel"}
+                                  </Button>
+                                )}
+                              </div>
                             </div>
 
                             {/* Composição resumida */}
@@ -1306,6 +1375,7 @@ export default function RepassesPage() {
                                   <TableHead className="text-xs">Vencimento</TableHead>
                                   <TableHead className="text-xs">Status</TableHead>
                                   <TableHead className="text-xs text-right">Valor</TableHead>
+                                  <TableHead className="w-10"></TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -1388,6 +1458,17 @@ export default function RepassesPage() {
                                     </TableCell>
                                     <TableCell className="text-right text-xs font-semibold">
                                       {formatCurrency(entry.value)}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 text-muted-foreground hover:text-red-600"
+                                        title="Excluir lançamento"
+                                        onClick={() => handleDeleteEntry(entry.id, entry.description)}
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
                                     </TableCell>
                                   </TableRow>
                                 ))}

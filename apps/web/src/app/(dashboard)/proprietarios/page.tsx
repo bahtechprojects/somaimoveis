@@ -46,9 +46,12 @@ import {
   Users,
   DollarSign,
   UserPlus,
+  ExternalLink,
+  Eye,
 } from "lucide-react";
 import { OwnerForm } from "@/components/forms/owner-form";
 import { ImportSpreadsheet } from "@/components/forms/import-spreadsheet";
+import { useContextMenu } from "@/components/ui/context-menu-custom";
 import { FileSpreadsheet } from "lucide-react";
 
 interface Owner {
@@ -101,6 +104,7 @@ function ProprietariosContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [ownerToDelete, setOwnerToDelete] = useState<Owner | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [openCtxMenu, CtxMenuPortal] = useContextMenu();
 
   async function fetchOwners() {
     setLoading(true);
@@ -274,7 +278,12 @@ function ProprietariosContent() {
               {/* Mobile card view */}
               <div className="divide-y md:hidden">
                 {filteredOwners.map((owner) => (
-                  <Link key={owner.id} href={`/proprietarios/${owner.id}`} className="block p-4 active:bg-muted/50 cursor-pointer">
+                  <Link key={owner.id} href={`/proprietarios/${owner.id}`} className="block p-4 active:bg-muted/50 cursor-pointer" onContextMenu={(e) => openCtxMenu(e, [
+                    { label: "Abrir", icon: Eye, onClick: () => router.push(`/proprietarios/${owner.id}`) },
+                    { label: "Abrir em nova guia", icon: ExternalLink, onClick: () => window.open(`/proprietarios/${owner.id}`, "_blank") },
+                    { label: "Editar", icon: Pencil, onClick: () => handleEditOwner(owner) },
+                    { label: "Excluir", icon: Trash2, onClick: () => handleDeleteClick(owner), variant: "destructive", separator: true },
+                  ])}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         <Avatar className="h-10 w-10 shrink-0">
@@ -339,7 +348,12 @@ function ProprietariosContent() {
                 </TableHeader>
                 <TableBody>
                   {filteredOwners.map((owner) => (
-                    <TableRow key={owner.id} className="cursor-pointer" onClick={() => router.push(`/proprietarios/${owner.id}`)}>
+                    <TableRow key={owner.id} className="cursor-pointer" onClick={() => router.push(`/proprietarios/${owner.id}`)} onContextMenu={(e) => openCtxMenu(e, [
+                      { label: "Abrir", icon: Eye, onClick: () => router.push(`/proprietarios/${owner.id}`) },
+                      { label: "Abrir em nova guia", icon: ExternalLink, onClick: () => window.open(`/proprietarios/${owner.id}`, "_blank") },
+                      { label: "Editar", icon: Pencil, onClick: () => handleEditOwner(owner) },
+                      { label: "Excluir", icon: Trash2, onClick: () => handleDeleteClick(owner), variant: "destructive", separator: true },
+                    ])}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
@@ -451,6 +465,8 @@ function ProprietariosContent() {
         onOpenChange={setImportOpen}
         onSuccess={() => fetchOwners()}
       />
+
+      <CtxMenuPortal />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { PropertyForm } from "@/components/forms/property-form";
+import { useContextMenu } from "@/components/ui/context-menu-custom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -45,6 +46,8 @@ import {
   Loader2,
   Pencil,
   Trash2,
+  Eye,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
@@ -133,6 +136,7 @@ function ImoveisContent() {
   const [deletingProperty, setDeletingProperty] = useState<Property | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [openCtxMenu, CtxMenuPortal] = useContextMenu();
 
   const fetchProperties = useCallback(async () => {
     setLoading(true);
@@ -391,6 +395,12 @@ function ImoveisContent() {
                   key={property.id}
                   href={`/imoveis/${property.id}`}
                   className="block"
+                  onContextMenu={(e) => openCtxMenu(e, [
+                    { label: "Abrir", icon: Eye, onClick: () => router.push(`/imoveis/${property.id}`) },
+                    { label: "Abrir em nova guia", icon: ExternalLink, onClick: () => window.open(`/imoveis/${property.id}`, "_blank") },
+                    { label: "Editar", icon: Pencil, onClick: () => handleEditProperty(property) },
+                    { label: "Excluir", icon: Trash2, onClick: () => handleDeleteClick(property), variant: "destructive", separator: true },
+                  ])}
                 >
                 <Card
                   className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
@@ -557,6 +567,8 @@ function ImoveisContent() {
         onOpenChange={setImportOpen}
         onSuccess={() => fetchProperties()}
       />
+
+      <CtxMenuPortal />
     </div>
   );
 }

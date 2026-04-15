@@ -46,7 +46,10 @@ import {
   FileCheck,
   AlertTriangle,
   UserPlus,
+  ExternalLink,
+  Eye,
 } from "lucide-react";
+import { useContextMenu } from "@/components/ui/context-menu-custom";
 import { TenantForm } from "@/components/forms/tenant-form";
 import { ImportSpreadsheet } from "@/components/forms/import-spreadsheet";
 import { FileSpreadsheet } from "lucide-react";
@@ -110,6 +113,7 @@ function LocatariosContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<Tenant | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [openCtxMenu, CtxMenuPortal] = useContextMenu();
 
   async function fetchTenants() {
     setLoading(true);
@@ -290,7 +294,12 @@ function LocatariosContent() {
                 {filteredTenants.map((tenant) => {
                   const status = statusConfig[tenant.paymentStatus] || statusConfig.SEM_COBRANCA;
                   return (
-                    <Link key={tenant.id} href={`/locatarios/${tenant.id}`} className="block p-4 active:bg-muted/50 cursor-pointer">
+                    <Link key={tenant.id} href={`/locatarios/${tenant.id}`} className="block p-4 active:bg-muted/50 cursor-pointer" onContextMenu={(e) => openCtxMenu(e, [
+                      { label: "Abrir", icon: Eye, onClick: () => router.push(`/locatarios/${tenant.id}`) },
+                      { label: "Abrir em nova guia", icon: ExternalLink, onClick: () => window.open(`/locatarios/${tenant.id}`, "_blank") },
+                      { label: "Editar", icon: Pencil, onClick: () => handleEditTenant(tenant) },
+                      { label: "Excluir", icon: Trash2, onClick: () => handleDeleteClick(tenant), variant: "destructive", separator: true },
+                    ])}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <Avatar className="h-10 w-10 shrink-0">
@@ -360,7 +369,12 @@ function LocatariosContent() {
                   {filteredTenants.map((tenant) => {
                     const status = statusConfig[tenant.paymentStatus] || statusConfig.SEM_COBRANCA;
                     return (
-                      <TableRow key={tenant.id} className="cursor-pointer" onClick={() => router.push(`/locatarios/${tenant.id}`)}>
+                      <TableRow key={tenant.id} className="cursor-pointer" onClick={() => router.push(`/locatarios/${tenant.id}`)} onContextMenu={(e) => openCtxMenu(e, [
+                        { label: "Abrir", icon: Eye, onClick: () => router.push(`/locatarios/${tenant.id}`) },
+                        { label: "Abrir em nova guia", icon: ExternalLink, onClick: () => window.open(`/locatarios/${tenant.id}`, "_blank") },
+                        { label: "Editar", icon: Pencil, onClick: () => handleEditTenant(tenant) },
+                        { label: "Excluir", icon: Trash2, onClick: () => handleDeleteClick(tenant), variant: "destructive", separator: true },
+                      ])}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar className="h-8 w-8">
@@ -474,6 +488,8 @@ function LocatariosContent() {
         onOpenChange={setImportOpen}
         onSuccess={() => fetchTenants()}
       />
+
+      <CtxMenuPortal />
     </div>
   );
 }
