@@ -279,6 +279,8 @@ export default function RepassesPage() {
   }, []);
 
   const isPendente = activeTab === "pix" || activeTab === "ted";
+  const isPagos = activeTab === "pagos";
+  const isSelectable = isPendente || isPagos;
 
   // Summary
   const totalPendente = groups.reduce((sum, g) => sum + g.totalPendente, 0);
@@ -317,8 +319,9 @@ export default function RepassesPage() {
   }
 
   function toggleSelectAll(ownerId: string, entries: OwnerEntry[]) {
+    const targetStatus = isPagos ? "PAGO" : "PENDENTE";
     const pendingIds = entries
-      .filter((e) => e.status === "PENDENTE")
+      .filter((e) => e.status === targetStatus)
       .map((e) => e.id);
     const allSelected = pendingIds.every((id) => selectedEntries.has(id));
 
@@ -343,10 +346,11 @@ export default function RepassesPage() {
   }
 
   function selectAllPending() {
-    const allPendingIds = groups.flatMap((g) =>
-      g.entries.filter((e) => e.status === "PENDENTE").map((e) => e.id)
+    const targetStatus = isPagos ? "PAGO" : "PENDENTE";
+    const allIds = groups.flatMap((g) =>
+      g.entries.filter((e) => e.status === targetStatus).map((e) => e.id)
     );
-    setSelectedEntries(new Set(allPendingIds));
+    setSelectedEntries(new Set(allIds));
   }
 
   function clearSelection() {
@@ -673,14 +677,26 @@ export default function RepassesPage() {
                       {cnabLoading ? "..." : `CNAB ${activeTab === "pix" ? "PIX" : "TED"}`}
                     </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    className="gap-1.5 h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
-                    onClick={() => openConfirmDialog("PAGO")}
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                    Confirmar Repasse
-                  </Button>
+                  {isPagos ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                      onClick={() => openConfirmDialog("PENDENTE")}
+                    >
+                      <Clock className="h-3.5 w-3.5" />
+                      Reverter para Pendente
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      className="gap-1.5 h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+                      onClick={() => openConfirmDialog("PAGO")}
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Confirmar Repasse
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -739,7 +755,7 @@ export default function RepassesPage() {
                   </span>
                 </Button>
 
-                {isPendente && (
+                {isSelectable && (
                   <>
                     <Button
                       size="sm"
@@ -761,40 +777,42 @@ export default function RepassesPage() {
                       <span className="hidden sm:inline">Exportar CSV</span>
                       <span className="sm:hidden">CSV</span>
                     </Button>
-                    <div className="flex items-center gap-1">
-                      {cnabNextSeq != null && (
-                        cnabSeqEditing ? (
-                          <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              min={1}
-                              value={cnabSeqInput}
-                              onChange={(e) => setCnabSeqInput(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === "Enter") saveSeqEdit(); if (e.key === "Escape") setCnabSeqEditing(false); }}
-                              className="h-7 w-16 text-xs text-center"
-                              autoFocus
-                            />
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={saveSeqEdit}>OK</Button>
-                          </div>
-                        ) : (
-                          <button onClick={openSeqEdit} className="text-[10px] text-muted-foreground mr-1 hover:text-primary hover:underline" title="Clique para ajustar o sequencial">Seq: {cnabNextSeq}</button>
-                        )
-                      )}
-                      <Button
-                        size="sm"
-                        className={cn("gap-1.5 h-10 sm:h-8 text-xs", activeTab === "pix" ? "bg-blue-600 hover:bg-blue-700" : "bg-indigo-600 hover:bg-indigo-700")}
-                        onClick={() => handleGenerateCnab(activeTab === "pix" ? "PIX" : "TED")}
-                        disabled={cnabLoading}
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">
-                          {cnabLoading ? "Gerando..." : `Gerar CNAB ${activeTab === "pix" ? "PIX" : "TED"}`}
-                        </span>
-                        <span className="sm:hidden">
-                          {cnabLoading ? "..." : "CNAB"}
-                        </span>
-                      </Button>
-                    </div>
+                    {isPendente && (
+                      <div className="flex items-center gap-1">
+                        {cnabNextSeq != null && (
+                          cnabSeqEditing ? (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                type="number"
+                                min={1}
+                                value={cnabSeqInput}
+                                onChange={(e) => setCnabSeqInput(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === "Enter") saveSeqEdit(); if (e.key === "Escape") setCnabSeqEditing(false); }}
+                                className="h-7 w-16 text-xs text-center"
+                                autoFocus
+                              />
+                              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={saveSeqEdit}>OK</Button>
+                            </div>
+                          ) : (
+                            <button onClick={openSeqEdit} className="text-[10px] text-muted-foreground mr-1 hover:text-primary hover:underline" title="Clique para ajustar o sequencial">Seq: {cnabNextSeq}</button>
+                          )
+                        )}
+                        <Button
+                          size="sm"
+                          className={cn("gap-1.5 h-10 sm:h-8 text-xs", activeTab === "pix" ? "bg-blue-600 hover:bg-blue-700" : "bg-indigo-600 hover:bg-indigo-700")}
+                          onClick={() => handleGenerateCnab(activeTab === "pix" ? "PIX" : "TED")}
+                          disabled={cnabLoading}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">
+                            {cnabLoading ? "Gerando..." : `Gerar CNAB ${activeTab === "pix" ? "PIX" : "TED"}`}
+                          </span>
+                          <span className="sm:hidden">
+                            {cnabLoading ? "..." : "CNAB"}
+                          </span>
+                        </Button>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
@@ -830,9 +848,12 @@ export default function RepassesPage() {
                     const pendingEntries = group.entries.filter(
                       (e) => e.status === "PENDENTE"
                     );
+                    const selectableEntries = isPagos
+                      ? group.entries.filter((e) => e.status === "PAGO")
+                      : pendingEntries;
                     const allSelected =
-                      pendingEntries.length > 0 &&
-                      pendingEntries.every((e) => selectedEntries.has(e.id));
+                      selectableEntries.length > 0 &&
+                      selectableEntries.every((e) => selectedEntries.has(e.id));
                     const isNegativoMobile = (group.totalLiquido ?? group.totalPendente) < 0;
 
                     return (
@@ -844,7 +865,7 @@ export default function RepassesPage() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex items-start gap-3 min-w-0">
-                              {isPendente && pendingEntries.length > 0 && !isNegativoMobile && (
+                              {isSelectable && selectableEntries.length > 0 && !isNegativoMobile && (
                                 <Checkbox
                                   checked={allSelected}
                                   onCheckedChange={() =>
@@ -1029,9 +1050,12 @@ export default function RepassesPage() {
                     const pendingEntries = group.entries.filter(
                       (e) => e.status === "PENDENTE"
                     );
+                    const selectableEntries = isPagos
+                      ? group.entries.filter((e) => e.status === "PAGO")
+                      : pendingEntries;
                     const allSelected =
-                      pendingEntries.length > 0 &&
-                      pendingEntries.every((e) => selectedEntries.has(e.id));
+                      selectableEntries.length > 0 &&
+                      selectableEntries.every((e) => selectedEntries.has(e.id));
                     const isNegativo = (group.totalLiquido ?? group.totalPendente) < 0;
 
                     return (
@@ -1044,7 +1068,7 @@ export default function RepassesPage() {
                           )}
                           onClick={() => toggleOwner(group.owner.id)}
                         >
-                          {isPendente && pendingEntries.length > 0 && !isNegativo && (
+                          {isSelectable && selectableEntries.length > 0 && !isNegativo && (
                             <Checkbox
                               checked={allSelected}
                               onCheckedChange={() =>
@@ -1275,7 +1299,7 @@ export default function RepassesPage() {
                             <Table>
                               <TableHeader>
                                 <TableRow className="hover:bg-transparent">
-                                  {isPendente && (
+                                  {isSelectable && (
                                     <TableHead className="w-10"></TableHead>
                                   )}
                                   <TableHead className="text-xs">Descricao</TableHead>
@@ -1287,9 +1311,9 @@ export default function RepassesPage() {
                               <TableBody>
                                 {group.entries.map((entry) => (
                                   <TableRow key={entry.id} className="hover:bg-muted/30">
-                                    {isPendente && (
+                                    {isSelectable && (
                                       <TableCell>
-                                        {entry.status === "PENDENTE" && !isNegativo && (
+                                        {((isPendente && entry.status === "PENDENTE") || (isPagos && entry.status === "PAGO")) && !isNegativo && (
                                           <Checkbox
                                             checked={selectedEntries.has(entry.id)}
                                             onCheckedChange={() => toggleEntry(entry.id)}
@@ -1384,7 +1408,7 @@ export default function RepassesPage() {
                                         : false;
                                       return (
                                         <TableRow key={debit.id} className="hover:bg-red-50">
-                                          {isPendente && <TableCell className="w-10" />}
+                                          {isSelectable && <TableCell className="w-10" />}
                                           <TableCell className="text-xs text-red-700">
                                             <div className="flex items-center gap-1.5">
                                               {isCarryover && (

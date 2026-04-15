@@ -49,6 +49,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { ImportSpreadsheet } from "@/components/forms/import-spreadsheet";
 import { FileSpreadsheet } from "lucide-react";
 
@@ -386,10 +387,13 @@ function ImoveisContent() {
                 .join(", ");
 
               return (
-                <Card
+                <Link
                   key={property.id}
+                  href={`/imoveis/${property.id}`}
+                  className="block"
+                >
+                <Card
                   className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer group"
-                  onClick={() => router.push(`/imoveis/${property.id}`)}
                 >
                   <CardContent className={cn("p-0", view === "list" && "flex items-center")}>
                     {/* Property photo */}
@@ -445,18 +449,19 @@ function ImoveisContent() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => e.preventDefault()}
                               >
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleEditProperty(property)}>
+                              <DropdownMenuItem onClick={(e) => { e.preventDefault(); handleEditProperty(property); }}>
                                 <Pencil className="h-4 w-4" />
                                 Editar
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 variant="destructive"
-                                onClick={() => handleDeleteClick(property)}
+                                onClick={(e) => { e.preventDefault(); handleDeleteClick(property); }}
                               >
                                 <Trash2 className="h-4 w-4" />
                                 Excluir
@@ -505,6 +510,7 @@ function ImoveisContent() {
                     </div>
                   </CardContent>
                 </Card>
+                </Link>
               );
             })}
           </div>

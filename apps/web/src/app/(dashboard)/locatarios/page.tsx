@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -289,7 +290,7 @@ function LocatariosContent() {
                 {filteredTenants.map((tenant) => {
                   const status = statusConfig[tenant.paymentStatus] || statusConfig.SEM_COBRANCA;
                   return (
-                    <div key={tenant.id} className="p-4 active:bg-muted/50 cursor-pointer" onClick={() => router.push(`/locatarios/${tenant.id}`)}>
+                    <Link key={tenant.id} href={`/locatarios/${tenant.id}`} className="block p-4 active:bg-muted/50 cursor-pointer">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <Avatar className="h-10 w-10 shrink-0">
@@ -337,7 +338,7 @@ function LocatariosContent() {
                           <span className="ml-auto font-semibold text-sm">{formatCurrency(tenant.monthlyIncome)}</span>
                         )}
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
@@ -368,7 +369,9 @@ function LocatariosContent() {
                               </AvatarFallback>
                             </Avatar>
                             <div>
-                              <span className="text-sm font-medium">{tenant.name}</span>
+                              <Link href={`/locatarios/${tenant.id}`} className="hover:underline" onClick={(e) => e.stopPropagation()}>
+                                <span className="text-sm font-medium">{tenant.name}</span>
+                              </Link>
                               <p className="text-xs text-muted-foreground">{tenant.cpfCnpj}</p>
                             </div>
                           </div>

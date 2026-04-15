@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
@@ -273,7 +274,7 @@ function ProprietariosContent() {
               {/* Mobile card view */}
               <div className="divide-y md:hidden">
                 {filteredOwners.map((owner) => (
-                  <div key={owner.id} className="p-4 active:bg-muted/50 cursor-pointer" onClick={() => router.push(`/proprietarios/${owner.id}`)}>
+                  <Link key={owner.id} href={`/proprietarios/${owner.id}`} className="block p-4 active:bg-muted/50 cursor-pointer">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
                         <Avatar className="h-10 w-10 shrink-0">
@@ -288,7 +289,7 @@ function ProprietariosContent() {
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={(e) => e.preventDefault()}>
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
@@ -319,7 +320,7 @@ function ProprietariosContent() {
                       </Badge>
                       <span className="ml-auto font-semibold text-sm">{formatCurrency(owner.monthlyIncome)}</span>
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
 
@@ -347,7 +348,7 @@ function ProprietariosContent() {
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <span className="text-sm font-medium">{owner.name}</span>
+                            <Link href={`/proprietarios/${owner.id}`} className="text-sm font-medium hover:underline" onClick={(e) => e.stopPropagation()}>{owner.name}</Link>
                             <p className="text-xs text-muted-foreground">{owner.cpfCnpj}</p>
                           </div>
                         </div>

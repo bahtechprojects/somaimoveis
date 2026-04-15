@@ -55,6 +55,7 @@ import { BatchUploadPdf } from "@/components/forms/batch-upload-pdf";
 import { ImportSpreadsheet } from "@/components/forms/import-spreadsheet";
 import { ImportContractPdf } from "@/components/forms/import-contract-pdf";
 import { FileSpreadsheet, FileSearch } from "lucide-react";
+import Link from "next/link";
 
 interface Contract {
   id: string;
@@ -383,7 +384,7 @@ function ContratosContent() {
                     className: "bg-muted text-muted-foreground",
                   };
                   return (
-                    <div key={contract.id} className="p-4 active:bg-muted/50 cursor-pointer" onClick={() => router.push(`/contratos/${contract.id}`)}>
+                    <Link key={contract.id} href={`/contratos/${contract.id}`} className="block p-4 active:bg-muted/50 cursor-pointer hover:bg-muted/30">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
@@ -401,7 +402,7 @@ function ContratosContent() {
                         </div>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
                               <MoreVertical className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -422,7 +423,7 @@ function ContratosContent() {
                       <div className="mt-1 text-[11px] text-muted-foreground">
                         {formatDate(contract.startDate)} - {formatDate(contract.endDate)}
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
@@ -450,10 +451,10 @@ function ContratosContent() {
                     return (
                       <TableRow key={contract.id} className="cursor-pointer" onClick={() => router.push(`/contratos/${contract.id}`)}>
                         <TableCell className="font-medium text-xs">
-                          <div className="flex items-center gap-2">
+                          <Link href={`/contratos/${contract.id}`} className="flex items-center gap-2 hover:underline" onClick={(e) => e.stopPropagation()}>
                             <FileText className="h-4 w-4 text-muted-foreground" />
                             {contract.code}
-                          </div>
+                          </Link>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground max-w-[300px]">
                           <span className="block truncate" title={contract.property?.title || "N/A"}>
