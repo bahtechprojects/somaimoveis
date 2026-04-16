@@ -52,6 +52,7 @@ import {
   Plus,
   X,
   ClipboardList,
+  Printer,
 } from "lucide-react";
 import {
   Dialog,
@@ -458,6 +459,17 @@ export default function PropertyDetailPage() {
           </Button>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              asChild
+            >
+              <a href={`/imoveis/relatorio?id=${id}`} target="_blank" rel="noopener noreferrer">
+                <Printer className="h-4 w-4" />
+                Relatorio
+              </a>
+            </Button>
             <Button
               variant="outline"
               size="sm"
