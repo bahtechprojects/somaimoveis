@@ -1171,6 +1171,18 @@ export default function RepassesPage() {
                             </div>
 
                             <div className="flex items-center gap-2">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(`/repasses/demonstrativo?ownerId=${group.owner.id}&month=${month}`, "_blank");
+                                }}
+                                title="Demonstrativo de repasse (PDF)"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                              </Button>
                               {(group.owner.bankPix || group.owner.thirdPartyPix) && (
                                 <Button
                                   size="icon"

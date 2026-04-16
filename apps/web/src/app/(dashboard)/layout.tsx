@@ -30,6 +30,7 @@ const moreItems: BottomNavItem[] = [
   { label: "Locatários", href: "/locatarios", icon: UserCheck },
   { label: "Relatórios", href: "/relatorios", icon: BarChart3 },
   { label: "Fiscal", href: "/fiscal", icon: Receipt },
+  { label: "Notas Fiscais", href: "/notas-fiscais", icon: FileText },
   { label: "Notificações", href: "/notificacoes", icon: Bell },
   { label: "Usuários", href: "/usuarios", icon: UsersRound },
   { label: "Configurações", href: "/configuracoes", icon: Settings },

@@ -84,6 +84,11 @@ const navigation = [
     icon: Receipt,
   },
   {
+    label: "Notas Fiscais",
+    href: "/notas-fiscais",
+    icon: FileText,
+  },
+  {
     label: "Notificações",
     href: "/notificacoes",
     icon: Bell,
