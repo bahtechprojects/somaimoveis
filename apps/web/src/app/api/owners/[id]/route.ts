@@ -49,7 +49,13 @@ export async function PUT(
       phone2: body.phone2 || null,
       email2: body.email2 || null,
       stateRegistration: body.stateRegistration || null,
-      birthDate: body.birthDate ? new Date(String(body.birthDate).includes("T") ? body.birthDate : body.birthDate + "T12:00:00") : null,
+      birthDate: (() => {
+        if (!body.birthDate) return null;
+        const raw = String(body.birthDate).trim();
+        if (!raw) return null;
+        const d = new Date(raw.includes("T") ? raw : raw + "T12:00:00");
+        return isNaN(d.getTime()) ? null : d;
+      })(),
       rgIssuer: body.rgIssuer || null,
       street: body.street || null,
       number: body.number || null,
