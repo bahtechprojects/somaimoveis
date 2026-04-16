@@ -155,15 +155,14 @@ function getRecipientName(owner: OwnerData): string {
   return owner.thirdPartyName || owner.name;
 }
 
-/** Detecta se o proprietário tem dados para PIX, TED ou ambos */
+/** Detecta o tipo de pagamento preferencial: PIX tem prioridade sobre TED */
 function getOwnerPaymentTypes(owner: OwnerData): ("PIX" | "TED")[] {
-  const types: ("PIX" | "TED")[] = [];
   const pix = owner.thirdPartyPix || owner.bankPix;
+  if (pix) return ["PIX"];
   const ag = owner.thirdPartyAgency || owner.bankAgency;
   const cc = owner.thirdPartyAccount || owner.bankAccount;
-  if (pix) types.push("PIX");
-  if (ag && cc) types.push("TED");
-  return types;
+  if (ag && cc) return ["TED"];
+  return [];
 }
 
 export default function RepassesPage() {
@@ -996,14 +995,19 @@ export default function RepassesPage() {
                                       </Badge>
                                     ))}
                                   </div>
-                                  {getBankDisplay(group.owner) && (
+                                  {(group.owner.thirdPartyPix || group.owner.bankPix) ? (
+                                    <p className="mt-0.5 ml-5">
+                                      PIX: {getPixDisplay(group.owner)}
+                                    </p>
+                                  ) : getBankDisplay(group.owner) ? (
                                     <p className="mt-0.5 ml-5">
                                       {getBankDisplay(group.owner)}
                                     </p>
+                                  ) : (
+                                    <p className="mt-0.5 ml-5 text-amber-600">
+                                      Dados bancarios nao cadastrados
+                                    </p>
                                   )}
-                                  <p className="mt-0.5 ml-5">
-                                    PIX: {getPixDisplay(group.owner)}
-                                  </p>
                                 </div>
                                 {(group.owner.bankPix || group.owner.thirdPartyPix) && (
                                   <Button
@@ -1247,10 +1251,13 @@ export default function RepassesPage() {
                                   </Badge>
                                 ))}
                               </div>
-                              {getBankDisplay(group.owner) && (
+                              {(group.owner.thirdPartyPix || group.owner.bankPix) ? (
+                                <span>PIX: {getPixDisplay(group.owner)}</span>
+                              ) : getBankDisplay(group.owner) ? (
                                 <span>{getBankDisplay(group.owner)}</span>
+                              ) : (
+                                <span className="text-amber-600">Dados bancarios nao cadastrados</span>
                               )}
-                              <span>PIX: {getPixDisplay(group.owner)}</span>
                               <div className="flex items-center gap-1.5 ml-auto">
                                 <Button
                                   variant="outline"
