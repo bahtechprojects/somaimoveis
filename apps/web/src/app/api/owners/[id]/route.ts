@@ -49,7 +49,7 @@ export async function PUT(
       phone2: body.phone2 || null,
       email2: body.email2 || null,
       stateRegistration: body.stateRegistration || null,
-      birthDate: body.birthDate ? new Date(body.birthDate + "T12:00:00") : null,
+      birthDate: body.birthDate ? new Date(String(body.birthDate).includes("T") ? body.birthDate : body.birthDate + "T12:00:00") : null,
       rgIssuer: body.rgIssuer || null,
       street: body.street || null,
       number: body.number || null,
@@ -70,7 +70,7 @@ export async function PUT(
       thirdPartyAccount: body.thirdPartyAccount || null,
       thirdPartyPixKeyType: body.thirdPartyPixKeyType || null,
       thirdPartyPix: body.thirdPartyPix || null,
-      paymentDay: body.paymentDay ? parseInt(body.paymentDay) : undefined,
+      paymentDay: body.paymentDay ? (typeof body.paymentDay === "number" ? body.paymentDay : parseInt(body.paymentDay)) : undefined,
       notes: body.notes || null,
     };
     // Remove undefined keys
@@ -81,11 +81,14 @@ export async function PUT(
     });
     return NextResponse.json(owner);
   } catch (error: any) {
+    console.error("Owner update error:", error);
     if (error?.code === "P2025") {
       return NextResponse.json({ error: "Proprietário não encontrado" }, { status: 404 });
     }
-    console.error("Owner update error:", error);
-    return NextResponse.json({ error: "Erro ao atualizar proprietário" }, { status: 500 });
+    if (error?.code === "P2002") {
+      return NextResponse.json({ error: "CPF/CNPJ já cadastrado para outro proprietário" }, { status: 409 });
+    }
+    return NextResponse.json({ error: error?.message || "Erro ao atualizar proprietário" }, { status: 500 });
   }
 }
 

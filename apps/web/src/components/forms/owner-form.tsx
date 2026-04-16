@@ -183,7 +183,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
           zipCode: owner.zipCode || "",
           stateRegistration: owner.stateRegistration || "",
           rgIssuer: owner.rgIssuer || "",
-          birthDate: owner.birthDate || "",
+          birthDate: owner.birthDate ? String(owner.birthDate).split("T")[0] : "",
           bankName: owner.bankName || "",
           bankAgency: owner.bankAgency || "",
           bankAccount: owner.bankAccount || "",
