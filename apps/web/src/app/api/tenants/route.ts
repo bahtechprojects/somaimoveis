@@ -7,14 +7,20 @@ export async function GET(request: NextRequest) {
   if (isAuthError(auth)) return auth;
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
+  const searchDigits = search ? search.replace(/\D/g, "") : "";
+  const isNumericSearch = !!search && searchDigits.length >= 3;
 
   const where: Record<string, unknown> = { active: true };
   if (search) {
-    where.OR = [
+    const orClauses: any[] = [
       { name: { contains: search } },
       { email: { contains: search } },
       { cpfCnpj: { contains: search } },
     ];
+    if (searchDigits && searchDigits !== search) {
+      orClauses.push({ cpfCnpj: { contains: searchDigits } });
+    }
+    where.OR = orClauses;
   }
 
   const includeRelations = {
@@ -44,11 +50,23 @@ export async function GET(request: NextRequest) {
   const pageParam = searchParams.get("page");
   if (!pageParam) {
     // Legacy: return all as array
-    const tenants = await prisma.tenant.findMany({
+    let tenants = await prisma.tenant.findMany({
       where,
       include: includeRelations,
       orderBy: { name: "asc" },
     });
+    // Fallback: busca numérica sem resultado, normalizar CPF
+    if (isNumericSearch && tenants.length === 0 && search) {
+      const all = await prisma.tenant.findMany({
+        where: { active: true },
+        include: includeRelations,
+        orderBy: { name: "asc" },
+      });
+      tenants = all.filter((t: any) => {
+        const c = (t.cpfCnpj || "").replace(/\D/g, "");
+        return c.includes(searchDigits);
+      });
+    }
     return NextResponse.json(enrich(tenants));
   }
 
@@ -57,7 +75,7 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50")));
   const skip = (page - 1) * limit;
 
-  const [tenants, total] = await Promise.all([
+  let [tenants, total] = await Promise.all([
     prisma.tenant.findMany({
       where,
       include: includeRelations,
@@ -67,6 +85,20 @@ export async function GET(request: NextRequest) {
     }),
     prisma.tenant.count({ where }),
   ]);
+
+  if (isNumericSearch && total === 0 && search) {
+    const all = await prisma.tenant.findMany({
+      where: { active: true },
+      include: includeRelations,
+      orderBy: { name: "asc" },
+    });
+    const filtered = all.filter((t: any) => {
+      const c = (t.cpfCnpj || "").replace(/\D/g, "");
+      return c.includes(searchDigits);
+    });
+    total = filtered.length;
+    tenants = filtered.slice(skip, skip + limit);
+  }
 
   return NextResponse.json({
     data: enrich(tenants),

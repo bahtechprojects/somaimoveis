@@ -8,13 +8,23 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
 
+  // Normaliza o termo de busca: detecta se é provavelmente um CPF/CNPJ
+  // (contém pelo menos 3 digitos consecutivos ou é predominantemente numérico)
+  const searchDigits = search ? search.replace(/\D/g, "") : "";
+  const isNumericSearch = !!search && searchDigits.length >= 3;
+
   const where: Record<string, unknown> = { active: true };
   if (search) {
-    where.OR = [
+    const orClauses: any[] = [
       { name: { contains: search } },
       { email: { contains: search } },
       { cpfCnpj: { contains: search } },
     ];
+    // Se a busca tem dígitos, também busca pelos digitos puros no cpfCnpj
+    if (searchDigits && searchDigits !== search) {
+      orClauses.push({ cpfCnpj: { contains: searchDigits } });
+    }
+    where.OR = orClauses;
   }
 
   const includeRelations = {
@@ -31,15 +41,50 @@ export async function GET(request: NextRequest) {
       monthlyIncome: owner.contracts.reduce((sum: number, c: { rentalValue: number }) => sum + c.rentalValue, 0),
     }));
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filterByNormalizedCpf = (owners: any[]) => {
+    if (!isNumericSearch) return owners;
+    // Já vieram filtrados pelo Prisma, mas pode ter perdido casos com formatação
+    // diferente. Se não houver match exato, fazer post-filter normalizando.
+    const matchedDirect = owners.some((o: any) => {
+      const c = (o.cpfCnpj || "").replace(/\D/g, "");
+      return c.includes(searchDigits);
+    });
+    if (matchedDirect) return owners;
+    // Fallback: re-filtrar normalizando
+    return owners.filter((o: any) => {
+      const c = (o.cpfCnpj || "").replace(/\D/g, "");
+      const n = (o.name || "").toLowerCase();
+      const e = (o.email || "").toLowerCase();
+      const t = search!.toLowerCase();
+      return c.includes(searchDigits) || n.includes(t) || e.includes(t);
+    });
+  };
+
   const pageParam = searchParams.get("page");
   if (!pageParam) {
     // Legacy: return all as array
-    const owners = await prisma.owner.findMany({
+    let owners = await prisma.owner.findMany({
       where,
       include: includeRelations,
       orderBy: { name: "asc" },
     });
-    return NextResponse.json(enrich(owners));
+
+    // Se a busca é numérica e veio pouca coisa, garantir busca normalizada full
+    if (isNumericSearch && owners.length === 0 && search) {
+      // Fallback: buscar todos active e filtrar no JS por CPF normalizado
+      const all = await prisma.owner.findMany({
+        where: { active: true },
+        include: includeRelations,
+        orderBy: { name: "asc" },
+      });
+      owners = all.filter((o: any) => {
+        const c = (o.cpfCnpj || "").replace(/\D/g, "");
+        return c.includes(searchDigits);
+      });
+    }
+
+    return NextResponse.json(enrich(filterByNormalizedCpf(owners)));
   }
 
   // Paginated response
@@ -47,7 +92,7 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50")));
   const skip = (page - 1) * limit;
 
-  const [owners, total] = await Promise.all([
+  let [owners, total] = await Promise.all([
     prisma.owner.findMany({
       where,
       include: includeRelations,
@@ -57,6 +102,21 @@ export async function GET(request: NextRequest) {
     }),
     prisma.owner.count({ where }),
   ]);
+
+  // Fallback paginado para busca numérica que não retorna nada
+  if (isNumericSearch && total === 0 && search) {
+    const all = await prisma.owner.findMany({
+      where: { active: true },
+      include: includeRelations,
+      orderBy: { name: "asc" },
+    });
+    const filtered = all.filter((o: any) => {
+      const c = (o.cpfCnpj || "").replace(/\D/g, "");
+      return c.includes(searchDigits);
+    });
+    total = filtered.length;
+    owners = filtered.slice(skip, skip + limit);
+  }
 
   return NextResponse.json({
     data: enrich(owners),
