@@ -87,6 +87,72 @@ export async function PUT(
       }
     }
 
+    // Quando pagamento é confirmado (PAGO), garantir que existe uma OwnerEntry REPASSE pendente.
+    // Caso o pagamento tenha sido criado fora de /api/billing/generate (ex: manual, legado),
+    // cria a entry de repasse para o proprietario poder ser pago.
+    if (body.status === "PAGO" && payment.contractId && payment.ownerId && payment.dueDate) {
+      try {
+        const existing = await prisma.ownerEntry.findFirst({
+          where: {
+            contractId: payment.contractId,
+            dueDate: payment.dueDate,
+            category: "REPASSE",
+          },
+        });
+        if (!existing) {
+          // Calcular valor do repasse: preferir splitOwnerValue/netToOwner, senão aluguel - taxa
+          const splitValue = payment.splitOwnerValue ?? payment.netToOwner ?? 0;
+          const ownerValue = splitValue > 0
+            ? splitValue
+            : Math.max(0, (payment.value || 0) - (payment.splitAdminValue || 0));
+
+          if (ownerValue > 0) {
+            const d = new Date(payment.dueDate);
+            const mLabel = `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+
+            // Buscar property e contract code para descrição/notes
+            const contract = await prisma.contract.findUnique({
+              where: { id: payment.contractId },
+              select: {
+                code: true,
+                rentalValue: true,
+                adminFeePercent: true,
+                propertyId: true,
+              },
+            });
+
+            const notesData = {
+              aluguelBruto: contract?.rentalValue || payment.value,
+              adminFeePercent: contract?.adminFeePercent || 10,
+              adminFeeValue: payment.splitAdminValue || 0,
+              irrfValue: payment.irrfValue || undefined,
+              irrfRate: payment.irrfRate || undefined,
+              netToOwner: payment.netToOwner || ownerValue,
+              autoCreated: true,
+            };
+
+            await prisma.ownerEntry.create({
+              data: {
+                type: "CREDITO",
+                category: "REPASSE",
+                description: `Repasse aluguel ${mLabel} - ${contract?.code || payment.contractId}`,
+                value: ownerValue,
+                dueDate: payment.dueDate,
+                status: "PENDENTE",
+                ownerId: payment.ownerId,
+                contractId: payment.contractId,
+                propertyId: contract?.propertyId || null,
+                notes: JSON.stringify(notesData),
+              },
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[Payment PUT] Erro ao criar OwnerEntry REPASSE:", err);
+        // Nao bloquear a atualizacao do pagamento
+      }
+    }
+
     // Quando pagamento volta para PENDENTE, restaurar lançamentos
     if (body.status === "PENDENTE" && payment.notes) {
       try {

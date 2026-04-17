@@ -51,6 +51,7 @@ import {
   X,
   AlertCircle,
   Plus,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -185,6 +186,29 @@ export default function RepassesPage() {
   const [retornoResult, setRetornoResult] = useState<any>(null);
   const [retornoDialogOpen, setRetornoDialogOpen] = useState(false);
   const retornoFileRef = useRef<HTMLInputElement>(null);
+  const [syncLoading, setSyncLoading] = useState(false);
+
+  async function handleSyncRepasses() {
+    if (!confirm(`Sincronizar repasses de ${formatMonthLabel(month)}?\n\nIsso gera repasses para pagamentos PAGO que ainda nao tem repasse correspondente (pagamentos legados ou criados manualmente).`)) return;
+    setSyncLoading(true);
+    try {
+      const res = await fetch(`/api/repasses/sync?month=${month}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao sincronizar");
+      if (data.repassesCriados === 0) {
+        toast.info(data.mensagem);
+      } else {
+        toast.success(data.mensagem);
+      }
+      fetchRepasses();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao sincronizar repasses");
+    } finally {
+      setSyncLoading(false);
+    }
+  }
 
   async function handleGuarantee(ownerId: string, ownerName: string) {
     if (!confirm(`Garantir aluguel atrasado de ${ownerName} para ${formatMonthLabel(month)}?\n\nIsso cria um crédito de garantia na conta do proprietário.`)) return;
@@ -806,6 +830,23 @@ export default function RepassesPage() {
                   </span>
                   <span className="sm:hidden">
                     {retornoLoading ? "..." : "Retorno"}
+                  </span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-10 sm:h-8 text-xs"
+                  onClick={handleSyncRepasses}
+                  disabled={syncLoading}
+                  title="Gerar repasses para pagamentos PAGO que ainda nao tem repasse"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${syncLoading ? "animate-spin" : ""}`} />
+                  <span className="hidden sm:inline">
+                    {syncLoading ? "Sincronizando..." : "Sincronizar"}
+                  </span>
+                  <span className="sm:hidden">
+                    {syncLoading ? "..." : "Sync"}
                   </span>
                 </Button>
 
