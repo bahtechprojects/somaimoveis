@@ -25,6 +25,10 @@ import {
   Trophy,
   Printer,
   Calendar,
+  Users,
+  AlertOctagon,
+  CalendarClock,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -144,28 +148,62 @@ const periodOptions: { value: PeriodOption; label: string }[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Helper component: card para gerar relatorios em PDF
+// Helper components: cards de relatorios em PDF
 // ---------------------------------------------------------------------------
 
-function RelatorioPdfCard({
+type CardColor = "primary" | "red" | "amber" | "green" | "blue";
+
+const colorClasses: Record<CardColor, { bg: string; text: string; border: string; btn: string }> = {
+  primary: {
+    bg: "bg-primary/10",
+    text: "text-primary",
+    border: "hover:border-primary/50",
+    btn: "",
+  },
+  red: {
+    bg: "bg-red-100",
+    text: "text-red-600",
+    border: "hover:border-red-300",
+    btn: "bg-red-600 hover:bg-red-700",
+  },
+  amber: {
+    bg: "bg-amber-100",
+    text: "text-amber-600",
+    border: "hover:border-amber-300",
+    btn: "bg-amber-600 hover:bg-amber-700",
+  },
+  green: {
+    bg: "bg-green-100",
+    text: "text-green-600",
+    border: "hover:border-green-300",
+    btn: "bg-green-600 hover:bg-green-700",
+  },
+  blue: {
+    bg: "bg-blue-100",
+    text: "text-blue-600",
+    border: "hover:border-blue-300",
+    btn: "bg-blue-600 hover:bg-blue-700",
+  },
+};
+
+function CardShell({
   icon,
   title,
   description,
-  onGenerate,
+  color = "primary",
+  children,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
-  onGenerate: (month: string) => void;
+  color?: CardColor;
+  children: React.ReactNode;
 }) {
-  const now = new Date();
-  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const [month, setMonth] = useState(defaultMonth);
-
+  const c = colorClasses[color];
   return (
-    <div className="flex flex-col gap-2 p-3 border rounded-lg hover:border-primary/50 transition-colors">
+    <div className={`flex flex-col gap-2 p-3 border rounded-lg transition-colors ${c.border}`}>
       <div className="flex items-start gap-2">
-        <div className="h-8 w-8 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+        <div className={`h-8 w-8 rounded-md ${c.bg} ${c.text} flex items-center justify-center shrink-0`}>
           {icon}
         </div>
         <div className="flex-1 min-w-0">
@@ -173,6 +211,31 @@ function RelatorioPdfCard({
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
       </div>
+      {children}
+    </div>
+  );
+}
+
+function RelatorioMonthCard({
+  icon,
+  title,
+  description,
+  color = "primary",
+  onGenerate,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color?: CardColor;
+  onGenerate: (month: string) => void;
+}) {
+  const now = new Date();
+  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [month, setMonth] = useState(defaultMonth);
+  const c = colorClasses[color];
+
+  return (
+    <CardShell icon={icon} title={title} description={description} color={color}>
       <div className="flex gap-2 mt-1">
         <input
           type="month"
@@ -182,14 +245,156 @@ function RelatorioPdfCard({
         />
         <Button
           size="sm"
-          className="h-8 text-xs gap-1 shrink-0"
+          className={`h-8 text-xs gap-1 shrink-0 text-white ${c.btn}`}
           onClick={() => onGenerate(month)}
         >
           <Printer className="h-3.5 w-3.5" />
           Gerar
         </Button>
       </div>
-    </div>
+    </CardShell>
+  );
+}
+
+function RelatorioInstantCard({
+  icon,
+  title,
+  description,
+  color = "primary",
+  onGenerate,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color?: CardColor;
+  onGenerate: () => void;
+}) {
+  const c = colorClasses[color];
+  return (
+    <CardShell icon={icon} title={title} description={description} color={color}>
+      <Button
+        size="sm"
+        className={`h-8 text-xs gap-1 mt-1 text-white ${c.btn}`}
+        onClick={onGenerate}
+      >
+        <Printer className="h-3.5 w-3.5" />
+        Gerar Relatorio
+      </Button>
+    </CardShell>
+  );
+}
+
+function RelatorioDaysCard({
+  icon,
+  title,
+  description,
+  color = "primary",
+  onGenerate,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color?: CardColor;
+  onGenerate: (days: number) => void;
+}) {
+  const [days, setDays] = useState(90);
+  const c = colorClasses[color];
+  return (
+    <CardShell icon={icon} title={title} description={description} color={color}>
+      <div className="flex gap-2 mt-1">
+        <select
+          value={days}
+          onChange={(e) => setDays(parseInt(e.target.value))}
+          className="h-8 px-2 text-xs rounded-md border bg-background flex-1 min-w-0"
+        >
+          <option value={30}>Proximos 30 dias</option>
+          <option value={60}>Proximos 60 dias</option>
+          <option value={90}>Proximos 90 dias</option>
+          <option value={180}>Proximos 180 dias</option>
+        </select>
+        <Button
+          size="sm"
+          className={`h-8 text-xs gap-1 shrink-0 text-white ${c.btn}`}
+          onClick={() => onGenerate(days)}
+        >
+          <Printer className="h-3.5 w-3.5" />
+          Gerar
+        </Button>
+      </div>
+    </CardShell>
+  );
+}
+
+function RelatorioOwnerYearCard({
+  icon,
+  title,
+  description,
+  color = "primary",
+  onGenerate,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  color?: CardColor;
+  onGenerate: (ownerId: string, year: number) => void;
+}) {
+  const [owners, setOwners] = useState<Array<{ id: string; name: string }>>([]);
+  const [ownerId, setOwnerId] = useState("");
+  const [year, setYear] = useState(new Date().getFullYear() - (new Date().getMonth() < 3 ? 1 : 0));
+  const c = colorClasses[color];
+
+  useEffect(() => {
+    fetch("/api/owners")
+      .then((r) => r.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data.data || [];
+        setOwners(list.map((o: any) => ({ id: o.id, name: o.name })));
+      })
+      .catch(console.error);
+  }, []);
+
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+
+  return (
+    <CardShell icon={icon} title={title} description={description} color={color}>
+      <div className="flex flex-col gap-2 mt-1">
+        <select
+          value={ownerId}
+          onChange={(e) => setOwnerId(e.target.value)}
+          className="h-8 px-2 text-xs rounded-md border bg-background"
+        >
+          <option value="">Selecione o proprietario</option>
+          {owners.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </select>
+        <div className="flex gap-2">
+          <select
+            value={year}
+            onChange={(e) => setYear(parseInt(e.target.value))}
+            className="h-8 px-2 text-xs rounded-md border bg-background flex-1 min-w-0"
+          >
+            {years.map((y) => (
+              <option key={y} value={y}>
+                Ano {y}
+              </option>
+            ))}
+          </select>
+          <Button
+            size="sm"
+            className={`h-8 text-xs gap-1 shrink-0 text-white ${c.btn}`}
+            disabled={!ownerId}
+            onClick={() => ownerId && onGenerate(ownerId, year)}
+          >
+            <Printer className="h-3.5 w-3.5" />
+            Gerar
+          </Button>
+        </div>
+      </div>
+    </CardShell>
   );
 }
 
@@ -438,13 +643,52 @@ export default function RelatoriosPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <RelatorioPdfCard
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <RelatorioMonthCard
                 icon={<Calendar className="h-5 w-5" />}
                 title="Locacoes do Mes"
-                description="Imoveis alugados no periodo selecionado"
+                description="Imoveis alugados no mes selecionado"
                 onGenerate={(month) =>
                   window.open(`/relatorios/locacoes-mes?month=${month}`, "_blank")
+                }
+              />
+              <RelatorioInstantCard
+                icon={<AlertOctagon className="h-5 w-5" />}
+                title="Inadimplencia"
+                description="Locatarios com pagamentos em atraso"
+                color="red"
+                onGenerate={() =>
+                  window.open(`/relatorios/inadimplencia`, "_blank")
+                }
+              />
+              <RelatorioDaysCard
+                icon={<CalendarClock className="h-5 w-5" />}
+                title="Contratos Vencendo"
+                description="Contratos com termino proximo"
+                color="amber"
+                onGenerate={(days) =>
+                  window.open(`/relatorios/contratos-vencendo?days=${days}`, "_blank")
+                }
+              />
+              <RelatorioMonthCard
+                icon={<RefreshCw className="h-5 w-5" />}
+                title="Reajustes a Aplicar"
+                description="Contratos com aniversario no mes"
+                color="green"
+                onGenerate={(month) =>
+                  window.open(`/relatorios/reajustes?month=${month}`, "_blank")
+                }
+              />
+              <RelatorioOwnerYearCard
+                icon={<Users className="h-5 w-5" />}
+                title="Extrato Anual do Proprietario"
+                description="Repasses do ano para declaracao de IR"
+                color="blue"
+                onGenerate={(ownerId, year) =>
+                  window.open(
+                    `/relatorios/extrato-proprietario?ownerId=${ownerId}&year=${year}`,
+                    "_blank"
+                  )
                 }
               />
             </div>
