@@ -23,6 +23,8 @@ import {
   FileText,
   CreditCard,
   Trophy,
+  Printer,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -140,6 +142,56 @@ const periodOptions: { value: PeriodOption; label: string }[] = [
   { value: "12m", label: "12 meses" },
   { value: "all", label: "Todo periodo" },
 ];
+
+// ---------------------------------------------------------------------------
+// Helper component: card para gerar relatorios em PDF
+// ---------------------------------------------------------------------------
+
+function RelatorioPdfCard({
+  icon,
+  title,
+  description,
+  onGenerate,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  onGenerate: (month: string) => void;
+}) {
+  const now = new Date();
+  const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [month, setMonth] = useState(defaultMonth);
+
+  return (
+    <div className="flex flex-col gap-2 p-3 border rounded-lg hover:border-primary/50 transition-colors">
+      <div className="flex items-start gap-2">
+        <div className="h-8 w-8 rounded-md bg-primary/10 text-primary flex items-center justify-center shrink-0">
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-semibold">{title}</h4>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      </div>
+      <div className="flex gap-2 mt-1">
+        <input
+          type="month"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+          className="h-8 px-2 text-xs rounded-md border bg-background flex-1 min-w-0"
+        />
+        <Button
+          size="sm"
+          className="h-8 text-xs gap-1 shrink-0"
+          onClick={() => onGenerate(month)}
+        >
+          <Printer className="h-3.5 w-3.5" />
+          Gerar
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -376,6 +428,28 @@ export default function RelatoriosPage() {
             </Button>
           ))}
         </div>
+
+        {/* ---- Relatórios PDF rápidos ---- */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Printer className="h-4 w-4 text-primary" />
+              Relatorios em PDF
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <RelatorioPdfCard
+                icon={<Calendar className="h-5 w-5" />}
+                title="Locacoes do Mes"
+                description="Imoveis alugados no periodo selecionado"
+                onGenerate={(month) =>
+                  window.open(`/relatorios/locacoes-mes?month=${month}`, "_blank")
+                }
+              />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ================================================================ */}
         {/* RESUMO FINANCEIRO                                                */}
