@@ -187,6 +187,22 @@ export async function GET(request: NextRequest) {
     let avulsasEntrada = 0;
     let avulsasSaida = 0;
 
+    // Buscar TODOS os contratos do proprietario para fazer fallback por description
+    // (caso Leo tenha lancado uma entry avulsa mas com "CTR-XX" na descricao)
+    const allOwnerContracts = await prisma.contract.findMany({
+      where: { ownerId },
+      select: { id: true, code: true },
+    });
+    const contractCodeMap = new Map(allOwnerContracts.map((c) => [c.code, c.id]));
+
+    // Helper: tentar achar o contractId por codigo no description
+    function resolveContractFromDescription(desc: string): string | null {
+      const match = desc.match(/CTR[-\s]?(\d+)/i);
+      if (!match) return null;
+      const code = `CTR-${match[1]}`;
+      return contractCodeMap.get(code) || null;
+    }
+
     for (const e of entries) {
       const refDate = e.paidAt || e.dueDate || monthStart;
       const dateStr = new Date(refDate).toLocaleDateString("pt-BR", { timeZone: "UTC" });
@@ -202,7 +218,39 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      if (!e.contractId || !contractMap.has(e.contractId)) {
+      // Tentar resolver contractId: primeiro do campo, senao pela descricao
+      let resolvedContractId = e.contractId;
+      if (!resolvedContractId || !contractMap.has(resolvedContractId)) {
+        const fromDesc = resolveContractFromDescription(e.description);
+        if (fromDesc) {
+          resolvedContractId = fromDesc;
+          // Se esse contrato ainda nao esta no map, buscar
+          if (!contractMap.has(fromDesc)) {
+            const fullContract = await prisma.contract.findUnique({
+              where: { id: fromDesc },
+              include: {
+                property: {
+                  select: {
+                    id: true, title: true, type: true,
+                    street: true, number: true, complement: true,
+                    neighborhood: true, city: true, state: true,
+                  },
+                },
+                tenant: {
+                  select: { id: true, name: true, cpfCnpj: true, personType: true },
+                },
+              },
+            });
+            if (fullContract) {
+              contractMap.set(fromDesc, fullContract);
+            } else {
+              resolvedContractId = null;
+            }
+          }
+        }
+      }
+
+      if (!resolvedContractId || !contractMap.has(resolvedContractId)) {
         // Entry sem contrato (taxa avulsa, acordo, etc)
         const isCredit = e.type === "CREDITO";
         const mov: Movimento = {
@@ -217,8 +265,11 @@ export async function GET(request: NextRequest) {
         continue;
       }
 
-      const contract = contractMap.get(e.contractId)!;
-      if (!groups.has(e.contractId)) {
+      // Usar resolvedContractId daqui pra frente
+      const useContractId = resolvedContractId;
+
+      const contract = contractMap.get(useContractId)!;
+      if (!groups.has(useContractId)) {
         const p = contract.property;
         const addr = p
           ? [
@@ -230,7 +281,7 @@ export async function GET(request: NextRequest) {
               .join(", ")
           : "";
 
-        groups.set(e.contractId, {
+        groups.set(useContractId, {
           contractId: contract.id,
           code: contract.code,
           property: p
@@ -254,14 +305,135 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      const g = groups.get(e.contractId)!;
+      // Classificar entries: REPASSE vai ser processado depois (precisa agregacao de descontos)
+      // DEBITOs de desconto tambem. Outros vao direto para movimentos.
+      const isCredit = e.type === "CREDITO";
+      const isRepasse = isCredit && e.category === "REPASSE";
+      const categoriaUp = (e.category || "").toUpperCase();
+      const descricaoUp = (e.description || "").toUpperCase();
+      const isDesconto =
+        e.type === "DEBITO" &&
+        (categoriaUp === "DESCONTO" ||
+          categoriaUp === "ACORDO" ||
+          descricaoUp.includes("DESCONTO"));
 
-      // Para REPASSE (CREDITO), explodir em: entrada bruta + saida de taxa adm + saida de IRRF
-      if (e.type === "CREDITO" && e.category === "REPASSE" && noteData) {
-        const bruto = noteData.aluguelBruto || value;
-        const adminFee = noteData.adminFeeValue || 0;
-        const irrf = noteData.irrfValue || 0;
+      if (isRepasse || isDesconto) {
+        // Sera processado no proximo passo (agregando tudo por contrato)
+        // Armazenar no grupo para processamento posterior
+        const g = groups.get(useContractId)!;
+        const gAny = g as any;
+        if (!gAny._pendingRepasses) gAny._pendingRepasses = [];
+        if (!gAny._pendingDescontos) gAny._pendingDescontos = [];
+        if (isRepasse) {
+          gAny._pendingRepasses.push({ entry: e, noteData, refDate, dateStr });
+        } else {
+          gAny._pendingDescontos.push({ entry: e, refDate, dateStr });
+        }
+      } else {
+        // Entry normal (DEBITO nao-desconto, CREDITO nao-REPASSE, etc)
+        const g = groups.get(useContractId)!;
+        g.movimentos.push({
+          date: dateStr,
+          descricao: e.description,
+          entrada: isCredit ? value : 0,
+          saida: isCredit ? 0 : value,
+        });
+        if (isCredit) g.totalEntradas += value;
+        else g.totalSaidas += value;
+      }
+    }
+
+    // SEGUNDO PASSO: processar REPASSEs com descontos agregados
+    // Para cada contrato, calcular:
+    //   aluguel liquido = bruto - descontos (OwnerEntry DEBITO desconto + Payment lancamentos CREDITO)
+    //   taxa adm = liquido × adminFeePercent%
+    //   IRRF = sobre (liquido - taxa adm)
+    for (const [contractId, g] of groups.entries()) {
+      const pendingRepasses = ((g as any)._pendingRepasses || []) as Array<{
+        entry: any;
+        noteData: any;
+        refDate: Date;
+        dateStr: string;
+      }>;
+      const pendingDescontos = ((g as any)._pendingDescontos || []) as Array<{
+        entry: any;
+        refDate: Date;
+        dateStr: string;
+      }>;
+
+      if (pendingRepasses.length === 0) {
+        // Sem REPASSE nesse mes: apenas adicionar descontos como saidas simples
+        for (const d of pendingDescontos) {
+          g.movimentos.push({
+            date: d.dateStr,
+            descricao: d.entry.description,
+            entrada: 0,
+            saida: d.entry.value,
+          });
+          g.totalSaidas += d.entry.value;
+        }
+        continue;
+      }
+
+      // Somar descontos do proprietario (OwnerEntry DEBITO)
+      const descontoOwnerEntries = pendingDescontos.reduce(
+        (s, d) => s + d.entry.value,
+        0
+      );
+
+      // Somar descontos do locatario (Payment.notes.lancamentos CREDITO tipo DESCONTO)
+      const lancsLocatario = paymentLancByContract.get(contractId) || [];
+      const descontosLocatario = lancsLocatario.filter((l) => {
+        if (l.tipo !== "CREDITO" || !l.valor || l.valor <= 0) return false;
+        const cat = (l.categoria || "").toUpperCase();
+        const desc = (l.descricao || "").toUpperCase();
+        return cat === "DESCONTO" || cat === "ACORDO" || desc.includes("DESCONTO");
+      });
+      const descontoLocatarioTotal = descontosLocatario.reduce(
+        (s, l) => s + (l.valor || 0),
+        0
+      );
+
+      // Outros CREDITOs do locatario (nao descontos) sao saidas simples
+      const outrosCreditosLocatario = lancsLocatario.filter((l) => {
+        if (l.tipo !== "CREDITO" || !l.valor || l.valor <= 0) return false;
+        const cat = (l.categoria || "").toUpperCase();
+        const desc = (l.descricao || "").toUpperCase();
+        return !(cat === "DESCONTO" || cat === "ACORDO" || desc.includes("DESCONTO"));
+      });
+
+      // Processar cada REPASSE
+      for (const rp of pendingRepasses) {
+        const { entry: e, noteData, refDate, dateStr } = rp;
         const monthRef = `${String(new Date(refDate).getMonth() + 1).padStart(2, "0")}/${new Date(refDate).getFullYear()}`;
+
+        const brutoTotal = noteData?.aluguelBruto || e.value;
+        const adminFeePercent = noteData?.adminFeePercent || 10;
+        const sharePercent = noteData?.sharePercent || 100;
+        const shareRatio = sharePercent / 100;
+
+        // Desconto aplicado ao aluguel (proporcional a cota do proprietario)
+        const descontoTotalContrato = descontoOwnerEntries + descontoLocatarioTotal;
+        const descontoProprio = Math.round(descontoTotalContrato * shareRatio * 100) / 100;
+
+        // Aluguel efetivo para esse REPASSE (ja considerando share)
+        const bruto = brutoTotal;
+        const brutoLiquido = Math.max(0, bruto - descontoProprio);
+
+        // Taxa adm recalculada sobre aluguel liquido
+        const adminFeeRecalc = Math.round((brutoLiquido * adminFeePercent / 100) * 100) / 100;
+
+        // IRRF recalculado: sobre (liquido - taxa adm)
+        // Preservar a proporcao se havia IRRF original; senao usar calculateIRRF seria melhor
+        // mas aqui vamos manter simples: recalcular proporcionalmente
+        let irrfRecalc = 0;
+        const irrfOriginal = noteData?.irrfValue || 0;
+        const grossOwnerOriginal = (noteData?.aluguelBruto || 0) - (noteData?.adminFeeValue || 0);
+        if (irrfOriginal > 0 && grossOwnerOriginal > 0) {
+          const grossOwnerRecalc = brutoLiquido - adminFeeRecalc;
+          const irrfRate = irrfOriginal / grossOwnerOriginal;
+          irrfRecalc = Math.round(grossOwnerRecalc * irrfRate * 100) / 100;
+        }
 
         // Entrada: aluguel bruto
         if (bruto > 0) {
@@ -275,79 +447,68 @@ export async function GET(request: NextRequest) {
           g.aluguelBruto += bruto;
         }
 
-        // Saida: taxa de administracao
-        if (adminFee > 0) {
+        // Saida: descontos (OwnerEntry DEBITO desconto)
+        for (const d of pendingDescontos) {
           g.movimentos.push({
-            date: dateStr,
-            descricao: `Taxa de Administracao Aluguel Ref ${monthRef}`,
+            date: d.dateStr,
+            descricao: d.entry.description,
             entrada: 0,
-            saida: adminFee,
+            saida: d.entry.value,
           });
-          g.totalSaidas += adminFee;
-          g.adminFee += adminFee;
+          g.totalSaidas += d.entry.value;
         }
 
-        // Saida: IRRF
-        if (irrf > 0) {
-          g.movimentos.push({
-            date: dateStr,
-            descricao: `IRRF Retido na Fonte Ref ${monthRef}`,
-            entrada: 0,
-            saida: irrf,
-          });
-          g.totalSaidas += irrf;
-          g.irrf += irrf;
-        }
-      } else {
-        // Outros tipos de entry: tratar como entrada ou saida simples
-        const isCredit = e.type === "CREDITO";
-        g.movimentos.push({
-          date: dateStr,
-          descricao: e.description,
-          entrada: isCredit ? value : 0,
-          saida: isCredit ? 0 : value,
-        });
-        if (isCredit) g.totalEntradas += value;
-        else g.totalSaidas += value;
-      }
-    }
-
-    // Aplicar lancamentos do locatario (Payment.notes) que afetam o demonstrativo do proprietario
-    // Ex: Desconto Especial, Acordo — sao CREDITOS do locatario mas saidas do proprietario
-    // Entradas (DEBITOS do locatario com destination=PROPRIETARIO) ja viraram OwnerEntry e foram tratadas.
-    for (const [contractId, lancs] of paymentLancByContract.entries()) {
-      const g = groups.get(contractId);
-      if (!g) continue; // Nao tem REPASSE desse contrato neste mes
-
-      const contract = contractMap.get(contractId);
-      const payment = payments.find((p) => p.contractId === contractId);
-      const refDate = payment?.dueDate || monthStart;
-      const dateStr = new Date(refDate).toLocaleDateString("pt-BR", { timeZone: "UTC" });
-      const monthRef = `${String(new Date(refDate).getMonth() + 1).padStart(2, "0")}/${new Date(refDate).getFullYear()}`;
-
-      for (const l of lancs) {
-        if (!l.tipo || !l.valor || l.valor <= 0) continue;
-        const categoria = (l.categoria || "").toUpperCase();
-        const descricao = l.descricao || "Lancamento";
-
-        if (l.tipo === "CREDITO") {
-          // CREDITO do locatario = desconto na cobranca = saida do proprietario
-          // (ex: Desconto Especial, Acordo)
-          const descText = categoria.includes("DESCONTO") || categoria === "ACORDO"
-            ? `${descricao} Ref ${monthRef}`
-            : descricao;
+        // Saida: descontos (Payment lancamentos CREDITO tipo DESCONTO)
+        for (const l of descontosLocatario) {
+          const descText = `${l.descricao || "Desconto"} Ref ${monthRef}`;
           g.movimentos.push({
             date: dateStr,
             descricao: descText,
             entrada: 0,
-            saida: l.valor,
+            saida: l.valor || 0,
           });
-          g.totalSaidas += l.valor;
+          g.totalSaidas += l.valor || 0;
         }
-        // DEBITO do locatario geralmente eh cobranca extra repassada ao proprietario
-        // (IPTU, condominio, etc) — mas esses ja viraram OwnerEntry via destination=PROPRIETARIO
-        // em billing/generate. Se nao virou, ignoramos para nao duplicar.
+
+        // Saida: taxa de administracao (recalculada sobre liquido)
+        if (adminFeeRecalc > 0) {
+          g.movimentos.push({
+            date: dateStr,
+            descricao: `Taxa de Administracao Aluguel Ref ${monthRef}`,
+            entrada: 0,
+            saida: adminFeeRecalc,
+          });
+          g.totalSaidas += adminFeeRecalc;
+          g.adminFee += adminFeeRecalc;
+        }
+
+        // Saida: IRRF (recalculado)
+        if (irrfRecalc > 0) {
+          g.movimentos.push({
+            date: dateStr,
+            descricao: `IRRF Retido na Fonte Ref ${monthRef}`,
+            entrada: 0,
+            saida: irrfRecalc,
+          });
+          g.totalSaidas += irrfRecalc;
+          g.irrf += irrfRecalc;
+        }
+
+        // Outros creditos do locatario (nao descontos) - ex: creditos diversos
+        for (const l of outrosCreditosLocatario) {
+          g.movimentos.push({
+            date: dateStr,
+            descricao: l.descricao || "Credito",
+            entrada: 0,
+            saida: l.valor || 0,
+          });
+          g.totalSaidas += l.valor || 0;
+        }
       }
+
+      // Limpar campos temporarios
+      delete (g as any)._pendingRepasses;
+      delete (g as any)._pendingDescontos;
     }
 
     // Calcular totais liquidos por contrato

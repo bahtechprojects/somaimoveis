@@ -561,6 +561,18 @@ export default function RepassesPage() {
   }
 
   async function handleCreateEntry(ownerId: string, ownerName: string) {
+    // Buscar contratos ativos do proprietario
+    let contractsList: { id: string; code: string; property: { title: string } | null }[] = [];
+    try {
+      const r = await fetch(`/api/contracts?ownerId=${ownerId}&status=ATIVO`);
+      if (r.ok) {
+        const data = await r.json();
+        contractsList = Array.isArray(data) ? data : data.data || [];
+      }
+    } catch {
+      // ignore, segue sem contratos
+    }
+
     const description = prompt(`Novo lançamento para ${ownerName}\n\nDescrição:`);
     if (!description) return;
     const valueStr = prompt("Valor (R$):");
@@ -571,6 +583,23 @@ export default function RepassesPage() {
     const typeStr = prompt("Tipo:\n1 - Crédito (proprietário recebe)\n2 - Débito (descontar do repasse)") || "1";
     const type = typeStr === "2" ? "DEBITO" : "CREDITO";
     const category = prompt("Categoria (REPASSE, IPTU, CONDOMINIO, REPARO, TAXA_BANCARIA, DESCONTO, ACORDO, OUTROS):") || "OUTROS";
+
+    // Perguntar contrato para vincular (se houver mais de um)
+    let contractId: string | null = null;
+    if (contractsList.length === 1) {
+      contractId = contractsList[0].id;
+    } else if (contractsList.length > 1) {
+      const options = contractsList
+        .map((c, i) => `${i + 1} - ${c.code} (${c.property?.title || "sem imovel"})`)
+        .join("\n");
+      const ans = prompt(
+        `Vincular a qual contrato? (digite 0 para nao vincular)\n\n${options}\n\nDigite o numero:`
+      );
+      const idx = parseInt(ans || "0");
+      if (!isNaN(idx) && idx >= 1 && idx <= contractsList.length) {
+        contractId = contractsList[idx - 1].id;
+      }
+    }
 
     try {
       const [y, m] = month.split("-").map(Number);
@@ -584,6 +613,7 @@ export default function RepassesPage() {
           description,
           value,
           ownerId,
+          contractId,
           dueDate: dueDate.toISOString(),
           status: "PENDENTE",
         }),
