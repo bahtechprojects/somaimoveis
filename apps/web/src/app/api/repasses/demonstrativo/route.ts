@@ -187,12 +187,31 @@ export async function GET(request: NextRequest) {
     let avulsasEntrada = 0;
     let avulsasSaida = 0;
 
-    // Buscar TODOS os contratos do proprietario para fazer fallback por description
-    // (caso Leo tenha lancado uma entry avulsa mas com "CTR-XX" na descricao)
-    const allOwnerContracts = await prisma.contract.findMany({
-      where: { ownerId },
-      select: { id: true, code: true },
-    });
+    // Buscar TODOS os contratos relacionados ao proprietario para fazer fallback por description
+    // Inclui:
+    //   1) Contratos onde eh proprietario principal (ownerId)
+    //   2) Contratos de imoveis onde eh co-proprietario (via PropertyOwner)
+    const [ownContracts, propertyShares] = await Promise.all([
+      prisma.contract.findMany({
+        where: { ownerId },
+        select: { id: true, code: true },
+      }),
+      prisma.propertyOwner.findMany({
+        where: { ownerId },
+        select: { propertyId: true },
+      }),
+    ]);
+    const sharedPropertyIds = propertyShares.map((s) => s.propertyId);
+    const sharedContracts = sharedPropertyIds.length
+      ? await prisma.contract.findMany({
+          where: { propertyId: { in: sharedPropertyIds } },
+          select: { id: true, code: true },
+        })
+      : [];
+    const allOwnerContracts = [
+      ...ownContracts,
+      ...sharedContracts.filter((c) => !ownContracts.some((o) => o.id === c.id)),
+    ];
     const contractCodeMap = new Map(allOwnerContracts.map((c) => [c.code, c.id]));
 
     // Helper: tentar achar o contractId por codigo no description
@@ -425,39 +444,48 @@ export async function GET(request: NextRequest) {
         const { entry: e, noteData, refDate, dateStr } = rp;
         const monthRef = `${String(new Date(refDate).getMonth() + 1).padStart(2, "0")}/${new Date(refDate).getFullYear()}`;
 
-        const brutoTotal = noteData?.aluguelBruto || e.value;
+        const brutoTotalContrato = noteData?.aluguelBruto || e.value;
         const adminFeePercent = noteData?.adminFeePercent || 10;
         const sharePercent = noteData?.sharePercent || 100;
         const shareRatio = sharePercent / 100;
+        const isPartial = sharePercent < 100;
+        const shareLabel = isPartial ? ` (${sharePercent}%)` : "";
 
-        // Desconto aplicado ao aluguel (proporcional a cota do proprietario)
-        const descontoTotalContrato = descontoOwnerEntries + descontoLocatarioTotal;
-        const descontoProprio = Math.round(descontoTotalContrato * shareRatio * 100) / 100;
+        // Aluguel bruto do proprietario (aplicando share)
+        const bruto = Math.round(brutoTotalContrato * shareRatio * 100) / 100;
 
-        // Aluguel efetivo para esse REPASSE (ja considerando share)
-        const bruto = brutoTotal;
+        // Desconto proporcional a cota:
+        // - OwnerEntry DEBITO ja eh do proprietario (valor dele, sem multiplicar)
+        // - Payment lancamentos eh valor TOTAL do contrato, aplica share
+        const descontoLocatarioProprio = Math.round(
+          descontoLocatarioTotal * shareRatio * 100
+        ) / 100;
+        const descontoProprio = descontoOwnerEntries + descontoLocatarioProprio;
+
+        // Aluguel liquido (ja na cota do proprietario)
         const brutoLiquido = Math.max(0, bruto - descontoProprio);
 
-        // Taxa adm recalculada sobre aluguel liquido
+        // Taxa adm recalculada sobre aluguel liquido (do proprietario)
         const adminFeeRecalc = Math.round((brutoLiquido * adminFeePercent / 100) * 100) / 100;
 
-        // IRRF recalculado: sobre (liquido - taxa adm)
-        // Preservar a proporcao se havia IRRF original; senao usar calculateIRRF seria melhor
-        // mas aqui vamos manter simples: recalcular proporcionalmente
+        // IRRF recalculado: mantem a proporcao do IRRF original em relacao ao bruto do owner
         let irrfRecalc = 0;
         const irrfOriginal = noteData?.irrfValue || 0;
-        const grossOwnerOriginal = (noteData?.aluguelBruto || 0) - (noteData?.adminFeeValue || 0);
-        if (irrfOriginal > 0 && grossOwnerOriginal > 0) {
+        const adminTotalOriginal = noteData?.adminFeeValue || 0;
+        const grossOwnerOriginalContrato = brutoTotalContrato - adminTotalOriginal;
+        if (irrfOriginal > 0 && grossOwnerOriginalContrato > 0) {
           const grossOwnerRecalc = brutoLiquido - adminFeeRecalc;
-          const irrfRate = irrfOriginal / grossOwnerOriginal;
-          irrfRecalc = Math.round(grossOwnerRecalc * irrfRate * 100) / 100;
+          // IRRF proporcional: (irrfOriginal/grossOriginal) * grossOwnerRecalc
+          // IRRF original tambem deveria refletir share, mas seguimos proporcao
+          const irrfRateTotal = irrfOriginal / grossOwnerOriginalContrato;
+          irrfRecalc = Math.round(grossOwnerRecalc * irrfRateTotal * 100) / 100;
         }
 
-        // Entrada: aluguel bruto
+        // Entrada: aluguel bruto (com cota aplicada)
         if (bruto > 0) {
           g.movimentos.push({
             date: dateStr,
-            descricao: `Aluguel Ref ${monthRef}`,
+            descricao: `Aluguel Ref ${monthRef}${shareLabel}`,
             entrada: bruto,
             saida: 0,
           });
@@ -465,7 +493,7 @@ export async function GET(request: NextRequest) {
           g.aluguelBruto += bruto;
         }
 
-        // Saida: descontos (OwnerEntry DEBITO desconto)
+        // Saida: descontos (OwnerEntry DEBITO desconto — ja eh do proprietario)
         for (const d of pendingDescontos) {
           g.movimentos.push({
             date: d.dateStr,
@@ -476,23 +504,25 @@ export async function GET(request: NextRequest) {
           g.totalSaidas += d.entry.value;
         }
 
-        // Saida: descontos (Payment lancamentos CREDITO tipo DESCONTO)
+        // Saida: descontos (Payment lancamentos CREDITO tipo DESCONTO — aplicar share)
         for (const l of descontosLocatario) {
-          const descText = `${l.descricao || "Desconto"} Ref ${monthRef}`;
+          const valorProprio = Math.round((l.valor || 0) * shareRatio * 100) / 100;
+          if (valorProprio <= 0) continue;
+          const descText = `${l.descricao || "Desconto"} Ref ${monthRef}${shareLabel}`;
           g.movimentos.push({
             date: dateStr,
             descricao: descText,
             entrada: 0,
-            saida: l.valor || 0,
+            saida: valorProprio,
           });
-          g.totalSaidas += l.valor || 0;
+          g.totalSaidas += valorProprio;
         }
 
-        // Saida: taxa de administracao (recalculada sobre liquido)
+        // Saida: taxa de administracao (recalculada sobre liquido do proprietario)
         if (adminFeeRecalc > 0) {
           g.movimentos.push({
             date: dateStr,
-            descricao: `Taxa de Administracao Aluguel Ref ${monthRef}`,
+            descricao: `Taxa de Administracao Aluguel Ref ${monthRef}${shareLabel}`,
             entrada: 0,
             saida: adminFeeRecalc,
           });
@@ -500,11 +530,11 @@ export async function GET(request: NextRequest) {
           g.adminFee += adminFeeRecalc;
         }
 
-        // Saida: IRRF (recalculado)
+        // Saida: IRRF (recalculado com share)
         if (irrfRecalc > 0) {
           g.movimentos.push({
             date: dateStr,
-            descricao: `IRRF Retido na Fonte Ref ${monthRef}`,
+            descricao: `IRRF Retido na Fonte Ref ${monthRef}${shareLabel}`,
             entrada: 0,
             saida: irrfRecalc,
           });
@@ -512,15 +542,17 @@ export async function GET(request: NextRequest) {
           g.irrf += irrfRecalc;
         }
 
-        // Outros creditos do locatario (nao descontos) - ex: creditos diversos
+        // Outros creditos do locatario (nao descontos) — aplicar share
         for (const l of outrosCreditosLocatario) {
+          const valorProprio = Math.round((l.valor || 0) * shareRatio * 100) / 100;
+          if (valorProprio <= 0) continue;
           g.movimentos.push({
             date: dateStr,
             descricao: l.descricao || "Credito",
             entrada: 0,
-            saida: l.valor || 0,
+            saida: valorProprio,
           });
-          g.totalSaidas += l.valor || 0;
+          g.totalSaidas += valorProprio;
         }
       }
 
