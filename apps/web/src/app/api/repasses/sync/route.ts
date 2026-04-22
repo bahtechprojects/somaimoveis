@@ -57,29 +57,7 @@ export async function POST(request: NextRequest) {
     for (const p of payments) {
       if (!p.contractId || !p.ownerId || !p.dueDate) continue;
 
-      const existing = await prisma.ownerEntry.findFirst({
-        where: {
-          contractId: p.contractId,
-          dueDate: p.dueDate,
-          category: "REPASSE",
-        },
-      });
-
-      if (existing) {
-        continue;
-      }
-
-      // Calcular valor do repasse
-      const splitValue = p.splitOwnerValue ?? p.netToOwner ?? 0;
-      const ownerValue = splitValue > 0
-        ? splitValue
-        : Math.max(0, (p.value || 0) - (p.splitAdminValue || 0));
-
-      if (ownerValue <= 0) {
-        detalhes.push({ payment: p.code, result: "Valor do repasse zerado, ignorado" });
-        continue;
-      }
-
+      // Buscar contrato primeiro para ter rentalValue e adminFee corretos
       const contract = await prisma.contract.findUnique({
         where: { id: p.contractId },
         select: {
@@ -90,13 +68,82 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      if (!contract) {
+        detalhes.push({ payment: p.code, result: "Contrato nao encontrado, ignorado" });
+        continue;
+      }
+
+      // Calcular valor do repasse CORRETO:
+      // rentalValue - adminFee (taxa de administracao)
+      // NAO incluir: taxa bancaria, creditos, debitos diversos
+      const adminPct = contract.adminFeePercent || 10;
+      const adminFeeValue = Math.round(contract.rentalValue * (adminPct / 100) * 100) / 100;
+      const calculatedOwnerValue = Math.round((contract.rentalValue - adminFeeValue) * 100) / 100;
+
+      // Preferir splitOwnerValue do pagamento se existir (foi calculado corretamente em billing/generate)
+      const splitValue = p.splitOwnerValue ?? 0;
+      const ownerValue = splitValue > 0 ? splitValue : calculatedOwnerValue;
+
+      if (ownerValue <= 0) {
+        detalhes.push({ payment: p.code, result: "Valor do repasse zerado, ignorado" });
+        continue;
+      }
+
+      const existing = await prisma.ownerEntry.findFirst({
+        where: {
+          contractId: p.contractId,
+          dueDate: p.dueDate,
+          category: "REPASSE",
+        },
+      });
+
+      // Se ja existe, verificar se foi auto-criado com valor errado e pode ser corrigido
+      if (existing) {
+        // So atualiza se: foi auto-criado, esta PENDENTE, e o valor atual difere do correto
+        let canAutoFix = false;
+        if (existing.status === "PENDENTE" && existing.notes) {
+          try {
+            const n = JSON.parse(existing.notes);
+            if (n.autoCreated === true) {
+              canAutoFix = Math.abs(existing.value - ownerValue) > 0.01;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        if (canAutoFix) {
+          const notesData = {
+            aluguelBruto: contract.rentalValue,
+            adminFeePercent: adminPct,
+            adminFeeValue,
+            irrfValue: p.irrfValue || undefined,
+            irrfRate: p.irrfRate || undefined,
+            netToOwner: p.netToOwner || ownerValue,
+            autoCreated: true,
+            syncedFromPayment: p.code,
+            recalculated: true,
+          };
+          await prisma.ownerEntry.update({
+            where: { id: existing.id },
+            data: { value: ownerValue, notes: JSON.stringify(notesData) },
+          });
+          detalhes.push({
+            payment: p.code,
+            result: `Repasse recalculado: R$ ${existing.value.toFixed(2)} -> R$ ${ownerValue.toFixed(2)}`,
+          });
+          criados++;
+        }
+        continue;
+      }
+
       const d = new Date(p.dueDate);
       const mLabel = `${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 
       const notesData = {
-        aluguelBruto: contract?.rentalValue || p.value,
-        adminFeePercent: contract?.adminFeePercent || 10,
-        adminFeeValue: p.splitAdminValue || 0,
+        aluguelBruto: contract.rentalValue,
+        adminFeePercent: adminPct,
+        adminFeeValue,
         irrfValue: p.irrfValue || undefined,
         irrfRate: p.irrfRate || undefined,
         netToOwner: p.netToOwner || ownerValue,
@@ -108,13 +155,13 @@ export async function POST(request: NextRequest) {
         data: {
           type: "CREDITO",
           category: "REPASSE",
-          description: `Repasse aluguel ${mLabel} - ${contract?.code || p.contractId}`,
+          description: `Repasse aluguel ${mLabel} - ${contract.code || p.contractId}`,
           value: ownerValue,
           dueDate: p.dueDate,
           status: "PENDENTE",
           ownerId: p.ownerId,
           contractId: p.contractId,
-          propertyId: contract?.propertyId || null,
+          propertyId: contract.propertyId || null,
           notes: JSON.stringify(notesData),
         },
       });
