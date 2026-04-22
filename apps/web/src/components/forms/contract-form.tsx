@@ -673,7 +673,9 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 <Input
                   id="adminFeePercent"
                   type="number"
-                  step="0.1"
+                  step="0.01"
+                  min="0"
+                  max="100"
                   placeholder="10"
                   {...register("adminFeePercent")}
                 />
@@ -706,7 +708,9 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                 <Input
                   id="intermediationFee"
                   type="number"
-                  step="0.1"
+                  step="0.01"
+                  min="0"
+                  max="100"
                   placeholder="0"
                   {...register("intermediationFee")}
                 />
