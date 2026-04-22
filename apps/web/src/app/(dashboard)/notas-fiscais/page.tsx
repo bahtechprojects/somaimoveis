@@ -23,6 +23,7 @@ import {
   DollarSign,
   FileText,
   Download,
+  Printer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -169,6 +170,27 @@ export default function NotasFiscaisPage() {
     }
   }
 
+  function imprimirTodas() {
+    if (!data || data.notas.length === 0) {
+      toast.error("Nenhuma NF para imprimir");
+      return;
+    }
+    window.open(`/notas-fiscais/imprimir?month=${month}`, "_blank");
+  }
+
+  function imprimirSelecionadas() {
+    if (selected.size === 0) {
+      toast.error("Selecione pelo menos uma NF");
+      return;
+    }
+    const ids = Array.from(selected).join(",");
+    window.open(`/notas-fiscais/imprimir?month=${month}&entryIds=${ids}`, "_blank");
+  }
+
+  function imprimirIndividual(entryId: string) {
+    window.open(`/notas-fiscais/imprimir?month=${month}&entryIds=${entryId}`, "_blank");
+  }
+
   function exportCSV() {
     if (!data) return;
     const rows = data.notas.map((n) => [
@@ -272,16 +294,36 @@ export default function NotasFiscaisPage() {
                   Selecionar Pendentes
                 </Button>
                 {selected.size > 0 && (
-                  <Button
-                    size="sm"
-                    className="gap-1.5 h-9 text-xs bg-emerald-600 hover:bg-emerald-700"
-                    onClick={marcarEmitidas}
-                    disabled={actionLoading}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    {actionLoading ? "..." : `Marcar ${selected.size} como Emitida(s)`}
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      className="gap-1.5 h-9 text-xs bg-emerald-600 hover:bg-emerald-700"
+                      onClick={marcarEmitidas}
+                      disabled={actionLoading}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {actionLoading ? "..." : `Marcar ${selected.size} como Emitida(s)`}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-9 text-xs border-blue-400 text-blue-700 hover:bg-blue-50"
+                      onClick={imprimirSelecionadas}
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      Imprimir Selecionadas ({selected.size})
+                    </Button>
+                  </>
                 )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-9 text-xs"
+                  onClick={imprimirTodas}
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Imprimir Todas
+                </Button>
                 <Button size="sm" variant="outline" className="gap-1.5 h-9 text-xs" onClick={exportCSV}>
                   <Download className="h-3.5 w-3.5" />
                   CSV
@@ -327,6 +369,7 @@ export default function NotasFiscaisPage() {
                           <TableHead className="text-xs text-right">Aluguel Bruto</TableHead>
                           <TableHead className="text-xs text-right">Taxa Adm</TableHead>
                           <TableHead className="text-xs text-right">Valor NF</TableHead>
+                          <TableHead className="text-xs w-16"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -354,6 +397,17 @@ export default function NotasFiscaisPage() {
                             <TableCell className="text-xs text-right font-semibold">
                               {formatCurrency(n.adminFeeValue)}
                             </TableCell>
+                            <TableCell>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => imprimirIndividual(n.entryId)}
+                                title="Imprimir NF"
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                              </Button>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -376,7 +430,7 @@ export default function NotasFiscaisPage() {
                           <TableHead className="text-xs">Contrato</TableHead>
                           <TableHead className="text-xs text-right">Valor NF</TableHead>
                           <TableHead className="text-xs">Data Emissao</TableHead>
-                          <TableHead className="text-xs w-20"></TableHead>
+                          <TableHead className="text-xs w-28"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -396,14 +450,25 @@ export default function NotasFiscaisPage() {
                               {n.nfData || "-"}
                             </TableCell>
                             <TableCell>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-6 text-[11px] text-muted-foreground hover:text-amber-700"
-                                onClick={() => reverterEmitida(n.entryId)}
-                              >
-                                Reverter
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => imprimirIndividual(n.entryId)}
+                                  title="Imprimir NF"
+                                >
+                                  <Printer className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-[11px] text-muted-foreground hover:text-amber-700"
+                                  onClick={() => reverterEmitida(n.entryId)}
+                                >
+                                  Reverter
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
