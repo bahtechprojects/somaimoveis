@@ -383,11 +383,29 @@ export async function GET(request: NextRequest) {
 
       // Somar descontos do locatario (Payment.notes.lancamentos CREDITO tipo DESCONTO)
       const lancsLocatario = paymentLancByContract.get(contractId) || [];
-      const descontosLocatario = lancsLocatario.filter((l) => {
+      const descontosLocatarioAll = lancsLocatario.filter((l) => {
         if (l.tipo !== "CREDITO" || !l.valor || l.valor <= 0) return false;
         const cat = (l.categoria || "").toUpperCase();
         const desc = (l.descricao || "").toUpperCase();
         return cat === "DESCONTO" || cat === "ACORDO" || desc.includes("DESCONTO");
+      });
+
+      // DEDUPLICACAO: se o desconto do locatario ja esta representado como
+      // OwnerEntry DEBITO (mesmo valor, tolerancia 0.01), ignoramos para nao
+      // contar 2x. Caso comum: o usuario cria manualmente um "Desconto" no
+      // proprietario alem do desconto que ja veio no boleto.
+      const ownerDescontoValues = pendingDescontos.map((d) => d.entry.value);
+      const usedOwnerIdx = new Set<number>();
+      const descontosLocatario = descontosLocatarioAll.filter((l) => {
+        const v = l.valor || 0;
+        const idx = ownerDescontoValues.findIndex(
+          (ov, i) => !usedOwnerIdx.has(i) && Math.abs(ov - v) < 0.01
+        );
+        if (idx >= 0) {
+          usedOwnerIdx.add(idx);
+          return false; // ja contabilizado como OwnerEntry DEBITO
+        }
+        return true;
       });
       const descontoLocatarioTotal = descontosLocatario.reduce(
         (s, l) => s + (l.valor || 0),
