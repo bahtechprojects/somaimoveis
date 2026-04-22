@@ -56,6 +56,37 @@ export async function GET(request: NextRequest) {
       : [];
     const contractMap = new Map(contracts.map((c) => [c.id, c]));
 
+    // Buscar Payments do mes para capturar descontos do locatario
+    const payments = contractIds.length > 0
+      ? await prisma.payment.findMany({
+          where: {
+            contractId: { in: contractIds },
+            dueDate: { gte: monthStart, lte: monthEnd },
+          },
+          select: { id: true, contractId: true, notes: true },
+        })
+      : [];
+    // Mapa: contractId -> total de descontos/creditos do locatario nesse mes
+    const descontoByContract = new Map<string, number>();
+    for (const p of payments) {
+      if (!p.contractId || !p.notes) continue;
+      try {
+        const n = JSON.parse(p.notes);
+        if (Array.isArray(n.lancamentos)) {
+          for (const l of n.lancamentos as Array<{ tipo?: string; valor?: number }>) {
+            if (l.tipo === "CREDITO" && typeof l.valor === "number" && l.valor > 0) {
+              descontoByContract.set(
+                p.contractId,
+                (descontoByContract.get(p.contractId) || 0) + l.valor
+              );
+            }
+          }
+        }
+      } catch {
+        // notes nao eh JSON
+      }
+    }
+
     // Buscar status de NF emitida do AppSetting
     const nfKey = `nf_emitidas_${targetYear}_${String(targetMonth + 1).padStart(2, "0")}`;
     const nfSetting = await prisma.appSetting.findUnique({ where: { key: nfKey } });
@@ -65,23 +96,46 @@ export async function GET(request: NextRequest) {
     const notas = entries.map((entry) => {
       const contract = entry.contractId ? contractMap.get(entry.contractId) || null : null;
       let adminFeePercent = contract?.adminFeePercent || 10;
-      let adminFeeValue = 0;
-      let aluguelBruto = 0;
+      let aluguelBrutoTotal = 0;       // aluguel bruto TOTAL do contrato
+      let adminFeeValueTotal = 0;       // taxa adm TOTAL do contrato
+      let sharePercent = 100;           // porcentagem deste proprietario (100 se sozinho)
 
       if (entry.notes) {
         try {
           const n = JSON.parse(entry.notes);
           if (n.adminFeePercent) adminFeePercent = n.adminFeePercent;
-          if (n.adminFeeValue) adminFeeValue = n.adminFeeValue;
-          if (n.aluguelBruto) aluguelBruto = n.aluguelBruto;
+          if (n.adminFeeValue) adminFeeValueTotal = n.adminFeeValue;
+          if (n.aluguelBruto) aluguelBrutoTotal = n.aluguelBruto;
+          if (typeof n.sharePercent === "number" && n.sharePercent > 0) {
+            sharePercent = n.sharePercent;
+          }
         } catch {}
       }
 
-      // Se nao tem adminFeeValue nos notes, calcular
-      if (!adminFeeValue && contract) {
-        aluguelBruto = contract.rentalValue;
-        adminFeeValue = Math.round(aluguelBruto * (adminFeePercent / 100) * 100) / 100;
+      // Se nao tem valores nos notes, calcular a partir do contrato
+      if (!aluguelBrutoTotal && contract) {
+        aluguelBrutoTotal = contract.rentalValue;
       }
+      if (!adminFeeValueTotal && aluguelBrutoTotal) {
+        adminFeeValueTotal = Math.round(aluguelBrutoTotal * (adminFeePercent / 100) * 100) / 100;
+      }
+
+      // Aplicar desconto do locatario sobre a base (aluguel liquido efetivo)
+      const descontoTotal = entry.contractId
+        ? descontoByContract.get(entry.contractId) || 0
+        : 0;
+      const aluguelLiquidoTotal = Math.max(0, aluguelBrutoTotal - descontoTotal);
+
+      // Recalcular taxa adm sobre o aluguel liquido (com desconto aplicado)
+      // Isso segue o padrao Via Imob: taxa sobre valor efetivamente cobrado do locatario
+      const adminFeeEfetivoTotal = Math.round(
+        aluguelLiquidoTotal * (adminFeePercent / 100) * 100
+      ) / 100;
+
+      // Aplicar sharePercent (% deste proprietario no imovel)
+      const share = sharePercent / 100;
+      const aluguelBruto = Math.round(aluguelLiquidoTotal * share * 100) / 100;
+      const adminFeeValue = Math.round(adminFeeEfetivoTotal * share * 100) / 100;
 
       const nfStatus = nfEmitidas[entry.id] || { emitida: false };
 
@@ -89,9 +143,12 @@ export async function GET(request: NextRequest) {
         entryId: entry.id,
         owner: entry.owner,
         contract,
-        aluguelBruto: Math.round(aluguelBruto * 100) / 100,
+        aluguelBruto,              // aluguel liquido (com desconto) x % do proprietario
+        aluguelBrutoOriginal: Math.round(aluguelBrutoTotal * 100) / 100,
+        descontoAplicado: Math.round(descontoTotal * 100) / 100,
+        sharePercent,
         adminFeePercent,
-        adminFeeValue: Math.round(adminFeeValue * 100) / 100,
+        adminFeeValue,             // taxa sobre aluguel liquido x % do proprietario
         repasseValue: entry.value,
         nfEmitida: nfStatus.emitida,
         nfNumero: nfStatus.numero || "",

@@ -32,6 +32,9 @@ interface NotaFiscal {
   owner: { id: string; name: string; cpfCnpj: string };
   contract: { id: string; code: string; rentalValue: number; adminFeePercent: number } | null;
   aluguelBruto: number;
+  aluguelBrutoOriginal?: number;
+  descontoAplicado?: number;
+  sharePercent?: number;
   adminFeePercent: number;
   adminFeeValue: number;
   repasseValue: number;
@@ -373,43 +376,70 @@ export default function NotasFiscaisPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {pendentes.map((n) => (
-                          <TableRow key={n.entryId}>
-                            <TableCell>
-                              <Checkbox
-                                checked={selected.has(n.entryId)}
-                                onCheckedChange={() => toggleSelect(n.entryId)}
-                              />
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              <div className="font-medium">{n.owner.name}</div>
-                              <div className="text-muted-foreground text-[11px]">{n.owner.cpfCnpj}</div>
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {n.contract?.code || "-"}
-                            </TableCell>
-                            <TableCell className="text-xs text-right">
-                              {formatCurrency(n.aluguelBruto)}
-                            </TableCell>
-                            <TableCell className="text-xs text-right text-muted-foreground">
-                              {n.adminFeePercent}%
-                            </TableCell>
-                            <TableCell className="text-xs text-right font-semibold">
-                              {formatCurrency(n.adminFeeValue)}
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7"
-                                onClick={() => imprimirIndividual(n.entryId)}
-                                title="Imprimir NF"
-                              >
-                                <Printer className="h-3.5 w-3.5" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {pendentes.map((n) => {
+                          const isPartial = n.sharePercent != null && n.sharePercent < 100;
+                          const hasDesconto = (n.descontoAplicado || 0) > 0;
+                          return (
+                            <TableRow key={n.entryId}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selected.has(n.entryId)}
+                                  onCheckedChange={() => toggleSelect(n.entryId)}
+                                />
+                              </TableCell>
+                              <TableCell className="text-xs">
+                                <div className="font-medium flex items-center gap-1">
+                                  {n.owner.name}
+                                  {isPartial && (
+                                    <Badge variant="outline" className="text-[9px] h-4 px-1 bg-blue-50 text-blue-700 border-blue-200">
+                                      {n.sharePercent}%
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-muted-foreground text-[11px]">{n.owner.cpfCnpj}</div>
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground">
+                                {n.contract?.code || "-"}
+                              </TableCell>
+                              <TableCell className="text-xs text-right">
+                                <div>{formatCurrency(n.aluguelBruto)}</div>
+                                {(hasDesconto || isPartial) && n.aluguelBrutoOriginal != null && (
+                                  <div className="text-[10px] text-muted-foreground">
+                                    {hasDesconto && (
+                                      <>
+                                        Bruto {formatCurrency(n.aluguelBrutoOriginal)} -
+                                        Desc {formatCurrency(n.descontoAplicado || 0)}
+                                      </>
+                                    )}
+                                    {isPartial && (
+                                      <>
+                                        {hasDesconto ? " | " : ""}
+                                        {n.sharePercent}% cota
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-xs text-right text-muted-foreground">
+                                {n.adminFeePercent}%
+                              </TableCell>
+                              <TableCell className="text-xs text-right font-semibold">
+                                {formatCurrency(n.adminFeeValue)}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => imprimirIndividual(n.entryId)}
+                                  title="Imprimir NF"
+                                >
+                                  <Printer className="h-3.5 w-3.5" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </div>

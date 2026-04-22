@@ -8,6 +8,9 @@ interface NotaFiscal {
   owner: { id: string; name: string; cpfCnpj: string };
   contract: { id: string; code: string; rentalValue: number; adminFeePercent: number } | null;
   aluguelBruto: number;
+  aluguelBrutoOriginal?: number;
+  descontoAplicado?: number;
+  sharePercent?: number;
   adminFeePercent: number;
   adminFeeValue: number;
   repasseValue: number;
@@ -218,10 +221,14 @@ function RelatorioContent() {
           <tbody>
             {notas.map((n, i) => {
               const o = ownersFull[n.owner.id];
+              const isPartial = n.sharePercent != null && n.sharePercent < 100;
               return (
                 <tr key={n.entryId}>
                   <td>{i + 1}</td>
-                  <td>{n.owner.name}</td>
+                  <td>
+                    {n.owner.name}
+                    {isPartial && <span style={{ fontSize: 9, marginLeft: 4 }}>({n.sharePercent}%)</span>}
+                  </td>
                   <td>{n.owner.cpfCnpj}</td>
                   <td>{o?.personType === "PJ" ? "PJ" : "PF"}</td>
                   <td>{n.contract?.code || "-"}</td>
@@ -312,9 +319,31 @@ function RelatorioContent() {
               <div className="nf-section-title">Valores</div>
               <table className="nf-valores">
                 <tbody>
+                  {n.aluguelBrutoOriginal != null && n.aluguelBrutoOriginal !== n.aluguelBruto && (
+                    <>
+                      <tr>
+                        <td>Aluguel contratual (total):</td>
+                        <td className="right">{formatCurrency(n.aluguelBrutoOriginal)}</td>
+                      </tr>
+                      {(n.descontoAplicado || 0) > 0 && (
+                        <tr>
+                          <td>(-) Desconto aplicado:</td>
+                          <td className="right">-{formatCurrency(n.descontoAplicado || 0)}</td>
+                        </tr>
+                      )}
+                      {n.sharePercent != null && n.sharePercent < 100 && (
+                        <tr>
+                          <td>(x) Cota do proprietario:</td>
+                          <td className="right">{n.sharePercent}%</td>
+                        </tr>
+                      )}
+                    </>
+                  )}
                   <tr>
-                    <td>Aluguel Bruto (base de calculo):</td>
-                    <td className="right">{formatCurrency(n.aluguelBruto)}</td>
+                    <td>
+                      <strong>Base de calculo (aluguel efetivo{n.sharePercent != null && n.sharePercent < 100 ? ` - cota ${n.sharePercent}%` : ""}):</strong>
+                    </td>
+                    <td className="right bold">{formatCurrency(n.aluguelBruto)}</td>
                   </tr>
                   <tr>
                     <td>Percentual da Taxa de Administracao:</td>

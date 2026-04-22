@@ -107,6 +107,44 @@ export async function GET(request: NextRequest) {
       : [];
     const contractMap = new Map(contracts.map((c) => [c.id, c]));
 
+    // Buscar Payments do mes para estes contratos, para extrair lancamentos do locatario
+    // (descontos, creditos etc que afetam o repasse mas estao apenas no Payment)
+    const payments = contractIds.length
+      ? await prisma.payment.findMany({
+          where: {
+            contractId: { in: contractIds },
+            dueDate: { gte: monthStart, lte: monthEnd },
+          },
+          select: {
+            id: true,
+            contractId: true,
+            dueDate: true,
+            notes: true,
+          },
+        })
+      : [];
+    // Agrupar lancamentos do Payment por contractId
+    type TenantLanc = {
+      id?: string;
+      tipo?: string;      // DEBITO | CREDITO
+      categoria?: string; // DESCONTO, IPTU, etc
+      descricao?: string;
+      valor?: number;
+      destination?: string;
+    };
+    const paymentLancByContract = new Map<string, TenantLanc[]>();
+    for (const p of payments) {
+      if (!p.contractId || !p.notes) continue;
+      try {
+        const n = JSON.parse(p.notes);
+        if (Array.isArray(n.lancamentos)) {
+          paymentLancByContract.set(p.contractId, n.lancamentos as TenantLanc[]);
+        }
+      } catch {
+        // notes nao eh JSON
+      }
+    }
+
     // Agrupar por contrato (imovel)
     type Movimento = {
       date: string;
@@ -271,6 +309,44 @@ export async function GET(request: NextRequest) {
         });
         if (isCredit) g.totalEntradas += value;
         else g.totalSaidas += value;
+      }
+    }
+
+    // Aplicar lancamentos do locatario (Payment.notes) que afetam o demonstrativo do proprietario
+    // Ex: Desconto Especial, Acordo — sao CREDITOS do locatario mas saidas do proprietario
+    // Entradas (DEBITOS do locatario com destination=PROPRIETARIO) ja viraram OwnerEntry e foram tratadas.
+    for (const [contractId, lancs] of paymentLancByContract.entries()) {
+      const g = groups.get(contractId);
+      if (!g) continue; // Nao tem REPASSE desse contrato neste mes
+
+      const contract = contractMap.get(contractId);
+      const payment = payments.find((p) => p.contractId === contractId);
+      const refDate = payment?.dueDate || monthStart;
+      const dateStr = new Date(refDate).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+      const monthRef = `${String(new Date(refDate).getMonth() + 1).padStart(2, "0")}/${new Date(refDate).getFullYear()}`;
+
+      for (const l of lancs) {
+        if (!l.tipo || !l.valor || l.valor <= 0) continue;
+        const categoria = (l.categoria || "").toUpperCase();
+        const descricao = l.descricao || "Lancamento";
+
+        if (l.tipo === "CREDITO") {
+          // CREDITO do locatario = desconto na cobranca = saida do proprietario
+          // (ex: Desconto Especial, Acordo)
+          const descText = categoria.includes("DESCONTO") || categoria === "ACORDO"
+            ? `${descricao} Ref ${monthRef}`
+            : descricao;
+          g.movimentos.push({
+            date: dateStr,
+            descricao: descText,
+            entrada: 0,
+            saida: l.valor,
+          });
+          g.totalSaidas += l.valor;
+        }
+        // DEBITO do locatario geralmente eh cobranca extra repassada ao proprietario
+        // (IPTU, condominio, etc) — mas esses ja viraram OwnerEntry via destination=PROPRIETARIO
+        // em billing/generate. Se nao virou, ignoramos para nao duplicar.
       }
     }
 
