@@ -170,20 +170,237 @@ export async function POST(request: NextRequest) {
       detalhes.push({ payment: p.code, result: `Repasse criado: R$ ${ownerValue.toFixed(2)}` });
     }
 
-    // NOTA: a propagacao automatica de TenantEntries com destination=PROPRIETARIO
-    // foi REMOVIDA desta rota por risco de duplicacao de historico ja pago.
-    // Quando precisar regenerar esses lancamentos, refaca o billing/generate do mes
-    // apos remover os payments pendentes do mes.
+    // ============================================================
+    // SEGUNDA PARTE (v2): propagar TenantEntries com destination=PROPRIETARIO
+    // Dedup MUITO robusta para evitar duplicar historico pago.
+    // ============================================================
+    // Estrategia:
+    // 1. Buscar TenantEntries do mes com destination=PROPRIETARIO (nao cancelados)
+    // 2. Para cada um, buscar OwnerEntries do MESMO contrato + MESMO mes
+    //    (qualquer status, qualquer tipo)
+    // 3. Match via:
+    //    a) notes.tenantEntryId === te.id (match direto)
+    //    b) valor igual (tolerancia 0.01) + descricao similar
+    //       (normalizando para ignorar "Ref MM/YYYY" e "- CTR-X")
+    // 4. Se achou match: SKIP (nao duplica)
+    // 5. Se nao achou: cria a OwnerEntry apropriada
+
+    function normalizeDesc(s: string): string {
+      return (s || "")
+        .toLowerCase()
+        .replace(/\s*ref\s+\d+\/\d+/gi, "")
+        .replace(/\s*-\s*ctr[-\s]?\d+/gi, "")
+        .replace(/\s*\(\d+(?:\.\d+)?%\)/g, "")
+        .replace(/\s+\d+\/\d+\s*/g, " ")
+        .trim();
+    }
+
+    const tenantEntries = await prisma.tenantEntry.findMany({
+      where: {
+        destination: "PROPRIETARIO",
+        dueDate: { gte: monthStart, lte: monthEnd },
+        status: { not: "CANCELADO" },
+      },
+      select: {
+        id: true,
+        type: true,
+        category: true,
+        description: true,
+        value: true,
+        dueDate: true,
+        tenantId: true,
+        installmentNumber: true,
+        installmentTotal: true,
+      },
+    });
+
+    let entriesPropagated = 0;
+    const propagadosDet: { tenantEntry: string; result: string }[] = [];
+    const skippedDet: { tenantEntry: string; motivo: string }[] = [];
+
+    for (const te of tenantEntries) {
+      const contract = await prisma.contract.findFirst({
+        where: {
+          tenantId: te.tenantId,
+          OR: [{ status: "ATIVO" }, { status: "PENDENTE_RENOVACAO" }],
+        },
+        orderBy: { startDate: "desc" },
+        select: { id: true, code: true, ownerId: true, propertyId: true },
+      });
+
+      if (!contract) {
+        skippedDet.push({
+          tenantEntry: te.description || te.category,
+          motivo: "Locatario sem contrato ativo",
+        });
+        continue;
+      }
+
+      // Buscar OwnerEntries do contrato no mes (TODOS os status)
+      const existingOwnerEntries = await prisma.ownerEntry.findMany({
+        where: {
+          contractId: contract.id,
+          dueDate: { gte: monthStart, lte: monthEnd },
+        },
+        select: {
+          id: true,
+          type: true,
+          description: true,
+          value: true,
+          notes: true,
+          status: true,
+        },
+      });
+
+      const teNormDesc = normalizeDesc(te.description || te.category || "");
+
+      const matched = existingOwnerEntries.find((oe) => {
+        // (a) Match via tenantEntryId nos notes
+        if (oe.notes) {
+          try {
+            const n = JSON.parse(oe.notes);
+            if (n.tenantEntryId === te.id) return true;
+          } catch {
+            // ignore
+          }
+        }
+        // (b) Match por valor + descricao normalizada
+        if (Math.abs(oe.value - te.value) < 0.01) {
+          const oeNormDesc = normalizeDesc(oe.description);
+          // Se descricoes normalizadas sao iguais ou uma contem a outra
+          if (
+            teNormDesc &&
+            oeNormDesc &&
+            (oeNormDesc === teNormDesc ||
+              oeNormDesc.includes(teNormDesc) ||
+              teNormDesc.includes(oeNormDesc))
+          ) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (matched) {
+        skippedDet.push({
+          tenantEntry: te.description || te.category,
+          motivo: `Ja existe (${matched.status}): ${matched.description}`,
+        });
+        continue;
+      }
+
+      // Nao achou match — criar a OwnerEntry
+      const propertyShares = contract.propertyId
+        ? await prisma.propertyOwner.findMany({
+            where: { propertyId: contract.propertyId },
+          })
+        : [];
+
+      const ownerType = te.type === "DEBITO" ? "CREDITO" : "DEBITO";
+      const installmentLabel =
+        te.installmentNumber && te.installmentTotal
+          ? ` ${te.installmentNumber}/${te.installmentTotal}`
+          : "";
+
+      const d = te.dueDate || monthStart;
+      const mRef = `${String(new Date(d).getMonth() + 1).padStart(2, "0")}/${new Date(d).getFullYear()}`;
+      const baseDescription = `${te.description || te.category}${installmentLabel} ${mRef} - ${contract.code}`;
+
+      const notesData = {
+        tenantEntryId: te.id,
+        originalDescription: te.description,
+        destination: "PROPRIETARIO",
+        type: te.type === "DEBITO" ? "cobranca_locatario" : "desconto_locatario",
+        autoCreated: true,
+        syncedFromTenant: true,
+      };
+
+      if (propertyShares.length > 0) {
+        const totalPct = propertyShares.reduce((s, sh) => s + sh.percentage, 0);
+        for (const share of propertyShares) {
+          const portion = Math.round(te.value * (share.percentage / 100) * 100) / 100;
+          await prisma.ownerEntry.create({
+            data: {
+              type: ownerType,
+              category: te.category || (te.type === "DEBITO" ? "OUTROS" : "DESCONTO"),
+              description: `${baseDescription} (${share.percentage}%)`,
+              value: portion,
+              dueDate: te.dueDate,
+              status: "PENDENTE",
+              ownerId: share.ownerId,
+              contractId: contract.id,
+              propertyId: contract.propertyId || null,
+              notes: JSON.stringify(notesData),
+            },
+          });
+        }
+        const contractOwnerInShares = propertyShares.some(
+          (s) => s.ownerId === contract.ownerId
+        );
+        if (totalPct < 100 && !contractOwnerInShares) {
+          const remainPct = Math.round((100 - totalPct) * 100) / 100;
+          const remainVal = Math.round(te.value * (remainPct / 100) * 100) / 100;
+          await prisma.ownerEntry.create({
+            data: {
+              type: ownerType,
+              category: te.category || (te.type === "DEBITO" ? "OUTROS" : "DESCONTO"),
+              description: `${baseDescription} (${remainPct}%)`,
+              value: remainVal,
+              dueDate: te.dueDate,
+              status: "PENDENTE",
+              ownerId: contract.ownerId,
+              contractId: contract.id,
+              propertyId: contract.propertyId || null,
+              notes: JSON.stringify(notesData),
+            },
+          });
+        }
+      } else {
+        await prisma.ownerEntry.create({
+          data: {
+            type: ownerType,
+            category: te.category || (te.type === "DEBITO" ? "OUTROS" : "DESCONTO"),
+            description: baseDescription,
+            value: te.value,
+            dueDate: te.dueDate,
+            status: "PENDENTE",
+            ownerId: contract.ownerId,
+            contractId: contract.id,
+            propertyId: contract.propertyId || null,
+            notes: JSON.stringify(notesData),
+          },
+        });
+      }
+
+      entriesPropagated++;
+      const sinal = ownerType === "CREDITO" ? "+" : "-";
+      propagadosDet.push({
+        tenantEntry: te.description || te.category,
+        result: `${ownerType} criado: ${sinal} R$ ${te.value.toFixed(2)} (${contract.code})`,
+      });
+    }
+
+    const totalAcoes = criados + entriesPropagated;
 
     return NextResponse.json({
       month: `${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`,
       totalPagamentos: payments.length,
       repassesCriados: criados,
+      entriesPropagadas: entriesPropagated,
+      entriesIgnoradas: skippedDet.length,
       mensagem:
-        criados === 0
-          ? "Nenhum repasse criado. Todos os pagamentos PAGO ja tem repasse correspondente."
-          : `${criados} repasse(s) criado(s) com sucesso.`,
-      detalhes,
+        totalAcoes === 0
+          ? skippedDet.length > 0
+            ? `Tudo sincronizado. ${skippedDet.length} lancamento(s) ja existia(m) e foram ignorados.`
+            : "Tudo sincronizado. Nenhuma acao necessaria."
+          : `${criados} repasse(s) criado(s) e ${entriesPropagated} lancamento(s) propagado(s)${
+              skippedDet.length > 0 ? ` (${skippedDet.length} ignorado(s) por ja existir)` : ""
+            }.`,
+      detalhes: [
+        ...detalhes,
+        ...propagadosDet.map((d) => ({ payment: d.tenantEntry, result: d.result })),
+      ],
+      ignorados: skippedDet,
     });
   } catch (error) {
     console.error("[Repasses Sync]", error);
