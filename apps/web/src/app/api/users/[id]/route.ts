@@ -164,15 +164,51 @@ export async function DELETE(
 
   const { id } = await params;
   const currentUserId = (session.user as any).id;
+  const { searchParams } = new URL(request.url);
+  const hard = searchParams.get("hard") === "true";
 
-  // Cannot deactivate yourself
+  // Cannot delete/deactivate yourself
   if (id === currentUserId) {
     return NextResponse.json(
-      { error: "Voce nao pode desativar sua propria conta" },
+      {
+        error: hard
+          ? "Voce nao pode excluir sua propria conta"
+          : "Voce nao pode desativar sua propria conta",
+      },
       { status: 400 }
     );
   }
 
+  // Hard delete: remove permanentemente
+  if (hard) {
+    try {
+      await prisma.user.delete({ where: { id } });
+      return NextResponse.json({ message: "Usuario excluido permanentemente" });
+    } catch (error: any) {
+      if (error?.code === "P2025") {
+        return NextResponse.json(
+          { error: "Usuario nao encontrado" },
+          { status: 404 }
+        );
+      }
+      if (error?.code === "P2003") {
+        return NextResponse.json(
+          {
+            error:
+              "Nao e possivel excluir: ha registros vinculados a este usuario. Desative em vez de excluir.",
+          },
+          { status: 409 }
+        );
+      }
+      console.error("[User HARD DELETE]", error);
+      return NextResponse.json(
+        { error: error?.message || "Erro ao excluir usuario" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // Soft delete: apenas desativa
   const updatedUser = await prisma.user.update({
     where: { id },
     data: { active: false },

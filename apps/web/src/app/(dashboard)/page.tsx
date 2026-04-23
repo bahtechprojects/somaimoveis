@@ -15,6 +15,7 @@ import {
   FileText,
   AlertTriangle,
 } from "lucide-react";
+import { canAccessRoute } from "@/lib/rbac";
 
 interface ActivityItem {
   id: string;
@@ -93,14 +94,21 @@ export default function DashboardPage() {
   const { data: session } = useSession();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
 
+  // Nota: o RouteGuard no layout redireciona se o usuario nao tem
+  // permissao ao dashboard — aqui so chegamos se tiver.
+  const userRole = (session?.user as any)?.role || "";
+  const userPermissions = (session?.user as any)?.permissions || null;
+  const canViewDashboard = canAccessRoute(userRole, "/", userPermissions);
+
   useEffect(() => {
+    if (!canViewDashboard) return;
     fetch("/api/dashboard")
       .then((r) => r.json())
       .then(setDashboard)
       .catch((error) => {
         console.error("Erro ao carregar dashboard:", error);
       });
-  }, []);
+  }, [canViewDashboard]);
 
   const userName = session?.user?.name || "Usuário";
   const today = new Date();

@@ -59,6 +59,7 @@ import {
   UsersRound,
   UserCheck2,
   UserMinus,
+  Trash2,
 } from "lucide-react";
 import {
   ROLE_LABELS,
@@ -135,6 +136,11 @@ export default function UsuariosPage() {
   const [toggleActiveOpen, setToggleActiveOpen] = useState(false);
   const [toggleActiveUser, setToggleActiveUser] = useState<User | null>(null);
   const [toggleLoading, setToggleLoading] = useState(false);
+
+  // Hard delete dialog
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteUser, setDeleteUser] = useState<User | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -308,6 +314,33 @@ export default function UsuariosPage() {
   function handleToggleActive(user: User) {
     setToggleActiveUser(user);
     setToggleActiveOpen(true);
+  }
+
+  function handleHardDelete(user: User) {
+    setDeleteUser(user);
+    setDeleteOpen(true);
+  }
+
+  async function handleHardDeleteConfirm() {
+    if (!deleteUser) return;
+    setDeleteLoading(true);
+    try {
+      const response = await fetch(`/api/users/${deleteUser.id}?hard=true`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        toast.error(data.error || "Erro ao excluir usuario");
+        return;
+      }
+      toast.success("Usuario excluido permanentemente");
+      setDeleteOpen(false);
+      fetchUsers();
+    } catch {
+      toast.error("Erro de conexao. Tente novamente.");
+    } finally {
+      setDeleteLoading(false);
+    }
   }
 
   async function handleToggleActiveConfirm() {
@@ -563,6 +596,13 @@ export default function UsuariosPage() {
                                   Ativar
                                 </>
                               )}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleHardDelete(user)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                              Excluir Permanentemente
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -895,6 +935,34 @@ export default function UsuariosPage() {
                 : toggleActiveUser?.active
                 ? "Desativar"
                 : "Ativar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Hard Delete Confirmation */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir Usuario Permanentemente</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja <strong>EXCLUIR</strong> o usuario{" "}
+              <strong>{deleteUser?.name}</strong>? Esta acao nao pode ser
+              desfeita. O usuario sera removido permanentemente do sistema.
+              <br />
+              <br />
+              Se preferir, use <strong>Desativar</strong> para impedir o acesso
+              mantendo o historico.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleHardDeleteConfirm}
+              disabled={deleteLoading}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {deleteLoading ? "Excluindo..." : "Excluir Permanentemente"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
