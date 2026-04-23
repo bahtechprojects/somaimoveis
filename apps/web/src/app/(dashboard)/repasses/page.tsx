@@ -210,6 +210,35 @@ export default function RepassesPage() {
     }
   }
 
+  async function handlePropagateDiscounts() {
+    if (!confirm(
+      `Propagar lançamentos do locatário para o proprietário em ${formatMonthLabel(month)}?\n\n` +
+      `Verifica TenantEntries com destino=PROPRIETARIO que ainda não têm OwnerEntry criada (usa ID exato, sem heurística).\n\n` +
+      `• Desconto do locatário → Débito no proprietário\n` +
+      `• Cobrança extra do locatário → Crédito no proprietário`
+    )) return;
+
+    setSyncLoading(true);
+    try {
+      const res = await fetch(`/api/repasses/propagate-discounts?month=${month}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao propagar");
+
+      if (data.propagados === 0) {
+        toast.info(data.mensagem);
+      } else {
+        toast.success(data.mensagem);
+      }
+      fetchRepasses();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao propagar descontos");
+    } finally {
+      setSyncLoading(false);
+    }
+  }
+
   async function handleUndoSync() {
     // Primeiro dryRun para mostrar quantos seriam removidos
     try {
@@ -925,6 +954,19 @@ export default function RepassesPage() {
                   <span className="sm:hidden">
                     {syncLoading ? "..." : "Sync"}
                   </span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-10 sm:h-8 text-xs text-blue-700 hover:text-blue-800 hover:bg-blue-50 border-blue-300"
+                  onClick={handlePropagateDiscounts}
+                  disabled={syncLoading}
+                  title="Propagar descontos do locatario (destination=PROPRIETARIO) para o proprietario"
+                >
+                  <Shield className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Propagar Descontos</span>
+                  <span className="sm:hidden">Descontos</span>
                 </Button>
 
                 <Button
