@@ -47,6 +47,9 @@ import {
   Copy,
   Check,
   ShieldOff,
+  Link2,
+  MessageCircle,
+  Send,
 } from "lucide-react";
 
 // ========================================
@@ -301,6 +304,52 @@ export default function OwnerDetailPage() {
       setTokenCopied(true);
       setTimeout(() => setTokenCopied(false), 2000);
     }
+  }
+
+  function getPortalLoginUrl(): string {
+    if (!portalStatus?.token) return "";
+    if (typeof window === "undefined") return "";
+    const origin = window.location.origin;
+    const params = new URLSearchParams();
+    if (owner?.email) params.set("email", owner.email);
+    else if (owner?.cpfCnpj) params.set("email", owner.cpfCnpj);
+    params.set("token", portalStatus.token);
+    return `${origin}/portal/login?${params.toString()}`;
+  }
+
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  function handleCopyPortalLink() {
+    const url = getPortalLoginUrl();
+    if (!url) return;
+    navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    toast.success("Link copiado");
+    setTimeout(() => setLinkCopied(false), 2000);
+  }
+
+  function handleSendPortalLinkWhatsapp() {
+    const url = getPortalLoginUrl();
+    if (!url) return;
+    const message = encodeURIComponent(
+      `Ola${owner?.name ? `, ${owner.name}` : ""}! Seu acesso ao Portal do Proprietario da Somma Imoveis esta pronto.\n\nClique no link para acessar:\n${url}\n\nNo primeiro acesso, recomendamos definir uma senha em "Meu Perfil".`
+    );
+    const phone = (owner?.phone || "").replace(/\D/g, "");
+    const waUrl = phone
+      ? `https://wa.me/${phone.startsWith("55") ? phone : `55${phone}`}?text=${message}`
+      : `https://wa.me/?text=${message}`;
+    window.open(waUrl, "_blank");
+  }
+
+  function handleSendPortalLinkEmail() {
+    const url = getPortalLoginUrl();
+    if (!url) return;
+    const subject = encodeURIComponent("Acesso ao Portal do Proprietario - Somma Imoveis");
+    const body = encodeURIComponent(
+      `Ola${owner?.name ? `, ${owner.name}` : ""}!\n\nSeu acesso ao Portal do Proprietario da Somma Imoveis esta pronto.\n\nAcesse atraves do link:\n${url}\n\nNo primeiro acesso, recomendamos definir uma senha em "Meu Perfil" dentro do portal.\n\nQualquer duvida, estamos a disposicao.\n\nAtenciosamente,\nSomma Imoveis`
+    );
+    const to = owner?.email || "";
+    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
   }
 
   // ========================================
@@ -581,20 +630,74 @@ export default function OwnerDetailPage() {
             {portalStatus?.active ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  O proprietario pode acessar o portal em <strong>/portal/login</strong> usando seu email e o token abaixo.
+                  O proprietario pode acessar o portal pelo link abaixo.
+                  No primeiro acesso, ele podera definir uma senha propria.
                 </p>
-                <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-                  <Key className="h-4 w-4 text-muted-foreground shrink-0" />
-                  <code className="text-sm font-mono flex-1 break-all">{portalStatus.token}</code>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleCopyToken}>
-                    {tokenCopied ? (
-                      <Check className="h-4 w-4 text-emerald-600" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
+
+                {/* Link completo */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Link de acesso
+                  </label>
+                  <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <Link2 className="h-4 w-4 text-emerald-700 shrink-0" />
+                    <code className="text-xs font-mono flex-1 break-all text-emerald-900">
+                      {getPortalLoginUrl()}
+                    </code>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleCopyPortalLink}>
+                      {linkCopied ? (
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Token apenas (info) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Token de acesso (alternativa)
+                  </label>
+                  <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                    <Key className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <code className="text-xs font-mono flex-1 break-all">{portalStatus.token}</code>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleCopyToken}>
+                      {tokenCopied ? (
+                        <Check className="h-4 w-4 text-emerald-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Enviar link */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700"
+                    onClick={handleSendPortalLinkWhatsapp}
+                    title={owner?.phone ? `Enviar para ${owner.phone}` : "Enviar por WhatsApp"}
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    Enviar por WhatsApp
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    onClick={handleSendPortalLinkEmail}
+                    disabled={!owner?.email}
+                    title={owner?.email ? `Enviar para ${owner.email}` : "Proprietario sem email cadastrado"}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    Enviar por Email
                   </Button>
                 </div>
-                <div className="flex items-center gap-2">
+
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
                   <Button
                     variant="outline"
                     size="sm"

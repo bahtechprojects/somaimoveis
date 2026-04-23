@@ -22,6 +22,7 @@ import {
   Receipt,
   LogOut,
   ChevronDown,
+  UserCog,
 } from "lucide-react";
 
 const navigation = [
@@ -140,6 +141,13 @@ export function PortalNavbar() {
                   </p>
                 )}
               </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild className="cursor-pointer">
+                <Link href="/portal/perfil">
+                  <UserCog className="h-4 w-4 mr-2" />
+                  Meu Perfil / Senha
+                </Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-destructive cursor-pointer"
