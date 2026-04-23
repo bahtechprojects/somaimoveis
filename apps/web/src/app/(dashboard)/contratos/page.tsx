@@ -18,6 +18,13 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -122,6 +129,7 @@ function ContratosContent() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("todos");
+  const [guaranteeFilter, setGuaranteeFilter] = useState("all");
   const [formOpen, setFormOpen] = useState(false);
   const [selectedContract, setSelectedContract] = useState<Contract | undefined>(undefined);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -172,8 +180,20 @@ function ContratosContent() {
     return true;
   });
 
+  // Client-side filter by guarantee type
+  const filteredByGuarantee = filteredByStatus.filter((contract) => {
+    if (guaranteeFilter === "all") return true;
+    const g = (contract.guaranteeType || "").toUpperCase();
+    if (guaranteeFilter === "SEGURO_FIANCA") return g === "SEGURO_FIANCA";
+    if (guaranteeFilter === "FIADOR") return g === "FIADOR";
+    if (guaranteeFilter === "CAUCAO") return g === "CAUCAO";
+    if (guaranteeFilter === "TITULO_CAPITALIZACAO") return g === "TITULO_CAPITALIZACAO";
+    if (guaranteeFilter === "SEM_GARANTIA") return !g || g === "SEM_GARANTIA";
+    return true;
+  });
+
   // Client-side search
-  const filteredContracts = filteredByStatus.filter((contract) => {
+  const filteredContracts = filteredByGuarantee.filter((contract) => {
     if (!search) return true;
     const term = search.toLowerCase();
     return (
@@ -308,6 +328,19 @@ function ContratosContent() {
                     onChange={(e) => setSearch(e.target.value)}
                   />
                 </div>
+                <Select value={guaranteeFilter} onValueChange={setGuaranteeFilter}>
+                  <SelectTrigger className="h-10 sm:h-8 w-[160px] text-xs">
+                    <SelectValue placeholder="Garantia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as garantias</SelectItem>
+                    <SelectItem value="SEGURO_FIANCA">Seguro Fianca</SelectItem>
+                    <SelectItem value="FIADOR">Fiador</SelectItem>
+                    <SelectItem value="CAUCAO">Caucao</SelectItem>
+                    <SelectItem value="TITULO_CAPITALIZACAO">Titulo Capitalizacao</SelectItem>
+                    <SelectItem value="SEM_GARANTIA">Sem Garantia</SelectItem>
+                  </SelectContent>
+                </Select>
                 <div className="hidden sm:flex items-center gap-2">
                   <Button variant="default" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setImportContractPdfOpen(true)}>
                     <FileSearch className="h-3.5 w-3.5" />

@@ -679,6 +679,14 @@ export default function RelatoriosPage() {
                   window.open(`/relatorios/reajustes?month=${month}`, "_blank")
                 }
               />
+              <RelatorioMonthCard
+                icon={<ShieldAlert className="h-5 w-5" />}
+                title="Contratos Seguro Fianca"
+                description="Verificar se o seguro foi cobrado no mes"
+                onGenerate={(month) =>
+                  window.open(`/relatorios/seguro-fianca?month=${month}`, "_blank")
+                }
+              />
               <RelatorioOwnerYearCard
                 icon={<Users className="h-5 w-5" />}
                 title="Extrato Anual do Proprietario"
