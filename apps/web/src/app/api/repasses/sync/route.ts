@@ -171,19 +171,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ============================================================
-    // SEGUNDA PARTE (v2): propagar TenantEntries com destination=PROPRIETARIO
-    // Dedup MUITO robusta para evitar duplicar historico pago.
+    // PARTE 2 (v3 - cirurgica): propagar APENAS TenantEntries com
+    // destination=PROPRIETARIO que foram criados APOS o Payment do mes
+    // (ou seja, lancados depois que o billing/generate ja rodou).
+    // Isso evita duplicar historico: se o TenantEntry ja estava la
+    // quando o billing rodou, o billing ja criou a OwnerEntry correspondente.
     // ============================================================
-    // Estrategia:
-    // 1. Buscar TenantEntries do mes com destination=PROPRIETARIO (nao cancelados)
-    // 2. Para cada um, buscar OwnerEntries do MESMO contrato + MESMO mes
-    //    (qualquer status, qualquer tipo)
-    // 3. Match via:
-    //    a) notes.tenantEntryId === te.id (match direto)
-    //    b) valor igual (tolerancia 0.01) + descricao similar
-    //       (normalizando para ignorar "Ref MM/YYYY" e "- CTR-X")
-    // 4. Se achou match: SKIP (nao duplica)
-    // 5. Se nao achou: cria a OwnerEntry apropriada
 
     function normalizeDesc(s: string): string {
       return (s || "")
@@ -195,6 +188,23 @@ export async function POST(request: NextRequest) {
         .trim();
     }
 
+    // Mapa: contractId -> createdAt mais antigo dos Payments do mes
+    const paymentCreatedAtByContract = new Map<string, Date>();
+    const paymentsWithCreatedAt = await prisma.payment.findMany({
+      where: {
+        dueDate: { gte: monthStart, lte: monthEnd },
+      },
+      select: { contractId: true, createdAt: true },
+    });
+    for (const p of paymentsWithCreatedAt) {
+      if (!p.contractId) continue;
+      const existing = paymentCreatedAtByContract.get(p.contractId);
+      if (!existing || p.createdAt < existing) {
+        paymentCreatedAtByContract.set(p.contractId, p.createdAt);
+      }
+    }
+
+    // Buscar TenantEntries do mes com destination=PROPRIETARIO
     const tenantEntries = await prisma.tenantEntry.findMany({
       where: {
         destination: "PROPRIETARIO",
@@ -209,6 +219,7 @@ export async function POST(request: NextRequest) {
         value: true,
         dueDate: true,
         tenantId: true,
+        createdAt: true,
         installmentNumber: true,
         installmentTotal: true,
       },
@@ -228,15 +239,22 @@ export async function POST(request: NextRequest) {
         select: { id: true, code: true, ownerId: true, propertyId: true },
       });
 
-      if (!contract) {
+      if (!contract) continue;
+
+      // REGRA CIRURGICA: so propagar se o TenantEntry foi criado APOS o
+      // primeiro Payment do mes (ou seja, billing ja existia e nao pegou ele)
+      const paymentCreatedAt = paymentCreatedAtByContract.get(contract.id);
+      if (paymentCreatedAt && te.createdAt <= paymentCreatedAt) {
+        // Billing rodou DEPOIS de criar o TenantEntry — deveria ter pego.
+        // Se deveria ter pego e nao pegou, assume que foi tratado (dedup).
         skippedDet.push({
           tenantEntry: te.description || te.category,
-          motivo: "Locatario sem contrato ativo",
+          motivo: "Ja estava antes do billing (nao e novo)",
         });
         continue;
       }
 
-      // Buscar OwnerEntries do contrato no mes (TODOS os status)
+      // Dedup robusta: buscar OwnerEntries do contrato no mes
       const existingOwnerEntries = await prisma.ownerEntry.findMany({
         where: {
           contractId: contract.id,
@@ -255,7 +273,6 @@ export async function POST(request: NextRequest) {
       const teNormDesc = normalizeDesc(te.description || te.category || "");
 
       const matched = existingOwnerEntries.find((oe) => {
-        // (a) Match via tenantEntryId nos notes
         if (oe.notes) {
           try {
             const n = JSON.parse(oe.notes);
@@ -264,10 +281,8 @@ export async function POST(request: NextRequest) {
             // ignore
           }
         }
-        // (b) Match por valor + descricao normalizada
         if (Math.abs(oe.value - te.value) < 0.01) {
           const oeNormDesc = normalizeDesc(oe.description);
-          // Se descricoes normalizadas sao iguais ou uma contem a outra
           if (
             teNormDesc &&
             oeNormDesc &&
@@ -284,12 +299,12 @@ export async function POST(request: NextRequest) {
       if (matched) {
         skippedDet.push({
           tenantEntry: te.description || te.category,
-          motivo: `Ja existe (${matched.status}): ${matched.description}`,
+          motivo: `Ja existe (${matched.status})`,
         });
         continue;
       }
 
-      // Nao achou match — criar a OwnerEntry
+      // Criar a OwnerEntry
       const propertyShares = contract.propertyId
         ? await prisma.propertyOwner.findMany({
             where: { propertyId: contract.propertyId },
@@ -376,7 +391,7 @@ export async function POST(request: NextRequest) {
       const sinal = ownerType === "CREDITO" ? "+" : "-";
       propagadosDet.push({
         tenantEntry: te.description || te.category,
-        result: `${ownerType} criado: ${sinal} R$ ${te.value.toFixed(2)} (${contract.code})`,
+        result: `${ownerType}: ${sinal} R$ ${te.value.toFixed(2)} (${contract.code})`,
       });
     }
 
@@ -391,10 +406,10 @@ export async function POST(request: NextRequest) {
       mensagem:
         totalAcoes === 0
           ? skippedDet.length > 0
-            ? `Tudo sincronizado. ${skippedDet.length} lancamento(s) ja existia(m) e foram ignorados.`
+            ? `Tudo sincronizado. ${skippedDet.length} lancamento(s) ja existia(m).`
             : "Tudo sincronizado. Nenhuma acao necessaria."
           : `${criados} repasse(s) criado(s) e ${entriesPropagated} lancamento(s) propagado(s)${
-              skippedDet.length > 0 ? ` (${skippedDet.length} ignorado(s) por ja existir)` : ""
+              skippedDet.length > 0 ? ` (${skippedDet.length} ignorado(s))` : ""
             }.`,
       detalhes: [
         ...detalhes,
