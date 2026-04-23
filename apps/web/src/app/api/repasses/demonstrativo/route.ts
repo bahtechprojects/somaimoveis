@@ -175,7 +175,8 @@ export async function GET(request: NextRequest) {
       totalSaidas: number;
       totalLiquido: number;
       // Para totais PF/PJ
-      aluguelBruto: number;
+      aluguelBruto: number;       // aluguel bruto (sem desconto)
+      aluguelLiquido: number;     // aluguel liquido (ja considerando desconto)
       adminFee: number;
       irrf: number;
     };
@@ -319,6 +320,7 @@ export async function GET(request: NextRequest) {
           totalSaidas: 0,
           totalLiquido: 0,
           aluguelBruto: 0,
+          aluguelLiquido: 0,
           adminFee: 0,
           irrf: 0,
         });
@@ -491,6 +493,7 @@ export async function GET(request: NextRequest) {
           });
           g.totalEntradas += bruto;
           g.aluguelBruto += bruto;
+          g.aluguelLiquido += brutoLiquido;
         }
 
         // Saida: descontos (OwnerEntry DEBITO desconto — ja eh do proprietario)
@@ -569,6 +572,7 @@ export async function GET(request: NextRequest) {
       totalSaidas: round2(g.totalSaidas),
       totalLiquido: round2(g.totalEntradas - g.totalSaidas),
       aluguelBruto: round2(g.aluguelBruto),
+      aluguelLiquido: round2(g.aluguelLiquido),
       adminFee: round2(g.adminFee),
       irrf: round2(g.irrf),
     }));
@@ -588,7 +592,9 @@ export async function GET(request: NextRequest) {
     for (const g of gruposArray) {
       const isPJ = g.tenant?.personType === "PJ";
       const target = isPJ ? pj : pf;
-      target.aluguel += g.aluguelBruto;
+      // Usar aluguel LIQUIDO (com desconto aplicado) como base para IR
+      // Assim o "Total I.R." = aluguelLiquido - comissao reflete o valor real
+      target.aluguel += g.aluguelLiquido;
       target.comissao += g.adminFee;
       target.irrf += g.irrf;
     }
