@@ -11,7 +11,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   }
 
-  if ((session.user as any).role !== "ADMIN") {
+  const userRole = (session.user as any).role || "";
+  // Suporte a multi-role: o user pode ter "ADMIN,CORRETOR,..."
+  if (!userRole.split(",").map((r: string) => r.trim().toUpperCase()).includes("ADMIN")) {
     return NextResponse.json(
       { error: "Acesso restrito a administradores" },
       { status: 403 }
@@ -32,8 +34,9 @@ export async function GET(request: NextRequest) {
     ];
   }
 
+  // Filtro de role: usar contains para casar multi-role (ex: "CORRETOR" achar "CORRETOR,FINANCEIRO")
   if (role) {
-    where.role = role;
+    where.role = { contains: role };
   }
 
   if (active !== null && active !== "") {
@@ -48,6 +51,7 @@ export async function GET(request: NextRequest) {
       name: true,
       email: true,
       role: true,
+      permissions: true,
       phone: true,
       avatarUrl: true,
       active: true,
@@ -66,7 +70,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   }
 
-  if ((session.user as any).role !== "ADMIN") {
+  const userRole = (session.user as any).role || "";
+  if (!userRole.split(",").map((r: string) => r.trim().toUpperCase()).includes("ADMIN")) {
     return NextResponse.json(
       { error: "Acesso restrito a administradores" },
       { status: 403 }
@@ -74,7 +79,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { name, email, password, role, phone } = body;
+  const { name, email, password, role, phone, permissions } = body;
 
   if (!name || !email || !password) {
     return NextResponse.json(
@@ -97,12 +102,19 @@ export async function POST(request: NextRequest) {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
+  // permissions: aceita array de strings, salva como JSON
+  let permissionsJson: string | null = null;
+  if (Array.isArray(permissions) && permissions.length > 0) {
+    permissionsJson = JSON.stringify(permissions);
+  }
+
   const user = await prisma.user.create({
     data: {
       name,
       email,
       password: hashedPassword,
       role: role || "CORRETOR",
+      permissions: permissionsJson,
       phone: phone || null,
     },
     select: {
@@ -110,6 +122,7 @@ export async function POST(request: NextRequest) {
       name: true,
       email: true,
       role: true,
+      permissions: true,
       phone: true,
       avatarUrl: true,
       active: true,

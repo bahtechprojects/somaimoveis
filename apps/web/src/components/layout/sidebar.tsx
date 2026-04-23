@@ -13,7 +13,7 @@ import {
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { canAccessRoute } from "@/lib/rbac";
+import { canAccessRoute, getUserRoles } from "@/lib/rbac";
 import {
   Building2,
   LayoutDashboard,
@@ -155,10 +155,13 @@ function NavLinks({
   const pathname = usePathname();
   const { data: session } = useSession();
   const userRole = (session?.user as any)?.role || "CORRETOR";
+  const userPermissions = (session?.user as any)?.permissions || null;
+  const userRoles = getUserRoles(userRole);
+  const isAdmin = userRoles.includes("ADMIN");
 
   const filtered = items.filter((item) => {
-    if ((item as any).adminOnly && userRole !== "ADMIN") return false;
-    return canAccessRoute(userRole, item.href);
+    if ((item as any).adminOnly && !isAdmin) return false;
+    return canAccessRoute(userRole, item.href, userPermissions);
   });
 
   return (

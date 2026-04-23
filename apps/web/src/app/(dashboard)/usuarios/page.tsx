@@ -60,13 +60,21 @@ import {
   UserCheck2,
   UserMinus,
 } from "lucide-react";
-import { ROLE_LABELS } from "@/lib/rbac";
+import {
+  ROLE_LABELS,
+  getUserRoles,
+  PAGES,
+  DEFAULT_PAGES_BY_ROLE,
+  getUserCustomPermissions,
+} from "@/lib/rbac";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface User {
   id: string;
   name: string;
   email: string;
   role: string;
+  permissions: string | null;
   phone: string | null;
   avatarUrl: string | null;
   active: boolean;
@@ -110,6 +118,8 @@ export default function UsuariosPage() {
     role: "CORRETOR",
     phone: "",
   });
+  const [customPermissionsEnabled, setCustomPermissionsEnabled] = useState(false);
+  const [customPermissions, setCustomPermissions] = useState<string[]>([]);
   const [formError, setFormError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
 
@@ -160,6 +170,8 @@ export default function UsuariosPage() {
   function handleNewUser() {
     setEditingUser(null);
     setFormData({ name: "", email: "", password: "", role: "CORRETOR", phone: "" });
+    setCustomPermissionsEnabled(false);
+    setCustomPermissions([]);
     setFormError("");
     setFormOpen(true);
   }
@@ -173,6 +185,9 @@ export default function UsuariosPage() {
       role: user.role,
       phone: user.phone || "",
     });
+    const custom = getUserCustomPermissions(user.permissions);
+    setCustomPermissionsEnabled(custom !== null);
+    setCustomPermissions(custom || []);
     setFormError("");
     setFormOpen(true);
   }
@@ -183,6 +198,8 @@ export default function UsuariosPage() {
     setFormLoading(true);
 
     try {
+      const permissionsPayload = customPermissionsEnabled ? customPermissions : null;
+
       if (editingUser) {
         // Update
         const updateBody: Record<string, unknown> = {
@@ -190,6 +207,8 @@ export default function UsuariosPage() {
           email: formData.email,
           role: formData.role,
           phone: formData.phone || null,
+          // null = usar default do role; array = custom
+          permissions: permissionsPayload,
         };
 
         const response = await fetch(`/api/users/${editingUser.id}`, {
@@ -217,7 +236,10 @@ export default function UsuariosPage() {
         const response = await fetch("/api/users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            ...formData,
+            permissions: permissionsPayload,
+          }),
         });
 
         if (!response.ok) {
@@ -469,9 +491,16 @@ export default function UsuariosPage() {
                         {user.email}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getRoleBadgeVariant(user.role)}>
-                          {ROLE_LABELS[user.role] || user.role}
-                        </Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {getUserRoles(user.role).map((r) => (
+                            <Badge key={r} variant={getRoleBadgeVariant(r)}>
+                              {ROLE_LABELS[r] || r}
+                            </Badge>
+                          ))}
+                          {getUserRoles(user.role).length === 0 && (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {user.phone || "-"}
@@ -605,22 +634,44 @@ export default function UsuariosPage() {
                 </div>
               )}
               <div className="grid gap-2">
-                <Label htmlFor="role">Cargo</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, role: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o cargo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ADMIN">Administrador</SelectItem>
-                    <SelectItem value="CORRETOR">Corretor</SelectItem>
-                    <SelectItem value="FINANCEIRO">Financeiro</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Cargos (o usuario pode ter mais de um)</Label>
+                <div className="space-y-2 rounded-md border p-3">
+                  {(["ADMIN", "CORRETOR", "FINANCEIRO"] as const).map((r) => {
+                    const currentRoles = getUserRoles(formData.role);
+                    const checked = currentRoles.includes(r);
+                    return (
+                      <div key={r} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`role-${r}`}
+                          checked={checked}
+                          onCheckedChange={(isChecked) => {
+                            const next = new Set(currentRoles);
+                            if (isChecked) next.add(r);
+                            else next.delete(r);
+                            const rolesArr = Array.from(next);
+                            setFormData({
+                              ...formData,
+                              role: rolesArr.length ? rolesArr.join(",") : "",
+                            });
+                          }}
+                        />
+                        <Label htmlFor={`role-${r}`} className="text-sm font-normal cursor-pointer">
+                          {ROLE_LABELS[r]}
+                          {r === "FINANCEIRO" && (
+                            <span className="text-xs text-muted-foreground ml-1">
+                              (sem acesso a repasses/notas fiscais)
+                            </span>
+                          )}
+                        </Label>
+                      </div>
+                    );
+                  })}
+                </div>
+                {!formData.role && (
+                  <p className="text-xs text-destructive">
+                    Selecione pelo menos um cargo.
+                  </p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="phone">Telefone</Label>
@@ -633,6 +684,106 @@ export default function UsuariosPage() {
                   placeholder="(00) 00000-0000"
                 />
               </div>
+
+              {/* Permissoes granulares por pagina */}
+              {!getUserRoles(formData.role).includes("ADMIN") && (
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="custom-permissions-enabled"
+                      checked={customPermissionsEnabled}
+                      onCheckedChange={(checked) => {
+                        const isChecked = !!checked;
+                        setCustomPermissionsEnabled(isChecked);
+                        if (isChecked && customPermissions.length === 0) {
+                          // Pre-popular com defaults do role selecionado
+                          const roles = getUserRoles(formData.role);
+                          const defaults = new Set<string>();
+                          roles.forEach((r) => {
+                            (DEFAULT_PAGES_BY_ROLE[r] || []).forEach((p) =>
+                              defaults.add(p)
+                            );
+                          });
+                          setCustomPermissions(Array.from(defaults));
+                        }
+                      }}
+                    />
+                    <Label
+                      htmlFor="custom-permissions-enabled"
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      Personalizar paginas que o usuario pode acessar
+                    </Label>
+                  </div>
+                  {!customPermissionsEnabled && (
+                    <p className="text-xs text-muted-foreground ml-6">
+                      Usara o padrao do cargo selecionado.
+                    </p>
+                  )}
+                  {customPermissionsEnabled && (
+                    <div className="rounded-md border p-3 max-h-72 overflow-y-auto">
+                      {Object.entries(
+                        PAGES.reduce((acc, p) => {
+                          if (!acc[p.group]) acc[p.group] = [];
+                          acc[p.group].push(p);
+                          return acc;
+                        }, {} as Record<string, typeof PAGES>)
+                      ).map(([group, pages]) => (
+                        <div key={group} className="mb-3 last:mb-0">
+                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                            {group}
+                          </div>
+                          <div className="grid grid-cols-1 gap-1.5">
+                            {pages.map((p) => (
+                              <div key={p.key} className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`perm-${p.key}`}
+                                  checked={customPermissions.includes(p.key)}
+                                  onCheckedChange={(checked) => {
+                                    setCustomPermissions((prev) => {
+                                      const set = new Set(prev);
+                                      if (checked) set.add(p.key);
+                                      else set.delete(p.key);
+                                      return Array.from(set);
+                                    });
+                                  }}
+                                />
+                                <Label
+                                  htmlFor={`perm-${p.key}`}
+                                  className="text-sm font-normal cursor-pointer"
+                                >
+                                  {p.label}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      <div className="flex gap-2 mt-2 pt-2 border-t">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setCustomPermissions(PAGES.map((p) => p.key))}
+                        >
+                          Marcar todas
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => setCustomPermissions([])}
+                        >
+                          Desmarcar todas
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {formError && (
                 <p className="text-sm text-destructive">{formError}</p>
               )}

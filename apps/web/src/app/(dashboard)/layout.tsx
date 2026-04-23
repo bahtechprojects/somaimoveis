@@ -39,8 +39,11 @@ const moreItems: BottomNavItem[] = [
 function DashboardBottomNav() {
   const { data: session } = useSession();
   const userRole = (session?.user as any)?.role || "CORRETOR";
+  const userPermissions = (session?.user as any)?.permissions || null;
 
-  const filteredMore = moreItems.filter((item) => canAccessRoute(userRole, item.href));
+  const filteredMore = moreItems.filter((item) =>
+    canAccessRoute(userRole, item.href, userPermissions)
+  );
 
   return <BottomNav primaryItems={primaryItems} moreItems={filteredMore} />;
 }

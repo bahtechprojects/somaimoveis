@@ -4,6 +4,14 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
+function requireAdmin(session: any): boolean {
+  const userRole = (session?.user as any)?.role || "";
+  return userRole
+    .split(",")
+    .map((r: string) => r.trim().toUpperCase())
+    .includes("ADMIN");
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,7 +22,7 @@ export async function GET(
     return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   }
 
-  if ((session.user as any).role !== "ADMIN") {
+  if (!requireAdmin(session)) {
     return NextResponse.json(
       { error: "Acesso restrito a administradores" },
       { status: 403 }
@@ -30,6 +38,7 @@ export async function GET(
       name: true,
       email: true,
       role: true,
+      permissions: true,
       phone: true,
       avatarUrl: true,
       active: true,
@@ -58,7 +67,7 @@ export async function PUT(
     return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   }
 
-  if ((session.user as any).role !== "ADMIN") {
+  if (!requireAdmin(session)) {
     return NextResponse.json(
       { error: "Acesso restrito a administradores" },
       { status: 403 }
@@ -68,7 +77,7 @@ export async function PUT(
   const { id } = await params;
   const currentUserId = (session.user as any).id;
   const body = await request.json();
-  const { name, email, role, phone, active, password } = body;
+  const { name, email, role, phone, active, password, permissions } = body;
 
   // Cannot change own role
   if (id === currentUserId && role !== undefined) {
@@ -107,6 +116,14 @@ export async function PUT(
   if (password) {
     updateData.password = await bcrypt.hash(password, 10);
   }
+  // permissions: null/undefined = nao altera. Array vazio = limpar. Array com items = JSON.
+  if (permissions !== undefined) {
+    if (permissions === null || (Array.isArray(permissions) && permissions.length === 0)) {
+      updateData.permissions = null;
+    } else if (Array.isArray(permissions)) {
+      updateData.permissions = JSON.stringify(permissions);
+    }
+  }
 
   const updatedUser = await prisma.user.update({
     where: { id },
@@ -116,6 +133,7 @@ export async function PUT(
       name: true,
       email: true,
       role: true,
+      permissions: true,
       phone: true,
       avatarUrl: true,
       active: true,
@@ -137,7 +155,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Nao autorizado" }, { status: 401 });
   }
 
-  if ((session.user as any).role !== "ADMIN") {
+  if (!requireAdmin(session)) {
     return NextResponse.json(
       { error: "Acesso restrito a administradores" },
       { status: 403 }
@@ -163,6 +181,7 @@ export async function DELETE(
       name: true,
       email: true,
       role: true,
+      permissions: true,
       phone: true,
       avatarUrl: true,
       active: true,
