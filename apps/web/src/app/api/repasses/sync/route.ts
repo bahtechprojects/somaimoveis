@@ -170,183 +170,20 @@ export async function POST(request: NextRequest) {
       detalhes.push({ payment: p.code, result: `Repasse criado: R$ ${ownerValue.toFixed(2)}` });
     }
 
-    // ============================================================
-    // SEGUNDA PARTE: sincronizar lancamentos do locatario com
-    // destination=PROPRIETARIO que ainda nao tem OwnerEntry correspondente
-    // ============================================================
-    // Buscar TODOS os tenantEntries com destination=PROPRIETARIO do mes
-    // (DEBITOs do locatario viram CREDITOs do proprietario — ex: IPTU cobrado do inquilino)
-    // (CREDITOs do locatario viram DEBITOs do proprietario — ex: desconto dado pelo proprietario)
-    const tenantEntries = await prisma.tenantEntry.findMany({
-      where: {
-        destination: "PROPRIETARIO",
-        dueDate: { gte: monthStart, lte: monthEnd },
-        status: { not: "CANCELADO" },
-      },
-      select: {
-        id: true,
-        type: true,
-        category: true,
-        description: true,
-        value: true,
-        dueDate: true,
-        tenantId: true,
-        installmentNumber: true,
-        installmentTotal: true,
-      },
-    });
-
-    // Para cada tenantEntry com destination=PROPRIETARIO, verificar se existe
-    // OwnerEntry correspondente (via notes.tenantEntryId)
-    let entriesPropagated = 0;
-    const propagadosDet: { tenantEntry: string; result: string }[] = [];
-
-    for (const te of tenantEntries) {
-      // Buscar contrato do tenant (ultimo ativo) para ter ownerId e propertyId
-      const contract = await prisma.contract.findFirst({
-        where: {
-          tenantId: te.tenantId,
-          OR: [
-            { status: "ATIVO" },
-            { status: "PENDENTE_RENOVACAO" },
-          ],
-        },
-        orderBy: { startDate: "desc" },
-        select: {
-          id: true,
-          code: true,
-          ownerId: true,
-          propertyId: true,
-        },
-      });
-
-      if (!contract) continue;
-
-      // Verificar se ja existe OwnerEntry com este tenantEntryId nos notes
-      const existingOwnerEntries = await prisma.ownerEntry.findMany({
-        where: {
-          contractId: contract.id,
-          dueDate: te.dueDate || undefined,
-        },
-      });
-
-      const alreadyPropagated = existingOwnerEntries.some((oe) => {
-        if (!oe.notes) return false;
-        try {
-          const n = JSON.parse(oe.notes);
-          return n.tenantEntryId === te.id;
-        } catch {
-          return false;
-        }
-      });
-
-      if (alreadyPropagated) continue;
-
-      // Buscar os shares do imovel
-      const propertyShares = contract.propertyId
-        ? await prisma.propertyOwner.findMany({
-            where: { propertyId: contract.propertyId },
-          })
-        : [];
-
-      // DEBITO do locatario → CREDITO do proprietario (proprietario recebe)
-      // CREDITO do locatario → DEBITO do proprietario (proprietario banca)
-      const ownerType = te.type === "DEBITO" ? "CREDITO" : "DEBITO";
-      const installmentLabel = te.installmentNumber && te.installmentTotal
-        ? ` ${te.installmentNumber}/${te.installmentTotal}`
-        : "";
-
-      const d = te.dueDate || monthStart;
-      const mRef = `${String(new Date(d).getMonth() + 1).padStart(2, "0")}/${new Date(d).getFullYear()}`;
-      const baseDescription = `${te.description || te.category}${installmentLabel} ${mRef} - ${contract.code}`;
-
-      const notesData = {
-        tenantEntryId: te.id,
-        originalDescription: te.description,
-        destination: "PROPRIETARIO",
-        type: te.type === "DEBITO" ? "cobranca_locatario" : "desconto_locatario",
-        autoCreated: true,
-        syncedFromTenant: true,
-      };
-
-      if (propertyShares.length > 0) {
-        // Dividir entre co-proprietarios
-        const totalPct = propertyShares.reduce((s, sh) => s + sh.percentage, 0);
-        for (const share of propertyShares) {
-          const portion = Math.round(te.value * (share.percentage / 100) * 100) / 100;
-          await prisma.ownerEntry.create({
-            data: {
-              type: ownerType,
-              category: te.category || (te.type === "DEBITO" ? "OUTROS" : "DESCONTO"),
-              description: `${baseDescription} (${share.percentage}%)`,
-              value: portion,
-              dueDate: te.dueDate,
-              status: "PENDENTE",
-              ownerId: share.ownerId,
-              contractId: contract.id,
-              propertyId: contract.propertyId || null,
-              notes: JSON.stringify(notesData),
-            },
-          });
-        }
-        // Remanescente (se soma < 100 e proprietario do contrato nao esta nos shares)
-        const contractOwnerInShares = propertyShares.some((s) => s.ownerId === contract.ownerId);
-        if (totalPct < 100 && !contractOwnerInShares) {
-          const remainPct = Math.round((100 - totalPct) * 100) / 100;
-          const remainVal = Math.round(te.value * (remainPct / 100) * 100) / 100;
-          await prisma.ownerEntry.create({
-            data: {
-              type: ownerType,
-              category: te.category || (te.type === "DEBITO" ? "OUTROS" : "DESCONTO"),
-              description: `${baseDescription} (${remainPct}%)`,
-              value: remainVal,
-              dueDate: te.dueDate,
-              status: "PENDENTE",
-              ownerId: contract.ownerId,
-              contractId: contract.id,
-              propertyId: contract.propertyId || null,
-              notes: JSON.stringify(notesData),
-            },
-          });
-        }
-      } else {
-        // Proprietario unico
-        await prisma.ownerEntry.create({
-          data: {
-            type: ownerType,
-            category: te.category || (te.type === "DEBITO" ? "OUTROS" : "DESCONTO"),
-            description: baseDescription,
-            value: te.value,
-            dueDate: te.dueDate,
-            status: "PENDENTE",
-            ownerId: contract.ownerId,
-            contractId: contract.id,
-            propertyId: contract.propertyId || null,
-            notes: JSON.stringify(notesData),
-          },
-        });
-      }
-
-      entriesPropagated++;
-      const sinal = ownerType === "CREDITO" ? "+" : "-";
-      propagadosDet.push({
-        tenantEntry: te.description || te.category,
-        result: `${ownerType} gerado: ${sinal} R$ ${te.value.toFixed(2)} (contrato ${contract.code})`,
-      });
-    }
-
-    const totalAcoes = criados + entriesPropagated;
+    // NOTA: a propagacao automatica de TenantEntries com destination=PROPRIETARIO
+    // foi REMOVIDA desta rota por risco de duplicacao de historico ja pago.
+    // Quando precisar regenerar esses lancamentos, refaca o billing/generate do mes
+    // apos remover os payments pendentes do mes.
 
     return NextResponse.json({
       month: `${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`,
       totalPagamentos: payments.length,
       repassesCriados: criados,
-      entriesPropagadas: entriesPropagated,
       mensagem:
-        totalAcoes === 0
-          ? "Tudo sincronizado. Nenhuma acao necessaria."
-          : `${criados} repasse(s) criado(s) e ${entriesPropagated} lancamento(s) do locatario propagado(s) para o proprietario.`,
-      detalhes: [...detalhes, ...propagadosDet.map((d) => ({ payment: d.tenantEntry, result: d.result }))],
+        criados === 0
+          ? "Nenhum repasse criado. Todos os pagamentos PAGO ja tem repasse correspondente."
+          : `${criados} repasse(s) criado(s) com sucesso.`,
+      detalhes,
     });
   } catch (error) {
     console.error("[Repasses Sync]", error);

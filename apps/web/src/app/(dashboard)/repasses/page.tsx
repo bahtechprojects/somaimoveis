@@ -210,6 +210,53 @@ export default function RepassesPage() {
     }
   }
 
+  async function handleUndoSync() {
+    // Primeiro dryRun para mostrar quantos seriam removidos
+    try {
+      const opts = confirm(
+        `Desfazer sincronizacao de lancamentos?\n\n` +
+        `OK = Desfazer apenas ${formatMonthLabel(month)}\n` +
+        `Cancelar = escolher outra opcao`
+      );
+
+      const queryMonth = opts
+        ? `month=${month}`
+        : confirm("Desfazer TODOS os meses? (remove todas as entries criadas pelo sync)\n\nOK = Todos os meses\nCancelar = Abortar")
+        ? "all=true"
+        : null;
+
+      if (!queryMonth) return;
+
+      // DryRun primeiro
+      const dry = await fetch(`/api/repasses/undo-sync?${queryMonth}&dryRun=true`, {
+        method: "DELETE",
+      });
+      const dryData = await dry.json();
+      if (!dry.ok) throw new Error(dryData.error || "Erro no preview");
+
+      if (dryData.total === 0) {
+        toast.info("Nenhum lancamento criado pelo sync encontrado.");
+        return;
+      }
+
+      if (!confirm(`Remover ${dryData.total} lancamento(s) PENDENTE(s) criado(s) pelo sync?\n\nIsso e IRREVERSIVEL mas nao afeta lancamentos pagos ou criados manualmente.`)) return;
+
+      setSyncLoading(true);
+      const res = await fetch(`/api/repasses/undo-sync?${queryMonth}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao desfazer sync");
+
+      toast.success(`${data.removidos} lancamento(s) removido(s)`);
+      fetchRepasses();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao desfazer sync");
+    } finally {
+      setSyncLoading(false);
+    }
+  }
+
   async function handleGuarantee(ownerId: string, ownerName: string) {
     if (!confirm(`Garantir aluguel atrasado de ${ownerName} para ${formatMonthLabel(month)}?\n\nIsso cria um crédito de garantia na conta do proprietário.`)) return;
     setGuaranteeLoading((prev) => ({ ...prev, [ownerId]: true }));
@@ -878,6 +925,19 @@ export default function RepassesPage() {
                   <span className="sm:hidden">
                     {syncLoading ? "..." : "Sync"}
                   </span>
+                </Button>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-10 sm:h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+                  onClick={handleUndoSync}
+                  disabled={syncLoading}
+                  title="Remover lancamentos auto-criados pelo Sincronizar"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Desfazer Sync</span>
+                  <span className="sm:hidden">Desfazer</span>
                 </Button>
 
                 {isSelectable && (
