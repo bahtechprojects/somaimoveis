@@ -45,11 +45,29 @@ export const authOptions: AuthOptions = {
     maxAge: 24 * 60 * 60, // 24 hours
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.role = (user as any).role;
         token.id = user.id;
         (token as any).permissions = (user as any).permissions ?? null;
+      }
+      // Revalida do banco se faltar dados no token (users logados antes das mudancas)
+      // ou quando sessao eh atualizada explicitamente
+      const needsRefresh =
+        (token?.id && (!token.role || token.role === "")) || trigger === "update";
+      if (needsRefresh && token?.id) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { role: true, permissions: true, active: true },
+          });
+          if (dbUser && dbUser.active) {
+            token.role = dbUser.role;
+            (token as any).permissions = dbUser.permissions ?? null;
+          }
+        } catch {
+          // ignore — mantem o token atual
+        }
       }
       return token;
     },

@@ -13,7 +13,7 @@ import {
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { canAccessRoute, getUserRoles } from "@/lib/rbac";
+import { canAccessRoute, isAdmin as isAdminRole } from "@/lib/rbac";
 import {
   Building2,
   LayoutDashboard,
@@ -156,13 +156,15 @@ function NavLinks({
   const { data: session } = useSession();
   const userRole = (session?.user as any)?.role || "CORRETOR";
   const userPermissions = (session?.user as any)?.permissions || null;
-  const userRoles = getUserRoles(userRole);
-  const isAdmin = userRoles.includes("ADMIN");
+  const admin = isAdminRole(userRole);
 
-  const filtered = items.filter((item) => {
-    if ((item as any).adminOnly && !isAdmin) return false;
-    return canAccessRoute(userRole, item.href, userPermissions);
-  });
+  // Admin ve TUDO, sem restricao (bypass completo)
+  const filtered = admin
+    ? items
+    : items.filter((item) => {
+        if ((item as any).adminOnly) return false;
+        return canAccessRoute(userRole, item.href, userPermissions);
+      });
 
   return (
     <ul className="space-y-1">

@@ -52,16 +52,28 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
 /**
  * Normaliza uma string de role(s) em array.
  * Suporta: "ADMIN", "CORRETOR,FINANCEIRO", "ADMIN, CORRETOR"
+ * Tolerante a espacos, caixa, e tokens desconhecidos (mantem os conhecidos).
  */
 export function getUserRoles(role: string | null | undefined): string[] {
   if (!role) return [];
   return role
+    .toString()
     .split(",")
     .map((r) => r.trim().toUpperCase())
     .filter((r) => r && r in ROLE_PERMISSIONS);
 }
 
+/**
+ * Verifica se a string de role(s) inclui ADMIN.
+ * Tolerante a formatos: "ADMIN", "admin", "Admin, Corretor", "ADMIN,FINANCEIRO".
+ */
+export function isAdmin(role: string | null | undefined): boolean {
+  if (!role) return false;
+  return role.toString().toUpperCase().split(",").some((r) => r.trim() === ROLES.ADMIN);
+}
+
 export function hasPermission(role: string | null | undefined, permission: string): boolean {
+  if (isAdmin(role)) return true; // admin sempre tem tudo
   const roles = getUserRoles(role);
   if (roles.length === 0) return false;
   for (const r of roles) {
@@ -71,10 +83,6 @@ export function hasPermission(role: string | null | undefined, permission: strin
     if (perms.includes(permission)) return true;
   }
   return false;
-}
-
-export function isAdmin(role: string | null | undefined): boolean {
-  return getUserRoles(role).includes(ROLES.ADMIN);
 }
 
 export function hasRole(role: string | null | undefined, target: string): boolean {
@@ -181,13 +189,13 @@ export function getUserAllowedPages(
   role: string | null | undefined,
   customPermissions: string | null | undefined
 ): string[] {
-  const roles = getUserRoles(role);
-  if (roles.includes(ROLES.ADMIN)) {
+  if (isAdmin(role)) {
     return PAGES.map((p) => p.key);
   }
   const custom = getUserCustomPermissions(customPermissions);
   if (custom) return custom;
   // Fallback: union das permissoes default dos roles
+  const roles = getUserRoles(role);
   const allowed = new Set<string>();
   for (const r of roles) {
     (DEFAULT_PAGES_BY_ROLE[r] || []).forEach((p) => allowed.add(p));
@@ -200,8 +208,10 @@ export function canAccessRoute(
   pathname: string,
   customPermissions?: string | null
 ): boolean {
+  // ADMIN sempre passa — acesso total, bypass completo de qualquer restricao
+  if (isAdmin(role)) return true;
+
   const roles = getUserRoles(role);
-  if (roles.includes(ROLES.ADMIN)) return true; // admin sempre passa
 
   // Rotas com restricao fixa de role (admin-only)
   const hardRestriction = Object.entries(RESTRICTED_ROUTES).find(([route]) =>
@@ -211,7 +221,6 @@ export function canAccessRoute(
   // Se tem customPermissions, checar se a pagina esta na lista
   const custom = getUserCustomPermissions(customPermissions);
   if (custom !== null) {
-    // Achar qual pagina corresponde ao pathname
     const matched = PAGES.find((p) => {
       if (p.path === "/") return pathname === "/";
       return pathname.startsWith(p.path);
@@ -219,7 +228,6 @@ export function canAccessRoute(
     if (matched) {
       return custom.includes(matched.key);
     }
-    // Pathname nao mapeado: aplicar restricao fixa se houver
   }
 
   // Sem custom: fallback para restricoes fixas por role

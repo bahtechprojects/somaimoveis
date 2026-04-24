@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { SidebarProvider } from "@/components/layout/sidebar";
 import { BottomNav, type BottomNavItem } from "@/components/layout/bottom-nav";
-import { canAccessRoute, getUserAllowedPages, PAGES } from "@/lib/rbac";
+import { canAccessRoute, getUserAllowedPages, PAGES, isAdmin as isAdminRole } from "@/lib/rbac";
 import {
   LayoutDashboard,
   Building2,
@@ -42,10 +42,14 @@ function DashboardBottomNav() {
   const { data: session } = useSession();
   const userRole = (session?.user as any)?.role || "CORRETOR";
   const userPermissions = (session?.user as any)?.permissions || null;
+  const admin = isAdminRole(userRole);
 
-  const filteredMore = moreItems.filter((item) =>
-    canAccessRoute(userRole, item.href, userPermissions)
-  );
+  // Admin ve TUDO no bottom nav tambem
+  const filteredMore = admin
+    ? moreItems
+    : moreItems.filter((item) =>
+        canAccessRoute(userRole, item.href, userPermissions)
+      );
 
   return <BottomNav primaryItems={primaryItems} moreItems={filteredMore} />;
 }
