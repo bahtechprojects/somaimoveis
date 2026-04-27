@@ -171,7 +171,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           fetch("/api/owners"),
           fetch("/api/tenants"),
           fetch("/api/properties"),
-          fetch(`/api/guarantors?available=true${contract?.id ? `&excludeContractId=${contract.id}` : ""}`),
+          fetch("/api/guarantors"),
         ]);
 
         if (ownersRes.ok) {
@@ -1057,8 +1057,14 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         onOpenChange={setGuarantorFormOpen}
         onSuccess={(newGuarantor) => {
           if (newGuarantor?.id) {
-            setGuarantorsList(prev => [...prev, { id: newGuarantor.id, name: newGuarantor.name, cpfCnpj: newGuarantor.cpfCnpj }]);
-            setSelectedGuarantorIds(prev => [...prev, newGuarantor.id]);
+            setGuarantorsList((prev) =>
+              prev.some((g) => g.id === newGuarantor.id)
+                ? prev
+                : [...prev, { id: newGuarantor.id, name: newGuarantor.name, cpfCnpj: newGuarantor.cpfCnpj }]
+            );
+            setSelectedGuarantorIds((prev) =>
+              prev.includes(newGuarantor.id) ? prev : [...prev, newGuarantor.id]
+            );
           }
         }}
       />
