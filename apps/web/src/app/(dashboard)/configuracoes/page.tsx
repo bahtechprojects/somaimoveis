@@ -750,6 +750,32 @@ export default function ConfiguracoesPage() {
           {/* ── Tab: Empresa ─────────────────────────────────────────────── */}
           <TabsContent value="empresa">
             <div className="grid gap-6 max-w-2xl">
+              {/* Link para Configuracoes Fiscais (NFS-e) */}
+              <Card className="border-blue-200 bg-blue-50/50">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Building2 className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-blue-900">
+                        Configurações Fiscais (NFS-e)
+                      </p>
+                      <p className="text-xs text-blue-800 mt-1">
+                        Inscrição Municipal, CNAE, código de serviço, alíquota
+                        ISS, regime tributário e provedor de emissão.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 bg-white"
+                      asChild
+                    >
+                      <a href="/configuracoes/fiscal">Acessar</a>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card className="border-0 shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">Dados da Empresa</CardTitle>

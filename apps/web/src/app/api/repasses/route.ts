@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
     thirdPartyPixKeyType: true,
     thirdPartyPix: true,
     paymentDay: true,
+    notes: true,
   };
 
   const entries = await prisma.ownerEntry.findMany({

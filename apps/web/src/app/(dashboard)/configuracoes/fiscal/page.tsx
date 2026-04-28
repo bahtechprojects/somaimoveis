@@ -1,0 +1,510 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Header } from "@/components/layout/header";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, Save, FileText, ShieldCheck, Building2, MapPin, Receipt, Globe } from "lucide-react";
+
+interface FiscalSettings {
+  razaoSocial: string | null;
+  cnpj: string | null;
+  inscricaoMunicipal: string | null;
+  inscricaoEstadual: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+  cnae: string | null;
+  codigoServicoMunicipal: string | null;
+  aliquotaIss: number | null;
+  regimeTributario: string | null;
+  optanteSimples: boolean;
+  incentivadorCultural: boolean;
+  retemIss: boolean;
+  certificadoNome: string | null;
+  certificadoExpiraEm: string | null;
+  provedor: string | null;
+  apiTokenSet: boolean;
+  ambiente: string;
+  notes: string | null;
+}
+
+export default function ConfiguracoesFiscalPage() {
+  const [settings, setSettings] = useState<FiscalSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [apiTokenInput, setApiTokenInput] = useState("");
+
+  useEffect(() => {
+    fetch("/api/fiscal-settings")
+      .then((r) => r.json())
+      .then((data) => setSettings(data))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  function update<K extends keyof FiscalSettings>(field: K, value: FiscalSettings[K]) {
+    setSettings((prev) => (prev ? { ...prev, [field]: value } : prev));
+  }
+
+  async function handleSave() {
+    if (!settings) return;
+    setSaving(true);
+    try {
+      const payload: any = { ...settings };
+      // Apenas enviar apiToken se digitou um valor novo
+      if (apiTokenInput) {
+        payload.apiToken = apiTokenInput;
+      } else {
+        delete payload.apiToken;
+      }
+      // Formatar data de validade do certificado
+      if (settings.certificadoExpiraEm) {
+        payload.certificadoExpiraEm = String(settings.certificadoExpiraEm).split("T")[0];
+      }
+
+      const res = await fetch("/api/fiscal-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Erro ao salvar");
+      }
+      const data = await res.json();
+      setSettings(data);
+      setApiTokenInput("");
+      toast.success("Configurações fiscais salvas com sucesso");
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao salvar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading || !settings) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col">
+      <Header
+        title="Configurações Fiscais"
+        subtitle="Dados para emissão de NFS-e (Notas Fiscais de Serviço Eletrônica)"
+      />
+
+      <div className="p-4 sm:p-6 space-y-6 max-w-4xl">
+        {/* Aviso de status */}
+        <Card className="border-blue-200 bg-blue-50">
+          <CardContent className="p-4 flex items-start gap-3">
+            <FileText className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-semibold text-blue-900">Como funciona</p>
+              <p className="text-blue-800 mt-1">
+                Preencha aqui os dados que serão usados na emissão de NFS-e.
+                A integração efetiva com a prefeitura/provedor depende do
+                certificado digital A1 e cadastro no provedor escolhido.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Dados da empresa */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              Dados da Empresa
+            </CardTitle>
+            <CardDescription>
+              Informações cadastrais da prestadora de serviço
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="razaoSocial">Razão Social</Label>
+                <Input
+                  id="razaoSocial"
+                  value={settings.razaoSocial || ""}
+                  onChange={(e) => update("razaoSocial", e.target.value)}
+                  placeholder="Somma Imóveis Ltda"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="cnpj">CNPJ</Label>
+                <Input
+                  id="cnpj"
+                  value={settings.cnpj || ""}
+                  onChange={(e) => update("cnpj", e.target.value)}
+                  placeholder="00.000.000/0000-00"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="inscricaoMunicipal">Inscrição Municipal *</Label>
+                <Input
+                  id="inscricaoMunicipal"
+                  value={settings.inscricaoMunicipal || ""}
+                  onChange={(e) => update("inscricaoMunicipal", e.target.value)}
+                  placeholder="Necessária para NFS-e"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="inscricaoEstadual">Inscrição Estadual</Label>
+                <Input
+                  id="inscricaoEstadual"
+                  value={settings.inscricaoEstadual || ""}
+                  onChange={(e) => update("inscricaoEstadual", e.target.value)}
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Endereco */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              Endereço Fiscal
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="street">Logradouro</Label>
+                <Input
+                  id="street"
+                  value={settings.street || ""}
+                  onChange={(e) => update("street", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="number">Número</Label>
+                <Input
+                  id="number"
+                  value={settings.number || ""}
+                  onChange={(e) => update("number", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="complement">Complemento</Label>
+                <Input
+                  id="complement"
+                  value={settings.complement || ""}
+                  onChange={(e) => update("complement", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="neighborhood">Bairro</Label>
+                <Input
+                  id="neighborhood"
+                  value={settings.neighborhood || ""}
+                  onChange={(e) => update("neighborhood", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="zipCode">CEP</Label>
+                <Input
+                  id="zipCode"
+                  value={settings.zipCode || ""}
+                  onChange={(e) => update("zipCode", e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="city">Cidade</Label>
+                <Input
+                  id="city"
+                  value={settings.city || ""}
+                  onChange={(e) => update("city", e.target.value)}
+                  placeholder="Santa Cruz do Sul"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="state">UF</Label>
+                <Input
+                  id="state"
+                  value={settings.state || ""}
+                  onChange={(e) => update("state", e.target.value)}
+                  placeholder="RS"
+                  maxLength={2}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tributos */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-muted-foreground" />
+              Tributos e Regime
+            </CardTitle>
+            <CardDescription>
+              Códigos de serviço e impostos. Pegue com sua contadora.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="cnae">CNAE Principal</Label>
+                <Input
+                  id="cnae"
+                  value={settings.cnae || ""}
+                  onChange={(e) => update("cnae", e.target.value)}
+                  placeholder="6822-6/00 (Adm de imóveis)"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="codigoServicoMunicipal">Código de Serviço (LC 116/2003)</Label>
+                <Input
+                  id="codigoServicoMunicipal"
+                  value={settings.codigoServicoMunicipal || ""}
+                  onChange={(e) => update("codigoServicoMunicipal", e.target.value)}
+                  placeholder="17.13 (Administração de bens)"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="aliquotaIss">Alíquota ISS (%)</Label>
+                <Input
+                  id="aliquotaIss"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={settings.aliquotaIss ?? ""}
+                  onChange={(e) =>
+                    update("aliquotaIss", e.target.value === "" ? null : parseFloat(e.target.value))
+                  }
+                  placeholder="Ex: 5"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="regimeTributario">Regime Tributário</Label>
+                <Select
+                  value={settings.regimeTributario || ""}
+                  onValueChange={(v) => update("regimeTributario", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MEI">MEI</SelectItem>
+                    <SelectItem value="SIMPLES_NACIONAL">Simples Nacional</SelectItem>
+                    <SelectItem value="LUCRO_PRESUMIDO">Lucro Presumido</SelectItem>
+                    <SelectItem value="LUCRO_REAL">Lucro Real</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="optanteSimples"
+                  checked={settings.optanteSimples}
+                  onCheckedChange={(c) => update("optanteSimples", !!c)}
+                />
+                <Label htmlFor="optanteSimples" className="font-normal cursor-pointer text-sm">
+                  Optante pelo Simples Nacional
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="retemIss"
+                  checked={settings.retemIss}
+                  onCheckedChange={(c) => update("retemIss", !!c)}
+                />
+                <Label htmlFor="retemIss" className="font-normal cursor-pointer text-sm">
+                  ISS Retido na fonte (raro para imobiliárias)
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="incentivadorCultural"
+                  checked={settings.incentivadorCultural}
+                  onCheckedChange={(c) => update("incentivadorCultural", !!c)}
+                />
+                <Label htmlFor="incentivadorCultural" className="font-normal cursor-pointer text-sm">
+                  Incentivador Cultural
+                </Label>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Provedor de NFS-e */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="h-4 w-4 text-muted-foreground" />
+              Provedor de Emissão
+            </CardTitle>
+            <CardDescription>
+              Como o sistema vai enviar a NFS-e para o município
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="provedor">Provedor</Label>
+                <Select
+                  value={settings.provedor || ""}
+                  onValueChange={(v) => update("provedor", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o provedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MANUAL">
+                      Manual (apenas exporta dados)
+                    </SelectItem>
+                    <SelectItem value="NFSE_NACIONAL">
+                      NFS-e Nacional (gov.br) - GRATUITO
+                    </SelectItem>
+                    <SelectItem value="NFE_IO">
+                      NFE.io (R$ 0,29/nota)
+                    </SelectItem>
+                    <SelectItem value="PLUG_NOTAS">
+                      Plug Notas (R$ 0,40/nota)
+                    </SelectItem>
+                    <SelectItem value="GISSONLINE">
+                      GISSONLINE (Santa Cruz do Sul, direto)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="ambiente">Ambiente</Label>
+                <Select
+                  value={settings.ambiente}
+                  onValueChange={(v) => update("ambiente", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HOMOLOGACAO">Homologação (testes)</SelectItem>
+                    <SelectItem value="PRODUCAO">Produção (real)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="apiToken">
+                  Token / API Key {settings.apiTokenSet && <span className="text-xs text-emerald-600 ml-2">(configurado)</span>}
+                </Label>
+                <Input
+                  id="apiToken"
+                  type="password"
+                  value={apiTokenInput}
+                  onChange={(e) => setApiTokenInput(e.target.value)}
+                  placeholder={settings.apiTokenSet ? "Deixe em branco para manter o atual" : "Cole o token do provedor"}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Token armazenado de forma criptografada
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Certificado Digital */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+              Certificado Digital A1
+            </CardTitle>
+            <CardDescription>
+              Necessário em qualquer modalidade de emissão direta de NFS-e
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="certificadoNome">Identificação do Certificado</Label>
+                <Input
+                  id="certificadoNome"
+                  value={settings.certificadoNome || ""}
+                  onChange={(e) => update("certificadoNome", e.target.value)}
+                  placeholder="Ex: Somma_A1_2026.pfx"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="certificadoExpiraEm">Validade</Label>
+                <Input
+                  id="certificadoExpiraEm"
+                  type="date"
+                  value={
+                    settings.certificadoExpiraEm
+                      ? String(settings.certificadoExpiraEm).split("T")[0]
+                      : ""
+                  }
+                  onChange={(e) =>
+                    update("certificadoExpiraEm", e.target.value || null)
+                  }
+                />
+              </div>
+            </div>
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
+              <strong>Como obter:</strong> Compre um Certificado Digital A1 em
+              autoridades certificadoras (Serasa, Certisign, Valid, AC Soluti).
+              Custa ~R$ 200/ano. O upload do arquivo (.pfx) será feito pelo
+              suporte técnico Bahflash quando o sistema estiver pronto para
+              emitir NFS-e em produção.
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Observacoes */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Observações</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <textarea
+              className="w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+              value={settings.notes || ""}
+              onChange={(e) => update("notes", e.target.value)}
+              placeholder="Notas internas sobre configuracoes fiscais..."
+            />
+          </CardContent>
+        </Card>
+
+        {/* Save button */}
+        <div className="flex justify-end gap-2 sticky bottom-0 bg-background py-3 -mx-1 px-1 border-t">
+          <Button onClick={handleSave} disabled={saving} className="gap-2">
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            Salvar Configurações
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -74,6 +74,7 @@ interface OwnerData {
   thirdPartyPixKeyType: string | null;
   thirdPartyPix: string | null;
   paymentDay: number;
+  notes: string | null;
 }
 
 interface OwnerEntry {
@@ -1153,6 +1154,17 @@ export default function RepassesPage() {
                         {/* Expanded entries */}
                         {isExpanded && (
                           <div className="bg-muted/30 border-t">
+                            {/* Aviso de observacao do proprietario */}
+                            {group.owner.notes && (
+                              <div className="px-4 py-2 bg-amber-50 border-b border-amber-200">
+                                <div className="flex items-start gap-2 text-xs text-amber-900">
+                                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                  <div>
+                                    <strong>Atencao:</strong> {group.owner.notes}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                             {/* Bank info */}
                             <div className="px-4 py-2 border-b bg-muted/50">
                               <div className="flex items-center justify-between">
@@ -1411,6 +1423,17 @@ export default function RepassesPage() {
                         {/* Expanded section */}
                         {isExpanded && (
                           <div className="bg-muted/20">
+                            {/* Aviso de observacao do proprietario (ex: 'metade vai pra irma') */}
+                            {group.owner.notes && (
+                              <div className="px-6 py-2 bg-amber-50 border-y border-amber-200">
+                                <div className="flex items-start gap-2 text-xs text-amber-900">
+                                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                  <div>
+                                    <strong>Atencao:</strong> {group.owner.notes}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                             {/* Bank info bar */}
                             <div className="px-6 py-2 bg-muted/40 border-y flex items-center gap-6 text-xs text-muted-foreground">
                               <div className="flex items-center gap-1.5">

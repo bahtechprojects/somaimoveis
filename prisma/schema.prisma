@@ -29,6 +29,49 @@ model User {
 }
 
 // ==========================================
+// CONFIGURACOES FISCAIS DA EMPRESA (NFS-e)
+// Singleton — apenas 1 registro
+// ==========================================
+
+model FiscalSettings {
+  id                   String   @id @default(cuid())
+  // Dados da empresa
+  razaoSocial          String?
+  cnpj                 String?
+  inscricaoMunicipal   String?
+  inscricaoEstadual    String?
+  // Endereco fiscal
+  street               String?
+  number               String?
+  complement           String?
+  neighborhood         String?
+  city                 String?
+  state                String?
+  zipCode              String?
+  // Tributos
+  cnae                 String?  // Codigo CNAE principal (ex: 6822-6/00)
+  codigoServicoMunicipal String?  // LC 116/2003 (ex: 17.13)
+  aliquotaIss          Float?   // % do ISS (ex: 5)
+  regimeTributario     String?  // SIMPLES_NACIONAL | LUCRO_PRESUMIDO | LUCRO_REAL | MEI
+  optanteSimples       Boolean  @default(false)
+  incentivadorCultural Boolean  @default(false)
+  retemIss             Boolean  @default(false)
+  // Certificado digital A1
+  certificadoNome      String?  // nome do arquivo (referencia)
+  certificadoExpiraEm  DateTime?
+  // Integracao
+  provedor             String?  // NFSE_NACIONAL | NFE_IO | PLUG_NOTAS | GISSONLINE | MANUAL
+  apiToken             String?  // criptografado
+  ambiente             String   @default("HOMOLOGACAO") // HOMOLOGACAO | PRODUCAO
+  // Meta
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("fiscal_settings")
+}
+
+// ==========================================
 // PROPRIETARIOS
 // ==========================================
 
