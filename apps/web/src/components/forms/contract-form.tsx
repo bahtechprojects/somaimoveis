@@ -325,7 +325,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         endDate: data.endDate,
         intermediationFee: data.intermediationFee || null,
         intermediationInstallments: data.intermediationInstallments || 1,
-        lastAdjustmentPercent: data.lastAdjustmentPercent || null,
+        lastAdjustmentPercent: data.lastAdjustmentPercent ?? null,
         renewalMonths: data.renewalMonths || 12,
         penaltyPercent: data.penaltyPercent ?? 3,
         guaranteeType: data.guaranteeType || null,

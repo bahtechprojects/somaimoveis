@@ -202,34 +202,53 @@ export async function POST(request: NextRequest) {
 
         // Calculate split values (admin fee applies to rental value proporcional)
         const adminFee = contract.adminFeePercent || 10;
-        let splitAdminValue = Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100;
+        let adminFeeBase = Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100;
 
         // Calculate intermediation fee installment if applicable
+        // Suporta tambem 1 parcela (cobranca a vista no 1o mes)
         let intermediationInstallmentValue = 0;
         let intermediationNote = "";
+        let intermediationMonthNumber = 0;
         if (
           contract.intermediationFee != null &&
-          contract.intermediationFee > 0 &&
-          contract.intermediationInstallments != null &&
-          contract.intermediationInstallments > 1
+          contract.intermediationFee > 0
         ) {
-          // Determine which month of the contract this payment falls in (1-indexed)
           const contractStartDate = new Date(contract.startDate);
           const contractMonthNumber =
             (targetYear - contractStartDate.getFullYear()) * 12 +
             (targetMonth - contractStartDate.getMonth()) + 1;
+          intermediationMonthNumber = contractMonthNumber;
 
-          if (contractMonthNumber >= 1 && contractMonthNumber <= contract.intermediationInstallments) {
-            // intermediationFee is a percentage of the rental value
-            const totalIntermediationValue = prorataRentalValue * (contract.intermediationFee / 100);
+          const installments = contract.intermediationInstallments || 1;
+          // Cobra a intermediacao apenas durante as parcelas previstas
+          if (contractMonthNumber >= 1 && contractMonthNumber <= installments) {
+            // intermediationFee eh percentual sobre aluguel cheio (nao pro-rata)
+            const baseIntermedRental = contract.rentalValue || prorataRentalValue;
+            const totalIntermediationValue = baseIntermedRental * (contract.intermediationFee / 100);
             intermediationInstallmentValue = Math.round(
-              (totalIntermediationValue / contract.intermediationInstallments) * 100
+              (totalIntermediationValue / installments) * 100
             ) / 100;
-            splitAdminValue = Math.round((splitAdminValue + intermediationInstallmentValue) * 100) / 100;
-            intermediationNote = `Intermediação parcela ${contractMonthNumber}/${contract.intermediationInstallments}: R$ ${intermediationInstallmentValue.toFixed(2)}`;
+            intermediationNote = `Intermediação parcela ${contractMonthNumber}/${installments}: R$ ${intermediationInstallmentValue.toFixed(2)}`;
           }
         }
 
+        // REGRA: se a intermediacao + taxa adm deixariam o repasse negativo,
+        // o sistema NAO cobra a taxa de administracao nesse mes (apenas intermediacao).
+        // Isso evita cobrar admin sobre um repasse que o proprietario nao receberia.
+        // Nos proximos meses (sem deficit), a taxa adm volta a ser cobrada normalmente.
+        let adminWaived = false;
+        let adminWaivedReason = "";
+        const totalRetidoSeCobrarTudo = adminFeeBase + intermediationInstallmentValue;
+        if (
+          intermediationInstallmentValue > 0 &&
+          prorataRentalValue - totalRetidoSeCobrarTudo < 0
+        ) {
+          adminFeeBase = 0;
+          adminWaived = true;
+          adminWaivedReason = `Taxa de administracao isenta no mes ${intermediationMonthNumber} (intermediacao consome o repasse)`;
+        }
+
+        const splitAdminValue = Math.round((adminFeeBase + intermediationInstallmentValue) * 100) / 100;
         const splitOwnerValue = Math.round((prorataRentalValue - splitAdminValue) * 100) / 100;
 
         // Calculate IRRF on owner's gross income (rental - admin fee).
@@ -260,6 +279,7 @@ export async function POST(request: NextRequest) {
         if (insuranceFee > 0) descParts.push(`Seguro Fianca: R$ ${insuranceFee.toFixed(2)}`);
         if (bankFee > 0) descParts.push(`Taxa Bancaria: R$ ${bankFee.toFixed(2)}`);
         if (intermediationNote) descParts.push(intermediationNote);
+        if (adminWaived) descParts.push(adminWaivedReason);
 
         // Store structured breakdown in notes for programmatic access
         const breakdown: Record<string, unknown> = {
@@ -274,9 +294,14 @@ export async function POST(request: NextRequest) {
           seguroFianca: insuranceFee,
           taxaBancaria: bankFee,
           total: totalValue,
+          adminFeePercent: adminFee,
+          adminFeeValue: adminFeeBase,
+          adminWaived,
+          adminWaivedReason: adminWaived ? adminWaivedReason : undefined,
         };
         if (intermediationInstallmentValue > 0) {
           breakdown.intermediacao = intermediationInstallmentValue;
+          breakdown.intermediacaoMes = intermediationMonthNumber;
         }
         // Detail of each tenant entry applied
         if (tenantEntries.length > 0) {
@@ -329,9 +354,13 @@ export async function POST(request: NextRequest) {
           : [];
 
         // Notes com valores TOTAIS do contrato + porcentagem do proprietário
-        // Taxa adm é sobre o valor total, depois divide pela porcentagem
+        // Taxa adm é sobre o valor total, depois divide pela porcentagem.
+        // Se adminWaived (taxa isenta no mes pq intermediacao consumiu o repasse),
+        // o totalAdminFeeValue eh ZERO.
         const baseAluguel = isProrata ? prorataRentalValue : contract.rentalValue;
-        const totalAdminFeeValue = Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100;
+        const totalAdminFeeValue = adminWaived
+          ? 0
+          : Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100;
 
         const buildOwnerNotes = (sharePercent: number) => {
           return JSON.stringify({

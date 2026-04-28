@@ -372,29 +372,30 @@ export default function ContratoDetalhePage() {
   }
 
   async function handleApplyReajuste() {
-    if (!contract || !reajustePercent) return;
+    if (!contract || reajustePercent === "" || reajustePercent == null) return;
     setReajusteLoading(true);
     try {
       const percent = parseFloat(reajustePercent);
-      if (isNaN(percent) || percent <= 0) {
+      if (isNaN(percent)) {
         toast.error("Informe um percentual valido.");
         return;
       }
-      const newRentalValue = contract.rentalValue * (1 + percent / 100);
-      const response = await fetch(`/api/contracts/${contract.id}`, {
-        method: "PUT",
+      if (percent < -50 || percent > 100) {
+        toast.error("Percentual fora do intervalo (-50% a 100%).");
+        return;
+      }
+      const response = await fetch(`/api/contracts/${contract.id}/apply-adjustment`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rentalValue: Math.round(newRentalValue * 100) / 100,
-          lastAdjustmentPercent: percent,
-          lastAdjustmentDate: new Date().toISOString(),
-        }),
+        body: JSON.stringify({ percent }),
       });
       if (!response.ok) {
         const error = await response.json();
         toast.error(error.error || "Erro ao aplicar reajuste");
         return;
       }
+      const data = await response.json();
+      toast.success(data.mensagem || "Reajuste aplicado");
       setReajusteDialogOpen(false);
       setReajustePercent("");
       fetchContract();
@@ -1246,12 +1247,17 @@ export default function ContratoDetalhePage() {
                 id="reajustePercent"
                 type="number"
                 step="0.01"
-                placeholder="Ex: 5.5"
+                min="-50"
+                max="100"
+                placeholder="Ex: 5.5 (use 0 para manter, negativo para deflacao)"
                 value={reajustePercent}
                 onChange={(e) => setReajustePercent(e.target.value)}
               />
+              <p className="text-xs text-muted-foreground">
+                Aceita 0% (mantém aluguel) e percentuais negativos (deflação).
+              </p>
             </div>
-            {reajustePercent && !isNaN(parseFloat(reajustePercent)) && parseFloat(reajustePercent) > 0 && (
+            {reajustePercent !== "" && !isNaN(parseFloat(reajustePercent)) && (
               <p className="text-sm text-muted-foreground">
                 Novo valor:{" "}
                 <span className="font-medium text-foreground">
@@ -1259,6 +1265,9 @@ export default function ContratoDetalhePage() {
                     contract.rentalValue * (1 + parseFloat(reajustePercent) / 100)
                   )}
                 </span>
+                {parseFloat(reajustePercent) === 0 && (
+                  <span className="text-emerald-700 ml-2">(mantido)</span>
+                )}
               </p>
             )}
           </div>
