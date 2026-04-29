@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requirePagePermission, isAuthError } from "@/lib/api-auth";
+import { logAudit } from "@/lib/audit-log";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -98,6 +99,14 @@ export async function POST(request: NextRequest) {
         createdById: auth.user.id,
       },
       include: { owner: { select: { id: true, name: true } } },
+    });
+    await logAudit({
+      userId: auth.user.id,
+      action: "CREATE",
+      entity: "Property",
+      entityId: property.id,
+      entityName: property.title,
+      request,
     });
     return NextResponse.json(property, { status: 201 });
   } catch (error) {

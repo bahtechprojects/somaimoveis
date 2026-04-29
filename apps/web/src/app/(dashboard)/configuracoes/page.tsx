@@ -1535,6 +1535,32 @@ export default function ConfiguracoesPage() {
           {/* ── Tab: Sistema ──────────────────────────────────────────────── */}
           <TabsContent value="sistema">
             <div className="grid gap-6 max-w-2xl">
+              {/* Link para Auditoria */}
+              <Card className="border-violet-200 bg-violet-50/50">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Database className="h-5 w-5 text-violet-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-violet-900">
+                        Auditoria do Sistema
+                      </p>
+                      <p className="text-xs text-violet-800 mt-1">
+                        Veja o histórico de criações, edições e exclusões.
+                        Filtre por usuário, tipo, ação e período.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 bg-white"
+                      asChild
+                    >
+                      <a href="/configuracoes/auditoria">Acessar</a>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
               <Card className="border-0 shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-base">

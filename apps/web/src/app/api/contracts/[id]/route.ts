@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requirePagePermission, isAuthError } from "@/lib/api-auth";
+import { logAudit, computeDiff } from "@/lib/audit-log";
 
 export async function GET(
   request: NextRequest,
@@ -92,6 +93,9 @@ export async function PUT(
       data.guarantors = guarantorsUpdate;
     }
 
+    // Capturar estado anterior para diff
+    const before = await prisma.contract.findUnique({ where: { id } });
+
     const contract = await prisma.contract.update({
       where: { id },
       data,
@@ -105,6 +109,27 @@ export async function PUT(
         },
       },
     });
+
+    if (before) {
+      // Comparar campos relevantes (exclui relations)
+      const changes = computeDiff(
+        before as unknown as Record<string, unknown>,
+        contract as unknown as Record<string, unknown>
+      );
+      if (Object.keys(changes).length > 0) {
+        await logAudit({
+          userId: auth.user.id,
+          action: "UPDATE",
+          entity: "Contract",
+          entityId: contract.id,
+          entityCode: contract.code,
+          entityName: contract.property?.title || null,
+          changes,
+          request,
+        });
+      }
+    }
+
     return NextResponse.json(contract);
   } catch (error: any) {
     if (error?.code === "P2025") {
@@ -122,7 +147,28 @@ export async function DELETE(
   if (isAuthError(auth)) return auth;
   try {
     const { id } = await params;
+
+    // Capturar dados antes de deletar (para o log)
+    const before = await prisma.contract.findUnique({
+      where: { id },
+      include: { property: { select: { title: true } } },
+    });
+
     await prisma.contract.delete({ where: { id } });
+
+    if (before) {
+      await logAudit({
+        userId: auth.user.id,
+        action: "DELETE",
+        entity: "Contract",
+        entityId: id,
+        entityCode: before.code,
+        entityName: before.property?.title || null,
+        metadata: { contractData: before },
+        request,
+      });
+    }
+
     return NextResponse.json({ message: "Contrato excluído com sucesso" });
   } catch (error: any) {
     if (error?.code === "P2025") {

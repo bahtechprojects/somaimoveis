@@ -32,9 +32,36 @@ model User {
   paymentsCreated     Payment[]     @relation("PaymentCreatedBy")
   ownerEntriesCreated OwnerEntry[]  @relation("OwnerEntryCreatedBy")
   tenantEntriesCreated TenantEntry[] @relation("TenantEntryCreatedBy")
+  auditLogs           AuditLog[]
 
   @@index([role])
   @@map("users")
+}
+
+// ==========================================
+// AUDIT LOG — registra todas as acoes (create/update/delete)
+// ==========================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   // CREATE | UPDATE | DELETE
+  entity     String   // Contract | Owner | Tenant | Property | Payment | OwnerEntry | TenantEntry | User
+  entityId   String   // ID do registro afetado
+  entityCode String?  // Codigo amigavel (ex: CTR-123, PAG-001)
+  entityName String?  // Nome amigavel (ex: nome do owner, titulo do imovel)
+  changes    String?  // JSON com diff de campos {field: {old, new}}
+  metadata   String?  // JSON livre (ex: motivo, contexto)
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 // ==========================================
