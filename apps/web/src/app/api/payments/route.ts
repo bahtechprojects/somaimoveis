@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, isAuthError } from "@/lib/api-auth";
+import { requireAuth, requirePagePermission, isAuthError } from "@/lib/api-auth";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAuth();
+  const auth = await requirePagePermission("financeiro");
   if (isAuthError(auth)) return auth;
   const body = await request.json();
   const { contractId, tenantId, ownerId, value, dueDate } = body;

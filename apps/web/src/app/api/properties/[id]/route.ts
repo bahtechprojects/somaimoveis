@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, isAuthError } from "@/lib/api-auth";
+import { requireAuth, requirePagePermission, isAuthError } from "@/lib/api-auth";
 
 export async function GET(
   request: NextRequest,
@@ -31,7 +31,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth();
+  const auth = await requirePagePermission("imoveis");
   if (isAuthError(auth)) return auth;
   try {
     const { id } = await params;
@@ -90,7 +90,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAuth();
+  const auth = await requirePagePermission("imoveis");
   if (isAuthError(auth)) return auth;
   try {
     const { id } = await params;
