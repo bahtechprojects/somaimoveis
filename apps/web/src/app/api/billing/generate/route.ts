@@ -31,10 +31,13 @@ export async function POST(request: NextRequest) {
     const monthStart = new Date(targetYear, targetMonth, 1);
     const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
 
-    // Find active contracts (status ATIVO, started before target month, not ended before it)
+    // Find active contracts (status ATIVO ou PENDENTE_RENOVACAO,
+    // started before target month, not ended before it).
+    // PENDENTE_RENOVACAO: contrato em fim mas locatario continua pagando
+    // ate definirem renovacao — deve gerar cobranca normalmente.
     const contracts = await prisma.contract.findMany({
       where: {
-        status: "ATIVO",
+        status: { in: ["ATIVO", "PENDENTE_RENOVACAO"] },
         startDate: { lte: monthEnd },
         NOT: {
           endDate: { lt: monthStart },
@@ -89,16 +92,35 @@ export async function POST(request: NextRequest) {
     let generated = 0;
     let skipped = 0;
     const errors: { contract: string; message: string }[] = [];
+    // Lista detalhada de contratos pulados com motivo
+    const skippedDetails: {
+      contract: string;
+      tenant: string | null;
+      reason: string;
+    }[] = [];
 
     for (const contract of contracts) {
+      const contractCode = contract.code;
+      const tenantName = (contract as any).tenant?.name || null;
+
       // Skip contracts without tenant (e.g. ADMINISTRACAO, VISTORIA)
       if (!contract.tenantId) {
         skipped++;
+        skippedDetails.push({
+          contract: contractCode,
+          tenant: null,
+          reason: `Contrato sem locatario vinculado (tipo ${contract.type || "desconhecido"})`,
+        });
         continue;
       }
       // Skip if payment already exists for this contract+month
       if (existingContractIds.has(contract.id)) {
         skipped++;
+        skippedDetails.push({
+          contract: contractCode,
+          tenant: tenantName,
+          reason: "Ja existe cobranca para este contrato neste mes",
+        });
         continue;
       }
 
@@ -108,6 +130,11 @@ export async function POST(request: NextRequest) {
       const csMonthCheck = contractStartDate.getUTCMonth();
       if (csYearCheck === targetYear && csMonthCheck === targetMonth) {
         skipped++;
+        skippedDetails.push({
+          contract: contractCode,
+          tenant: tenantName,
+          reason: `Contrato comeca neste mes (primeira cobranca sera no mes seguinte)`,
+        });
         console.log(`[Billing] ${contract.code}: pulando mês de início do contrato. Primeira cobrança será no mês seguinte.`);
         continue;
       }
@@ -625,6 +652,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       generated,
       skipped,
+      skippedDetails,
+      totalContratos: contracts.length,
       errors,
       month: monthLabel,
       message: generated > 0
@@ -667,8 +696,11 @@ export async function GET(request: NextRequest) {
 
     const contracts = await prisma.contract.findMany({
       where: {
-        status: "ATIVO",
+        status: { in: ["ATIVO", "PENDENTE_RENOVACAO"] },
         startDate: { lte: monthEnd },
+        NOT: {
+          endDate: { lt: monthStart },
+        },
       },
       include: {
         property: {
@@ -692,33 +724,67 @@ export async function GET(request: NextRequest) {
     });
     const existingContractIds = new Set(existingPayments.map((p) => p.contractId));
 
-    const preview = contracts.filter(c => c.tenantId).map((c) => {
-      const condoFee = c.property?.condoFee || 0;
-      const iptuMonthly = c.property?.iptuValue
-        ? Math.round((c.property.iptuValue / 12) * 100) / 100
-        : 0;
-      const totalValue = Math.round((c.rentalValue + condoFee + iptuMonthly) * 100) / 100;
+    // Contratos pulados com motivo (nao geraveis por algum motivo)
+    const skippedContracts: {
+      contractCode: string;
+      property: string;
+      tenant: string;
+      reason: string;
+    }[] = [];
 
-      return {
-        contractCode: c.code,
-        property: c.property?.title || "N/A",
-        tenant: c.tenant?.name || "N/A",
-        owner: c.owner.name,
-        rentalValue: c.rentalValue,
-        condoFee,
-        iptuMonthly,
-        value: totalValue,
-        paymentDay: c.paymentDay,
-        alreadyExists: existingContractIds.has(c.id),
-      };
-    });
+    const preview = contracts
+      .map((c) => {
+        // Sem locatario (tipo ADMINISTRACAO/VISTORIA)
+        if (!c.tenantId) {
+          skippedContracts.push({
+            contractCode: c.code,
+            property: c.property?.title || "—",
+            tenant: "—",
+            reason: `Sem locatario (tipo ${c.type || "?"})`,
+          });
+          return null;
+        }
+        // Comeca no mes alvo
+        const cs = new Date(c.startDate);
+        if (cs.getUTCFullYear() === targetYear && cs.getUTCMonth() === targetMonth) {
+          skippedContracts.push({
+            contractCode: c.code,
+            property: c.property?.title || "—",
+            tenant: c.tenant?.name || "—",
+            reason: "Inicia neste mes (1a cobranca no proximo mes)",
+          });
+          return null;
+        }
+
+        const condoFee = c.property?.condoFee || 0;
+        const iptuMonthly = c.property?.iptuValue
+          ? Math.round((c.property.iptuValue / 12) * 100) / 100
+          : 0;
+        const totalValue = Math.round((c.rentalValue + condoFee + iptuMonthly) * 100) / 100;
+
+        return {
+          contractCode: c.code,
+          property: c.property?.title || "N/A",
+          tenant: c.tenant?.name || "N/A",
+          owner: c.owner.name,
+          rentalValue: c.rentalValue,
+          condoFee,
+          iptuMonthly,
+          value: totalValue,
+          paymentDay: c.paymentDay,
+          alreadyExists: existingContractIds.has(c.id),
+        };
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null);
 
     return NextResponse.json({
       month: `${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`,
       total: contracts.length,
-      pending: contracts.length - existingContractIds.size,
-      existing: existingContractIds.size,
+      pending: preview.filter((p) => !p.alreadyExists).length,
+      existing: preview.filter((p) => p.alreadyExists).length,
+      skipped: skippedContracts.length,
       contracts: preview,
+      skippedContracts,
     });
   } catch (error) {
     console.error("Erro ao carregar preview:", error);

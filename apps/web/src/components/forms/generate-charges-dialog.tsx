@@ -30,12 +30,21 @@ interface ContractPreview {
   alreadyExists: boolean
 }
 
+interface SkippedContract {
+  contractCode: string
+  property: string
+  tenant: string
+  reason: string
+}
+
 interface PreviewData {
   month: string
   total: number
   pending: number
   existing: number
+  skipped?: number
   contracts: ContractPreview[]
+  skippedContracts?: SkippedContract[]
 }
 
 interface GenerateResult {
@@ -257,6 +266,36 @@ export function GenerateChargesDialog({
                   Excluir pendentes
                 </Button>
               </div>
+            )}
+
+            {/* Contratos pulados — nao serao gerados */}
+            {preview?.skippedContracts && preview.skippedContracts.length > 0 && (
+              <details className="rounded-md bg-orange-50 dark:bg-orange-950/30 p-3 group">
+                <summary className="text-xs font-medium text-orange-700 dark:text-orange-400 cursor-pointer flex items-center gap-2">
+                  <AlertCircleIcon className="size-3.5" />
+                  {preview.skippedContracts.length} contrato(s) nao geraveis (clique para ver motivo)
+                </summary>
+                <div className="mt-3 space-y-1.5 max-h-48 overflow-y-auto">
+                  {preview.skippedContracts.map((s, i) => (
+                    <div
+                      key={i}
+                      className="text-xs flex items-start justify-between gap-3 py-1.5 border-b border-orange-200/50 dark:border-orange-900/50 last:border-0"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-orange-900 dark:text-orange-300">
+                          {s.contractCode}
+                        </p>
+                        <p className="text-orange-700/80 dark:text-orange-400/70 truncate">
+                          {s.tenant !== "—" ? s.tenant : s.property}
+                        </p>
+                      </div>
+                      <p className="text-orange-700 dark:text-orange-400 text-right shrink-0">
+                        {s.reason}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </details>
             )}
 
             {pendingContracts.length === 0 && existingContracts.length === 0 && (
