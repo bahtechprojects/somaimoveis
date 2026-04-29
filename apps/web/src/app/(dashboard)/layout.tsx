@@ -18,6 +18,7 @@ import {
   Bell,
   UsersRound,
   Settings,
+  History,
 } from "lucide-react";
 
 const primaryItems: BottomNavItem[] = [
@@ -35,6 +36,7 @@ const moreItems: BottomNavItem[] = [
   { label: "Notas Fiscais", href: "/notas-fiscais", icon: FileText },
   { label: "Notificações", href: "/notificacoes", icon: Bell },
   { label: "Usuários", href: "/usuarios", icon: UsersRound },
+  { label: "Auditoria", href: "/configuracoes/auditoria", icon: History },
   { label: "Configurações", href: "/configuracoes", icon: Settings },
 ];
 

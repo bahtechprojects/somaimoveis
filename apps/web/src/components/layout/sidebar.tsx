@@ -30,6 +30,7 @@ import {
   Receipt,
   Menu,
   ArrowUpRight,
+  History,
 } from "lucide-react";
 
 const navigation = [
@@ -97,6 +98,12 @@ const navigation = [
     label: "Usuários",
     href: "/usuarios",
     icon: UsersRound,
+    adminOnly: true,
+  },
+  {
+    label: "Auditoria",
+    href: "/configuracoes/auditoria",
+    icon: History,
     adminOnly: true,
   },
 ];

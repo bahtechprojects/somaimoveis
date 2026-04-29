@@ -106,6 +106,7 @@ export function formatRoleLabel(role: string | null | undefined): string {
 // Rotas restritas por role (usuario precisa ter PELO MENOS UM dos roles listados)
 export const RESTRICTED_ROUTES: Record<string, string[]> = {
   "/configuracoes": ["ADMIN"],
+  "/configuracoes/auditoria": ["ADMIN"],
   "/usuarios": ["ADMIN"],
   // Repasses e notas fiscais: somente ADMIN e CORRETOR (FINANCEIRO nao acessa)
   "/repasses": ["ADMIN", "CORRETOR"],
@@ -142,6 +143,8 @@ export const PAGES: PagePermission[] = [
   // Relatorios e comunicacao
   { key: "relatorios",     label: "Relatorios",     path: "/relatorios",    group: "Relatorios" },
   { key: "notificacoes",   label: "Notificacoes",   path: "/notificacoes",  group: "Comunicacao" },
+  // Admin
+  { key: "auditoria",      label: "Auditoria",      path: "/configuracoes/auditoria", group: "Admin", adminOnly: true },
 ];
 
 /**
