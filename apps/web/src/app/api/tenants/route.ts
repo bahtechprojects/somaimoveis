@@ -7,10 +7,11 @@ export async function GET(request: NextRequest) {
   if (isAuthError(auth)) return auth;
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
+  const includeInactive = searchParams.get("includeInactive") === "true";
   const searchDigits = search ? search.replace(/\D/g, "") : "";
   const isNumericSearch = !!search && searchDigits.length >= 3;
 
-  const where: Record<string, unknown> = { active: true };
+  const where: Record<string, unknown> = includeInactive ? {} : { active: true };
   if (search) {
     const orClauses: any[] = [
       { name: { contains: search } },

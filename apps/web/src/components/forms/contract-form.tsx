@@ -167,10 +167,13 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
   useEffect(() => {
     async function fetchData() {
       try {
+        // Selects de associacao devem mostrar TODOS, inclusive inativos
+        // (caso contrario um registro temporariamente desativado some do form
+        // ao tentar reeditar contrato existente).
         const [ownersRes, tenantsRes, propertiesRes, guarantorsRes] = await Promise.all([
-          fetch("/api/owners"),
-          fetch("/api/tenants"),
-          fetch("/api/properties"),
+          fetch("/api/owners?includeInactive=true"),
+          fetch("/api/tenants?includeInactive=true"),
+          fetch("/api/properties?includeInactive=true"),
           fetch("/api/guarantors"),
         ]);
 
@@ -1075,7 +1078,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           onSuccess={() => {
             setShowNewProperty(false);
             const prevIds = new Set(properties.map(p => p.id));
-            fetch("/api/properties").then(r => r.json()).then(data => {
+            fetch("/api/properties?includeInactive=true").then(r => r.json()).then(data => {
               const list = Array.isArray(data) ? data : data.data || [];
               setProperties(list);
               const newItem = list.find((p: any) => !prevIds.has(p.id));
@@ -1091,7 +1094,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           onSuccess={() => {
             setShowNewOwner(false);
             const prevIds = new Set(owners.map(o => o.id));
-            fetch("/api/owners").then(r => r.json()).then(data => {
+            fetch("/api/owners?includeInactive=true").then(r => r.json()).then(data => {
               const list = Array.isArray(data) ? data : data.data || [];
               setOwners(list);
               const newItem = list.find((o: any) => !prevIds.has(o.id));
@@ -1107,7 +1110,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           onSuccess={() => {
             setShowNewTenant(false);
             const prevIds = new Set(tenants.map(t => t.id));
-            fetch("/api/tenants").then(r => r.json()).then(data => {
+            fetch("/api/tenants?includeInactive=true").then(r => r.json()).then(data => {
               const list = Array.isArray(data) ? data : data.data || [];
               setTenants(list);
               const newItem = list.find((t: any) => !prevIds.has(t.id));

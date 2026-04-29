@@ -164,8 +164,8 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
       try {
         const [contractsRes, ownersRes, tenantsRes] = await Promise.all([
           fetch("/api/contracts"),
-          fetch("/api/owners"),
-          fetch("/api/tenants"),
+          fetch("/api/owners?includeInactive=true"),
+          fetch("/api/tenants?includeInactive=true"),
         ]);
 
         if (contractsRes.ok) {

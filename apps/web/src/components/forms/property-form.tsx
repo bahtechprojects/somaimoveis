@@ -133,7 +133,7 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
   useEffect(() => {
     async function fetchOwners() {
       try {
-        const response = await fetch("/api/owners");
+        const response = await fetch("/api/owners?includeInactive=true");
         if (response.ok) {
           const data = await response.json();
           setOwners(data.map((o: any) => ({ id: o.id, name: o.name })));
@@ -715,7 +715,7 @@ export function PropertyForm({ open, onOpenChange, property, onSuccess }: Proper
         onSuccess={() => {
           setShowNewOwner(false);
           const prevIds = new Set(owners.map(o => o.id));
-          fetch("/api/owners").then(r => r.json()).then(data => {
+          fetch("/api/owners?includeInactive=true").then(r => r.json()).then(data => {
             const list = Array.isArray(data) ? data : data.data || [];
             setOwners(list);
             const newItem = list.find((o: any) => !prevIds.has(o.id));

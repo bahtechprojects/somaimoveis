@@ -9,8 +9,9 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status");
   const type = searchParams.get("type");
   const search = searchParams.get("search");
+  const includeInactive = searchParams.get("includeInactive") === "true";
 
-  const where: Record<string, unknown> = { active: true };
+  const where: Record<string, unknown> = includeInactive ? {} : { active: true };
   if (status && status !== "all") where.status = status;
   if (type && type !== "all") where.type = type;
   if (search) {
