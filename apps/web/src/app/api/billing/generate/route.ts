@@ -694,13 +694,13 @@ export async function GET(request: NextRequest) {
     const monthStart = new Date(targetYear, targetMonth, 1);
     const monthEnd = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59, 999);
 
+    // Inclui TODOS contratos que nao foram cancelados (status ATIVO,
+    // PENDENTE_RENOVACAO ou ENCERRADO). Os encerrados aparecem na lista
+    // de 'nao geraveis' com motivo, em vez de ficarem invisiveis.
     const contracts = await prisma.contract.findMany({
       where: {
-        status: { in: ["ATIVO", "PENDENTE_RENOVACAO"] },
+        status: { in: ["ATIVO", "PENDENTE_RENOVACAO", "ENCERRADO"] },
         startDate: { lte: monthEnd },
-        NOT: {
-          endDate: { lt: monthStart },
-        },
       },
       include: {
         property: {
@@ -734,6 +734,19 @@ export async function GET(request: NextRequest) {
 
     const preview = contracts
       .map((c) => {
+        // Status ENCERRADO ou endDate ja passou (contrato terminado)
+        const endDate = c.endDate ? new Date(c.endDate) : null;
+        if (c.status === "ENCERRADO" || (endDate && endDate < monthStart)) {
+          skippedContracts.push({
+            contractCode: c.code,
+            property: c.property?.title || "—",
+            tenant: c.tenant?.name || "—",
+            reason: c.status === "ENCERRADO"
+              ? "Contrato encerrado"
+              : `Vigencia terminou em ${endDate?.toLocaleDateString("pt-BR") || "—"}`,
+          });
+          return null;
+        }
         // Sem locatario (tipo ADMINISTRACAO/VISTORIA)
         if (!c.tenantId) {
           skippedContracts.push({
