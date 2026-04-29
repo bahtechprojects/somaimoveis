@@ -366,6 +366,7 @@ model Contract {
   // Taxa de intermediacao
   intermediationFee Float? // % taxa de intermediacao
   intermediationInstallments Int? @default(1) // Numero de parcelas da intermediacao
+  intermediacaoSaldoPendente Float @default(0) // Saldo nao descontado em mes anterior (acumula pra proximo billing)
   // Garantia
   guaranteeType  String?  // FIADOR, CAUCAO, SEGURO_FIANCA, TITULO_CAPITALIZACAO, SEM_GARANTIA
   guaranteeValue Float?

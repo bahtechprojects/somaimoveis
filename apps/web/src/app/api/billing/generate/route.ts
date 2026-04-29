@@ -228,11 +228,20 @@ export async function POST(request: NextRequest) {
         const adminFee = contract.adminFeePercent || 10;
         let adminFeeBase = Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100;
 
-        // Calculate intermediation fee installment if applicable
-        // Suporta tambem 1 parcela (cobranca a vista no 1o mes)
-        let intermediationInstallmentValue = 0;
+        // ============================================================
+        // INTERMEDIACAO COM SALDO PENDENTE (rolo)
+        // - Divide igual em N parcelas
+        // - Se a parcela do mes nao cabe no aluguel disponivel,
+        //   o que sobrou vira saldo pendente e e somado a parcela
+        //   do mes seguinte
+        // ============================================================
+        let intermediationParcelaTeorica = 0;  // valor "ideal" da parcela do mes
+        let intermediationDescontado = 0;       // quanto foi efetivamente descontado
+        let intermediationSaldoNovo = 0;        // saldo que fica pendente
         let intermediationNote = "";
         let intermediationMonthNumber = 0;
+        const saldoAnterior = contract.intermediacaoSaldoPendente || 0;
+
         if (
           contract.intermediationFee != null &&
           contract.intermediationFee > 0
@@ -244,33 +253,86 @@ export async function POST(request: NextRequest) {
           intermediationMonthNumber = contractMonthNumber;
 
           const installments = contract.intermediationInstallments || 1;
-          // Cobra a intermediacao apenas durante as parcelas previstas
+
+          // Parcela base do mes (apenas durante as parcelas previstas)
+          let parcelaBase = 0;
           if (contractMonthNumber >= 1 && contractMonthNumber <= installments) {
-            // intermediationFee eh percentual sobre aluguel cheio (nao pro-rata)
             const baseIntermedRental = contract.rentalValue || prorataRentalValue;
             const totalIntermediationValue = baseIntermedRental * (contract.intermediationFee / 100);
-            intermediationInstallmentValue = Math.round(
-              (totalIntermediationValue / installments) * 100
-            ) / 100;
-            intermediationNote = `Intermediação parcela ${contractMonthNumber}/${installments}: R$ ${intermediationInstallmentValue.toFixed(2)}`;
+            parcelaBase = Math.round((totalIntermediationValue / installments) * 100) / 100;
           }
+
+          // Total a cobrar este mes = parcela do mes + saldo nao cobrado em meses anteriores
+          intermediationParcelaTeorica = Math.round((parcelaBase + saldoAnterior) * 100) / 100;
+        } else if (saldoAnterior > 0) {
+          // Sem intermediacao nova, mas tem saldo pendente → tenta cobrar
+          intermediationParcelaTeorica = saldoAnterior;
         }
 
-        // REGRA: se a intermediacao + taxa adm deixariam o repasse negativo,
-        // o sistema NAO cobra a taxa de administracao nesse mes (apenas intermediacao).
-        // Isso evita cobrar admin sobre um repasse que o proprietario nao receberia.
-        // Nos proximos meses (sem deficit), a taxa adm volta a ser cobrada normalmente.
+        // ============================================================
+        // CALCULO DO QUE EFETIVAMENTE CABE NO REPASSE
+        // ============================================================
+        // Saldo do aluguel antes de retencoes:
+        //   prorataRentalValue (aluguel proporcional do mes)
+        //
+        // Ordem de prioridade de retencao:
+        //   1) Taxa adm (sobre aluguel pro-rata)
+        //   2) Intermediacao (parcela teorica do mes + saldo pendente)
+        //
+        // Se nao couber tudo:
+        //   a) Primeiro waive a taxa adm (Leo: 'sem repasse, sem comissao')
+        //   b) Depois reduz a intermediacao descontada e gera saldo pendente
         let adminWaived = false;
         let adminWaivedReason = "";
-        const totalRetidoSeCobrarTudo = adminFeeBase + intermediationInstallmentValue;
-        if (
-          intermediationInstallmentValue > 0 &&
-          prorataRentalValue - totalRetidoSeCobrarTudo < 0
-        ) {
-          adminFeeBase = 0;
-          adminWaived = true;
-          adminWaivedReason = `Taxa de administracao isenta no mes ${intermediationMonthNumber} (intermediacao consome o repasse)`;
+
+        // Quanto sobra apos cobrar taxa adm normal (aluguel - taxa adm)?
+        const sobraAposAdm = prorataRentalValue - adminFeeBase;
+
+        // 1) Tentativa: cobrar tudo (taxa adm + intermediacao teorica)
+        if (sobraAposAdm < intermediationParcelaTeorica) {
+          // Nao cabe — vamos waive a taxa adm primeiro
+          if (intermediationParcelaTeorica > 0) {
+            adminFeeBase = 0;
+            adminWaived = true;
+            adminWaivedReason = `Taxa de administracao isenta no mes ${intermediationMonthNumber} (intermediacao consome o repasse)`;
+          }
+
+          // Recalcula sobra
+          const sobraSemAdm = prorataRentalValue;
+
+          if (sobraSemAdm >= intermediationParcelaTeorica) {
+            // Apenas waive admin foi suficiente
+            intermediationDescontado = intermediationParcelaTeorica;
+            intermediationSaldoNovo = 0;
+          } else {
+            // Mesmo waive admin nao basta — desconta o que tem e gera saldo
+            intermediationDescontado = Math.max(0, sobraSemAdm);
+            intermediationSaldoNovo = Math.round(
+              (intermediationParcelaTeorica - intermediationDescontado) * 100
+            ) / 100;
+          }
+        } else {
+          // Cabe tudo normalmente
+          intermediationDescontado = intermediationParcelaTeorica;
+          intermediationSaldoNovo = 0;
         }
+
+        // Note explicativo
+        if (intermediationParcelaTeorica > 0) {
+          const installments = contract.intermediationInstallments || 1;
+          let noteText = `Intermediação parcela ${intermediationMonthNumber}/${installments}: R$ ${intermediationDescontado.toFixed(2)}`;
+          if (saldoAnterior > 0) {
+            noteText += ` (inclui saldo anterior R$ ${saldoAnterior.toFixed(2)})`;
+          }
+          if (intermediationSaldoNovo > 0) {
+            noteText += ` — saldo pendente para proximo mes: R$ ${intermediationSaldoNovo.toFixed(2)}`;
+          }
+          intermediationNote = noteText;
+        }
+
+        // intermediationInstallmentValue mantido como o valor efetivamente descontado
+        // (compatibilidade com o resto do codigo)
+        const intermediationInstallmentValue = intermediationDescontado;
 
         const splitAdminValue = Math.round((adminFeeBase + intermediationInstallmentValue) * 100) / 100;
         const splitOwnerValue = Math.round((prorataRentalValue - splitAdminValue) * 100) / 100;
@@ -304,6 +366,9 @@ export async function POST(request: NextRequest) {
         if (bankFee > 0) descParts.push(`Taxa Bancaria: R$ ${bankFee.toFixed(2)}`);
         if (intermediationNote) descParts.push(intermediationNote);
         if (adminWaived) descParts.push(adminWaivedReason);
+        if (intermediationSaldoNovo > 0) {
+          descParts.push(`Saldo intermediacao para proximo mes: R$ ${intermediationSaldoNovo.toFixed(2)}`);
+        }
 
         // Store structured breakdown in notes for programmatic access
         const breakdown: Record<string, unknown> = {
@@ -323,9 +388,12 @@ export async function POST(request: NextRequest) {
           adminWaived,
           adminWaivedReason: adminWaived ? adminWaivedReason : undefined,
         };
-        if (intermediationInstallmentValue > 0) {
+        if (intermediationInstallmentValue > 0 || intermediationSaldoNovo > 0 || saldoAnterior > 0) {
           breakdown.intermediacao = intermediationInstallmentValue;
           breakdown.intermediacaoMes = intermediationMonthNumber;
+          breakdown.intermediacaoParcelaTeorica = intermediationParcelaTeorica;
+          breakdown.intermediacaoSaldoAnterior = saldoAnterior;
+          breakdown.intermediacaoSaldoNovo = intermediationSaldoNovo;
         }
         // Detail of each tenant entry applied
         if (tenantEntries.length > 0) {
@@ -359,6 +427,14 @@ export async function POST(request: NextRequest) {
             notes: JSON.stringify(breakdown),
           },
         });
+
+        // Atualizar saldo pendente da intermediacao no contrato (se mudou)
+        if (intermediationSaldoNovo !== saldoAnterior) {
+          await prisma.contract.update({
+            where: { id: contract.id },
+            data: { intermediacaoSaldoPendente: intermediationSaldoNovo },
+          });
+        }
 
         // Lançamentos NÃO são marcados como PAGO aqui.
         // Serão marcados quando o pagamento for confirmado (status PAGO).
