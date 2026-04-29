@@ -24,6 +24,15 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Rastreabilidade — registros criados por este user
+  contractsCreated    Contract[]    @relation("ContractCreatedBy")
+  ownersCreated       Owner[]       @relation("OwnerCreatedBy")
+  tenantsCreated      Tenant[]      @relation("TenantCreatedBy")
+  propertiesCreated   Property[]    @relation("PropertyCreatedBy")
+  paymentsCreated     Payment[]     @relation("PaymentCreatedBy")
+  ownerEntriesCreated OwnerEntry[]  @relation("OwnerEntryCreatedBy")
+  tenantEntriesCreated TenantEntry[] @relation("TenantEntryCreatedBy")
+
   @@index([role])
   @@map("users")
 }
@@ -146,6 +155,10 @@ model Owner {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Rastreabilidade
+  createdById  String?
+  createdBy    User?    @relation("OwnerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   properties      Property[]
   propertyShares  PropertyOwner[]
   contracts       Contract[]
@@ -153,6 +166,7 @@ model Owner {
   entries         OwnerEntry[]
 
   @@index([active])
+  @@index([createdById])
   @@map("owners")
 }
 
@@ -193,12 +207,17 @@ model Tenant {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Rastreabilidade
+  createdById  String?
+  createdBy    User?    @relation("TenantCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   contracts          Contract[] @relation("ContractTenant")
   contractsAsTenant2 Contract[] @relation("ContractTenant2")
   payments  Payment[]
   entries   TenantEntry[]
 
   @@index([active])
+  @@index([createdById])
   @@map("tenants")
 }
 
@@ -247,6 +266,10 @@ model Property {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  // Rastreabilidade
+  createdById  String?
+  createdBy    User?    @relation("PropertyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   photos             PropertyPhoto[]
   ownerShares        PropertyOwner[]
   contracts          Contract[]
@@ -254,6 +277,7 @@ model Property {
 
   @@index([ownerId])
   @@index([status])
+  @@index([createdById])
   @@map("properties")
 }
 
@@ -336,6 +360,10 @@ model Contract {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  // Rastreabilidade
+  createdById    String?
+  createdBy      User?    @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   payments Payment[]
 
   @@index([status])
@@ -343,6 +371,7 @@ model Contract {
   @@index([tenantId])
   @@index([tenant2Id])
   @@index([propertyId])
+  @@index([createdById])
   @@map("contracts")
 }
 
@@ -398,12 +427,17 @@ model Payment {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Rastreabilidade
+  createdById   String?
+  createdBy     User?     @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   @@index([status])
   @@index([dueDate])
   @@index([contractId])
   @@index([tenantId])
   @@index([ownerId])
   @@index([nossoNumero])
+  @@index([createdById])
   @@map("payments")
 }
 
@@ -495,10 +529,15 @@ model TenantEntry {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Rastreabilidade
+  createdById String?
+  createdBy   User?    @relation("TenantEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   @@index([tenantId])
   @@index([type])
   @@index([status])
   @@index([dueDate])
+  @@index([createdById])
   @@map("tenant_entries")
 }
 
@@ -533,9 +572,14 @@ model OwnerEntry {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Rastreabilidade
+  createdById String?
+  createdBy   User?    @relation("OwnerEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
   @@index([ownerId])
   @@index([type])
   @@index([status])
+  @@index([createdById])
   @@map("owner_entries")
 }
 

@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
         isRecurring,
         recurringDay: isRecurring ? recurringDay : null,
         destination,
+        createdById: auth.user.id,
       },
       include: includeRelations,
     });
@@ -157,6 +158,7 @@ export async function POST(request: NextRequest) {
           isRecurring,
           recurringDay: isRecurring ? recurringDay : null,
           destination,
+          createdById: auth.user.id,
         },
         include: includeRelations,
       });
@@ -182,6 +184,7 @@ export async function POST(request: NextRequest) {
       isRecurring,
       recurringDay: isRecurring ? recurringDay : null,
       destination,
+      createdById: auth.user.id,
     },
     include: includeRelations,
   });

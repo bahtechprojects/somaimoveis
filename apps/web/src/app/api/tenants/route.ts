@@ -149,6 +149,7 @@ export async function POST(request: NextRequest) {
       monthlyIncome: body.monthlyIncome ? parseFloat(body.monthlyIncome) : null,
       paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 5,
       notes: body.notes || null,
+      createdById: auth.user.id,
     },
   });
   return NextResponse.json(tenant, { status: 201 });

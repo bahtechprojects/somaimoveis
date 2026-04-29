@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
         netToOwner: body.netToOwner ? parseFloat(body.netToOwner) : null,
         intermediationFee: body.intermediationFee ? parseFloat(body.intermediationFee) : null,
         notes: body.notes || null,
+        createdById: auth.user.id,
       },
       include: {
         tenant: { select: { id: true, name: true } },

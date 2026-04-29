@@ -21,6 +21,7 @@ export async function GET(
           select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
         },
         payments: { select: { id: true, code: true, value: true, status: true, dueDate: true } },
+        createdBy: { select: { id: true, name: true } },
       },
     });
     if (!contract) {

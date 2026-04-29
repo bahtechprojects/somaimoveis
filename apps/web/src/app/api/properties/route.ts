@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
         gasMeter: body.gasMeter || null,
         condoAdmin: body.condoAdmin || null,
         notes: body.notes || null,
+        createdById: auth.user.id,
       },
       include: { owner: { select: { id: true, name: true } } },
     });

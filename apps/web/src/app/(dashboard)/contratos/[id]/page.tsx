@@ -119,6 +119,7 @@ interface Contract {
   documentUrl: string | null;
   notes: string | null;
   createdAt: string;
+  createdBy: { id: string; name: string } | null;
   payments: Payment[];
 }
 
@@ -554,6 +555,9 @@ export default function ContratoDetalhePage() {
                 </div>
                 <p className="text-sm text-muted-foreground mt-0.5">
                   Criado em {formatDateLong(contract.createdAt)}
+                  {contract.createdBy && (
+                    <span> por <strong>{contract.createdBy.name}</strong></span>
+                  )}
                 </p>
               </div>
             </div>

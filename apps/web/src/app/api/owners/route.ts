@@ -179,6 +179,7 @@ export async function POST(request: NextRequest) {
         rgIssuer: body.rgIssuer || null,
         paymentDay: body.paymentDay ? parseInt(body.paymentDay) : 10,
         notes: body.notes || null,
+        createdById: auth.user.id,
       },
     });
     return NextResponse.json(owner, { status: 201 });

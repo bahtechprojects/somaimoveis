@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       guarantors: {
         select: { guarantor: { select: { id: true, name: true, cpfCnpj: true } } },
       },
+      createdBy: { select: { id: true, name: true } },
     };
 
     const pageParam = searchParams.get("page");
@@ -148,6 +149,8 @@ export async function POST(request: NextRequest) {
         adjustmentMonth: body.adjustmentMonth ? parseInt(String(body.adjustmentMonth)) : null,
         documentUrl: body.documentUrl || null,
         notes: body.notes || null,
+        // Rastreabilidade — quem criou
+        createdById: auth.user.id,
         guarantors: guarantorIds.length > 0 ? {
           create: guarantorIds.map((gId: string) => ({ guarantorId: gId })),
         } : undefined,

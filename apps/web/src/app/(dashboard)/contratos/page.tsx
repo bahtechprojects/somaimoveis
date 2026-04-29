@@ -88,6 +88,7 @@ interface Contract {
   property: { id: string; title: string };
   owner: { id: string; name: string };
   tenant: { id: string; name: string };
+  createdBy: { id: string; name: string } | null;
 }
 
 const statusConfig: Record<string, { label: string; className: string }> = {
@@ -477,6 +478,7 @@ function ContratosContent() {
                     <TableHead className="text-xs">Valor Aluguel</TableHead>
                     <TableHead className="text-xs">Vigencia</TableHead>
                     <TableHead className="text-xs">Status</TableHead>
+                    <TableHead className="text-xs">Cadastrado por</TableHead>
                     <TableHead className="text-xs w-10"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -524,6 +526,9 @@ function ContratosContent() {
                           <Badge variant="outline" className={cn("text-xs border", status.className)}>
                             {status.label}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {contract.createdBy?.name || "-"}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
