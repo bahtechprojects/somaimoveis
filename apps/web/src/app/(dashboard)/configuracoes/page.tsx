@@ -896,6 +896,32 @@ export default function ConfiguracoesPage() {
           {/* ── Tab: Regua de Cobranca ───────────────────────────────────── */}
           <TabsContent value="cobranca">
             <div className="space-y-6">
+              {/* Link para Configuracoes de Cobranca (multa/juros/PIX) */}
+              <Card className="border-amber-200 bg-amber-50/50 max-w-2xl">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Scale className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-amber-900">
+                        Multa, Juros e Validade do PIX
+                      </p>
+                      <p className="text-xs text-amber-800 mt-1">
+                        Sem essa configuração o PIX expira no vencimento e o
+                        cliente não consegue mais pagar via PIX após vencer.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 bg-white"
+                      asChild
+                    >
+                      <a href="/configuracoes/cobranca">Configurar</a>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Timeline preview */}
               {!loadingRules && <TimelinePreview rules={billingRules} />}
 

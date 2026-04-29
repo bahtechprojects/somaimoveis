@@ -168,8 +168,10 @@ function ContratosContent() {
     }
   }, [searchParams, router]);
 
-  // Only show LOCACAO contracts in main list (VIS/PROC/ADM are nested inside)
-  const mainContracts = contracts.filter((c) => c.type === "LOCACAO" || c.code.startsWith("CTR-"));
+  // Mostra TODOS os contratos por padrao (qualquer type/codigo).
+  // Antes filtravamos so LOCACAO ou que comecava com 'CTR-' — isso fazia
+  // sumir contratos importados de outras plataformas com codigo diferente.
+  const mainContracts = contracts;
 
   // Client-side filtering by status tab
   const filteredByStatus = mainContracts.filter((contract) => {

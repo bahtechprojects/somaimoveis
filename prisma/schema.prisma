@@ -29,6 +29,31 @@ model User {
 }
 
 // ==========================================
+// CONFIGURACOES DE COBRANCA (juros, multa, PIX validade)
+// Singleton — apenas 1 registro
+// ==========================================
+
+model BillingSettings {
+  id                       String   @id @default(cuid())
+  // Multa apos vencimento
+  multaTipo                String   @default("PERCENTUAL") // PERCENTUAL | VALOR
+  multaValor               Float    @default(2.0)         // 2% ou R$ 2,00
+  multaAposVenc            Boolean  @default(true)
+  // Juros apos vencimento
+  jurosTipo                String   @default("PERCENTUAL_MES") // PERCENTUAL_MES | PERCENTUAL_DIA | VALOR_DIA | ISENTO
+  jurosValor               Float    @default(1.0)              // 1% ao mes (~0.033%/dia)
+  // PIX cobv: dias em que o PIX continua valido apos vencer
+  validadeAposVencimentoDias Int    @default(30)
+  // Mensagens padrao
+  mensagemPadrao           String?
+  notes                    String?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("billing_settings")
+}
+
+// ==========================================
 // CONFIGURACOES FISCAIS DA EMPRESA (NFS-e)
 // Singleton — apenas 1 registro
 // ==========================================

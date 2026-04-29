@@ -48,6 +48,20 @@ export interface CreateBoletoParams {
   especieDocumento?: string;
   informativos?: string[];
   mensagens?: string[];
+  // Multa e juros apos vencimento
+  multa?: {
+    tipo: "VALOR" | "PERCENTUAL"; // Valor fixo R$ ou % sobre o valor
+    valor: number;
+    data?: string; // YYYY-MM-DD - data inicial de cobranca da multa (default: D+1 do venc)
+  };
+  juros?: {
+    tipo: "VALOR_DIA" | "PERCENTUAL_DIA" | "PERCENTUAL_MES" | "ISENTO";
+    valor: number;
+    data?: string; // YYYY-MM-DD - data inicial dos juros (default: D+1 do venc)
+  };
+  // Validade do PIX cobv apos vencimento (dias)
+  // Por padrao Sicredi expira no vencimento; setar > 0 mantem PIX valido
+  validadeAposVencimento?: number;
 }
 
 export interface CreateBoletoResult {
@@ -210,7 +224,11 @@ export async function sicrediCreateBoleto(
   const token = await sicrediAuth();
   const url = `${SICREDI_API_URL}${PATH_PREFIX}/cobranca/boleto/v1/boletos`;
 
-  const body = {
+  // Mapeia multa/juros para o formato do Sicredi
+  // Doc: tipo de multa: "VALOR" (R$) ou "PERCENTUAL" (% sobre valor do boleto)
+  // Doc: tipo de juros: "VALOR_DIA" (R$/dia), "PERCENTUAL_DIA" (%/dia),
+  //                     "PERCENTUAL_MES" (%/mes), "ISENTO" (sem juros)
+  const body: Record<string, unknown> = {
     codigoBeneficiario: SICREDI_BENEFICIARIO,
     tipoCobranca: params.tipoCobranca || "HIBRIDO",
     especieDocumento: params.especieDocumento || "DUPLICATA_MERCANTIL_INDICACAO",
@@ -222,6 +240,29 @@ export async function sicrediCreateBoleto(
     ...(params.informativos && { informativos: params.informativos }),
     ...(params.mensagens && { mensagens: params.mensagens }),
   };
+
+  // Multa apos vencimento
+  if (params.multa && params.multa.valor > 0) {
+    body.multa = {
+      tipo: params.multa.tipo, // "VALOR" | "PERCENTUAL"
+      valor: params.multa.valor,
+      ...(params.multa.data && { data: params.multa.data }),
+    };
+  }
+
+  // Juros apos vencimento
+  if (params.juros && params.juros.valor > 0) {
+    body.juros = {
+      tipo: params.juros.tipo,
+      valor: params.juros.valor,
+      ...(params.juros.data && { data: params.juros.data }),
+    };
+  }
+
+  // Validade pos-vencimento do PIX cobv (dias que o pagamento ainda eh aceito)
+  if (typeof params.validadeAposVencimento === "number" && params.validadeAposVencimento > 0) {
+    body.validadeAposVencimento = params.validadeAposVencimento;
+  }
 
   console.log(`[Sicredi] Criando boleto:`, JSON.stringify(body, null, 2));
 

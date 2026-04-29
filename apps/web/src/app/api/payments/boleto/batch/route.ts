@@ -102,6 +102,9 @@ export async function POST(request: NextRequest) {
     let emitidos = 0;
     const erros: { paymentId: string; code: string; error: string }[] = [];
 
+    // Carrega config de cobranca uma vez (singleton) — multa, juros, validade PIX
+    const billingSettings = await prisma.billingSettings.findFirst();
+
     // Processar sequencialmente para evitar rate limits
     for (let i = 0; i < payments.length; i++) {
       const payment = payments[i];
@@ -181,6 +184,28 @@ export async function POST(request: NextRequest) {
           tipoCobranca: "HIBRIDO",
           informativos: buildInformativos(payment.notes),
         };
+
+        // Aplica multa, juros e validade pos-vencimento (BillingSettings)
+        if (billingSettings) {
+          if (billingSettings.multaAposVenc && billingSettings.multaValor > 0) {
+            boletoParams.multa = {
+              tipo: billingSettings.multaTipo as "VALOR" | "PERCENTUAL",
+              valor: billingSettings.multaValor,
+            };
+          }
+          if (billingSettings.jurosTipo !== "ISENTO" && billingSettings.jurosValor > 0) {
+            boletoParams.juros = {
+              tipo: billingSettings.jurosTipo as "VALOR_DIA" | "PERCENTUAL_DIA" | "PERCENTUAL_MES" | "ISENTO",
+              valor: billingSettings.jurosValor,
+            };
+          }
+          if (billingSettings.validadeAposVencimentoDias > 0) {
+            boletoParams.validadeAposVencimento = billingSettings.validadeAposVencimentoDias;
+          }
+          if (billingSettings.mensagemPadrao) {
+            boletoParams.mensagens = [billingSettings.mensagemPadrao];
+          }
+        }
 
         // Re-verificar no banco para evitar duplicidade (race condition)
         const freshCheck = await prisma.payment.findUnique({ where: { id: payment.id }, select: { nossoNumero: true } });

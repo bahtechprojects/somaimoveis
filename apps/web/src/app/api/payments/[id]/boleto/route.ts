@@ -135,6 +135,9 @@ export async function POST(
       );
     }
 
+    // Carrega configuracoes de cobranca (singleton). Se nao existir, usa defaults.
+    const billingSettings = await prisma.billingSettings.findFirst();
+
     const boletoParams: CreateBoletoParams = {
       pagador: {
         nome: tenant.name,
@@ -160,6 +163,29 @@ export async function POST(
       tipoCobranca: "HIBRIDO",
       informativos: buildInformativos(payment.notes),
     };
+
+    // Aplica config de multa, juros e validade pos-vencimento (se existir)
+    if (billingSettings) {
+      if (billingSettings.multaAposVenc && billingSettings.multaValor > 0) {
+        boletoParams.multa = {
+          tipo: billingSettings.multaTipo as "VALOR" | "PERCENTUAL",
+          valor: billingSettings.multaValor,
+        };
+      }
+      if (billingSettings.jurosTipo !== "ISENTO" && billingSettings.jurosValor > 0) {
+        boletoParams.juros = {
+          tipo: billingSettings.jurosTipo as "VALOR_DIA" | "PERCENTUAL_DIA" | "PERCENTUAL_MES" | "ISENTO",
+          valor: billingSettings.jurosValor,
+        };
+      }
+      if (billingSettings.validadeAposVencimentoDias > 0) {
+        boletoParams.validadeAposVencimento = billingSettings.validadeAposVencimentoDias;
+      }
+      // Adicionar mensagem padrao
+      if (billingSettings.mensagemPadrao) {
+        boletoParams.mensagens = [billingSettings.mensagemPadrao];
+      }
+    }
 
     // Re-verificar no banco para evitar duplicidade (race condition de cliques duplos)
     const freshCheck = await prisma.payment.findUnique({ where: { id }, select: { nossoNumero: true } });
