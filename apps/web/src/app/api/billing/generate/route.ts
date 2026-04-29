@@ -272,40 +272,46 @@ export async function POST(request: NextRequest) {
         // ============================================================
         // CALCULO DO QUE EFETIVAMENTE CABE NO REPASSE
         // ============================================================
-        // Saldo do aluguel antes de retencoes:
-        //   prorataRentalValue (aluguel proporcional do mes)
-        //
-        // Ordem de prioridade de retencao:
-        //   1) Taxa adm (sobre aluguel pro-rata)
-        //   2) Intermediacao (parcela teorica do mes + saldo pendente)
-        //
-        // Se nao couber tudo:
-        //   a) Primeiro waive a taxa adm (Leo: 'sem repasse, sem comissao')
-        //   b) Depois reduz a intermediacao descontada e gera saldo pendente
+        // Regras:
+        // 1) PRIMEIRO MES com intermediacao: SEMPRE isenta taxa adm
+        //    (Leo: 'no primeiro mes, que tera a intermediacao, o
+        //    proprietario nao recebera nada — sem comissao')
+        // 2) Se a intermediacao nao cabe no aluguel: primeiro waive
+        //    taxa adm; depois desconta o que cabe e acumula saldo
+        // 3) Caso contrario: cobra tudo normalmente
         let adminWaived = false;
         let adminWaivedReason = "";
 
-        // Quanto sobra apos cobrar taxa adm normal (aluguel - taxa adm)?
+        // REGRA 1: 1o mes do contrato com intermediacao → isentar taxa adm
+        if (
+          intermediationParcelaTeorica > 0 &&
+          intermediationMonthNumber === 1 &&
+          adminFeeBase > 0
+        ) {
+          adminFeeBase = 0;
+          adminWaived = true;
+          adminWaivedReason = `Taxa de administracao isenta no 1o mes do contrato (mes da intermediacao)`;
+        }
+
+        // Quanto sobra apos cobrar taxa adm (que ja pode ter sido isentada acima)
         const sobraAposAdm = prorataRentalValue - adminFeeBase;
 
-        // 1) Tentativa: cobrar tudo (taxa adm + intermediacao teorica)
+        // REGRA 2: se ainda nao couber, waive admin (caso 1o mes ja tenha sido isentado, esse if nao pega)
         if (sobraAposAdm < intermediationParcelaTeorica) {
-          // Nao cabe — vamos waive a taxa adm primeiro
-          if (intermediationParcelaTeorica > 0) {
+          if (intermediationParcelaTeorica > 0 && adminFeeBase > 0) {
             adminFeeBase = 0;
             adminWaived = true;
             adminWaivedReason = `Taxa de administracao isenta no mes ${intermediationMonthNumber} (intermediacao consome o repasse)`;
           }
 
-          // Recalcula sobra
+          // Recalcula sobra (agora sem taxa adm)
           const sobraSemAdm = prorataRentalValue;
 
           if (sobraSemAdm >= intermediationParcelaTeorica) {
-            // Apenas waive admin foi suficiente
             intermediationDescontado = intermediationParcelaTeorica;
             intermediationSaldoNovo = 0;
           } else {
-            // Mesmo waive admin nao basta — desconta o que tem e gera saldo
+            // Desconta o que tem e gera saldo pendente
             intermediationDescontado = Math.max(0, sobraSemAdm);
             intermediationSaldoNovo = Math.round(
               (intermediationParcelaTeorica - intermediationDescontado) * 100
