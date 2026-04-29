@@ -182,6 +182,24 @@ function FinanceiroContent() {
   const [dateField, setDateField] = useState<"dueDate" | "paidAt" | "createdAt">("dueDate");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [monthShortcut, setMonthShortcut] = useState(""); // YYYY-MM ou ""
+
+  // Aplica atalho de mes: preenche dateFrom (1o dia) e dateTo (ultimo dia)
+  function applyMonthShortcut(monthYYYYMM: string) {
+    setMonthShortcut(monthYYYYMM);
+    if (!monthYYYYMM) {
+      setDateFrom("");
+      setDateTo("");
+      return;
+    }
+    const [y, m] = monthYYYYMM.split("-").map(Number);
+    const firstDay = new Date(y, m - 1, 1);
+    const lastDay = new Date(y, m, 0); // dia 0 do proximo = ultimo do atual
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    setDateFrom(fmt(firstDay));
+    setDateTo(fmt(lastDay));
+  }
   const [formOpen, setFormOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | undefined>(undefined);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -641,10 +659,25 @@ function FinanceiroContent() {
                     <SelectItem value="createdAt">Criado em</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {/* Atalho rapido por mes (jan/fev/.../dez) */}
+                <Input
+                  type="month"
+                  value={monthShortcut}
+                  onChange={(e) => applyMonthShortcut(e.target.value)}
+                  className="h-10 sm:h-8 w-[150px] text-xs"
+                  title="Selecionar mes inteiro"
+                />
+
+                <span className="text-xs text-muted-foreground hidden md:inline">ou</span>
+
                 <Input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    setMonthShortcut("");
+                  }}
                   className="h-10 sm:h-8 w-[140px] text-xs"
                   placeholder="De"
                   title="Data inicial"
@@ -652,7 +685,10 @@ function FinanceiroContent() {
                 <Input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    setMonthShortcut("");
+                  }}
                   className="h-10 sm:h-8 w-[140px] text-xs"
                   placeholder="Até"
                   title="Data final"
@@ -665,6 +701,7 @@ function FinanceiroContent() {
                     onClick={() => {
                       setDateFrom("");
                       setDateTo("");
+                      setMonthShortcut("");
                     }}
                   >
                     Limpar datas
