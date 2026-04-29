@@ -39,9 +39,6 @@ export async function POST(request: NextRequest) {
       where: {
         status: { in: ["ATIVO", "PENDENTE_RENOVACAO"] },
         startDate: { lte: monthEnd },
-        NOT: {
-          endDate: { lt: monthStart },
-        },
       },
       include: {
         property: {
@@ -734,16 +731,15 @@ export async function GET(request: NextRequest) {
 
     const preview = contracts
       .map((c) => {
-        // Status ENCERRADO ou endDate ja passou (contrato terminado)
-        const endDate = c.endDate ? new Date(c.endDate) : null;
-        if (c.status === "ENCERRADO" || (endDate && endDate < monthStart)) {
+        // So pula se status=ENCERRADO. Contratos ATIVO/PENDENTE_RENOVACAO
+        // com endDate no passado continuam vigentes (renovacao automatica
+        // ou aguardando definicao) — devem gerar cobranca normalmente.
+        if (c.status === "ENCERRADO") {
           skippedContracts.push({
             contractCode: c.code,
             property: c.property?.title || "—",
             tenant: c.tenant?.name || "—",
-            reason: c.status === "ENCERRADO"
-              ? "Contrato encerrado"
-              : `Vigencia terminou em ${endDate?.toLocaleDateString("pt-BR") || "—"}`,
+            reason: "Contrato encerrado",
           });
           return null;
         }
