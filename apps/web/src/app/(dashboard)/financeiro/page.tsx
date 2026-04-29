@@ -18,6 +18,13 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -75,6 +82,7 @@ interface Payment {
   discountValue: number | null;
   dueDate: string;
   paidAt: string | null;
+  createdAt: string;
   status: string;
   paymentMethod: string | null;
   description: string | null;
@@ -170,6 +178,10 @@ function FinanceiroContent() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState("todos");
+  // Filtros de data
+  const [dateField, setDateField] = useState<"dueDate" | "paidAt" | "createdAt">("dueDate");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<Payment | undefined>(undefined);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -254,8 +266,25 @@ function FinanceiroContent() {
     return true;
   });
 
+  // Client-side filter by date range
+  const filteredByDate = filteredByStatus.filter((payment) => {
+    if (!dateFrom && !dateTo) return true;
+    const fieldValue = payment[dateField];
+    if (!fieldValue) return false;
+    const date = new Date(fieldValue);
+    if (dateFrom) {
+      const from = new Date(`${dateFrom}T00:00:00`);
+      if (date < from) return false;
+    }
+    if (dateTo) {
+      const to = new Date(`${dateTo}T23:59:59`);
+      if (date > to) return false;
+    }
+    return true;
+  });
+
   // Client-side search
-  const filteredPayments = filteredByStatus.filter((payment) => {
+  const filteredPayments = filteredByDate.filter((payment) => {
     if (!search) return true;
     const term = search.toLowerCase();
     return (
@@ -590,14 +619,57 @@ function FinanceiroContent() {
                   <span className="sm:hidden">Nova</span>
                 </Button>
               </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar pagamento..."
+                    className="pl-9 h-10 sm:h-8 w-full sm:w-[200px] text-sm sm:text-xs"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+
+                {/* Filtro por data */}
+                <Select value={dateField} onValueChange={(v) => setDateField(v as typeof dateField)}>
+                  <SelectTrigger className="h-10 sm:h-8 w-[130px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="dueDate">Vencimento</SelectItem>
+                    <SelectItem value="paidAt">Pagamento</SelectItem>
+                    <SelectItem value="createdAt">Criado em</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Input
-                  placeholder="Buscar pagamento..."
-                  className="pl-9 h-10 sm:h-8 w-full sm:w-[200px] text-sm sm:text-xs"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="h-10 sm:h-8 w-[140px] text-xs"
+                  placeholder="De"
+                  title="Data inicial"
                 />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="h-10 sm:h-8 w-[140px] text-xs"
+                  placeholder="Até"
+                  title="Data final"
+                />
+                {(dateFrom || dateTo) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-10 sm:h-8 text-xs"
+                    onClick={() => {
+                      setDateFrom("");
+                      setDateTo("");
+                    }}
+                  >
+                    Limpar datas
+                  </Button>
+                )}
               </div>
             </div>
 
