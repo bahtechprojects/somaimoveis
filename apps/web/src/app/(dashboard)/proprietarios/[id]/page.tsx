@@ -28,6 +28,23 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
   ArrowLeft,
   Pencil,
   Trash2,
@@ -50,6 +67,8 @@ import {
   Link2,
   MessageCircle,
   Send,
+  Users,
+  Plus,
 } from "lucide-react";
 
 // ========================================
@@ -103,6 +122,7 @@ interface OwnerDetail {
   bankAgency: string | null;
   bankAccount: string | null;
   bankPix: string | null;
+  bankPixType: string | null;
   notes: string | null;
   active: boolean;
   createdAt: string;
@@ -203,6 +223,147 @@ export default function OwnerDetailPage() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
 
+  // Recebedores (multi-PIX)
+  type Recipient = {
+    id: string;
+    name: string;
+    cpfCnpj: string | null;
+    bankPix: string | null;
+    bankPixType: string | null;
+    bankName: string | null;
+    bankAgency: string | null;
+    bankAccount: string | null;
+    sharePercent: number;
+    notes: string | null;
+    active: boolean;
+  };
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [recipientsTotalShare, setRecipientsTotalShare] = useState(0);
+  const [recipientFormOpen, setRecipientFormOpen] = useState(false);
+  const [editingRecipient, setEditingRecipient] = useState<Recipient | null>(null);
+  const [recipientLoading, setRecipientLoading] = useState(false);
+  const [recipientForm, setRecipientForm] = useState({
+    name: "",
+    cpfCnpj: "",
+    bankPix: "",
+    bankPixType: "",
+    bankName: "",
+    bankAgency: "",
+    bankAccount: "",
+    sharePercent: "100",
+    notes: "",
+  });
+
+  async function fetchRecipients(ownerId: string) {
+    try {
+      const r = await fetch(`/api/owners/${ownerId}/recipients`);
+      if (r.ok) {
+        const data = await r.json();
+        setRecipients(data.recipients || []);
+        setRecipientsTotalShare(data.totalShare || 0);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  function openRecipientForm(rec?: Recipient) {
+    if (rec) {
+      setEditingRecipient(rec);
+      setRecipientForm({
+        name: rec.name,
+        cpfCnpj: rec.cpfCnpj || "",
+        bankPix: rec.bankPix || "",
+        bankPixType: rec.bankPixType || "",
+        bankName: rec.bankName || "",
+        bankAgency: rec.bankAgency || "",
+        bankAccount: rec.bankAccount || "",
+        sharePercent: String(rec.sharePercent),
+        notes: rec.notes || "",
+      });
+    } else {
+      setEditingRecipient(null);
+      // Pre-popular com dados do proprio owner se for o primeiro
+      const remaining = Math.max(1, 100 - recipientsTotalShare);
+      setRecipientForm({
+        name: recipients.length === 0 && owner ? owner.name : "",
+        cpfCnpj: recipients.length === 0 && owner ? owner.cpfCnpj : "",
+        bankPix: recipients.length === 0 && owner ? owner.bankPix || "" : "",
+        bankPixType: recipients.length === 0 && owner ? owner.bankPixType || "" : "",
+        bankName: recipients.length === 0 && owner ? owner.bankName || "" : "",
+        bankAgency: recipients.length === 0 && owner ? owner.bankAgency || "" : "",
+        bankAccount: recipients.length === 0 && owner ? owner.bankAccount || "" : "",
+        sharePercent: String(remaining),
+        notes: "",
+      });
+    }
+    setRecipientFormOpen(true);
+  }
+
+  async function saveRecipient() {
+    if (!owner) return;
+    if (!recipientForm.name.trim()) {
+      toast.error("Informe o nome");
+      return;
+    }
+    const pct = parseFloat(recipientForm.sharePercent);
+    if (isNaN(pct) || pct <= 0 || pct > 100) {
+      toast.error("Percentual deve ser > 0 e ≤ 100");
+      return;
+    }
+    setRecipientLoading(true);
+    try {
+      const payload = {
+        name: recipientForm.name.trim(),
+        cpfCnpj: recipientForm.cpfCnpj.trim() || null,
+        bankPix: recipientForm.bankPix.trim() || null,
+        bankPixType: recipientForm.bankPixType || null,
+        bankName: recipientForm.bankName.trim() || null,
+        bankAgency: recipientForm.bankAgency.trim() || null,
+        bankAccount: recipientForm.bankAccount.trim() || null,
+        sharePercent: pct,
+        notes: recipientForm.notes.trim() || null,
+      };
+      const url = editingRecipient
+        ? `/api/owner-recipients/${editingRecipient.id}`
+        : `/api/owners/${owner.id}/recipients`;
+      const method = editingRecipient ? "PUT" : "POST";
+      const r = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const err = await r.json();
+        throw new Error(err.error || "Erro ao salvar");
+      }
+      toast.success(editingRecipient ? "Recebedor atualizado" : "Recebedor adicionado");
+      setRecipientFormOpen(false);
+      fetchRecipients(owner.id);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao salvar");
+    } finally {
+      setRecipientLoading(false);
+    }
+  }
+
+  async function removeRecipient(rec: Recipient) {
+    if (!confirm(`Remover recebedor "${rec.name}"?`)) return;
+    try {
+      const r = await fetch(`/api/owner-recipients/${rec.id}?hard=true`, {
+        method: "DELETE",
+      });
+      if (!r.ok) {
+        const err = await r.json();
+        throw new Error(err.error || "Erro ao remover");
+      }
+      toast.success("Recebedor removido");
+      if (owner) fetchRecipients(owner.id);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao remover");
+    }
+  }
+
   async function fetchOwner() {
     setLoading(true);
     setNotFound(false);
@@ -215,6 +376,8 @@ export default function OwnerDetailPage() {
       if (!response.ok) throw new Error("Erro ao buscar proprietario");
       const data = await response.json();
       setOwner(data);
+      // Carregar recebedores em paralelo
+      fetchRecipients(data.id);
     } catch (error) {
       console.error("Erro ao buscar proprietario:", error);
     } finally {
@@ -608,6 +771,125 @@ export default function OwnerDetailPage() {
           </Card>
         </div>
 
+        {/* Recebedores (multi-PIX) */}
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-semibold">Recebedores</h3>
+                {recipients.length > 0 && (
+                  <Badge
+                    variant="outline"
+                    className={
+                      Math.abs(recipientsTotalShare - 100) < 0.01
+                        ? "bg-emerald-100 text-emerald-700 border-emerald-200 text-xs"
+                        : "bg-amber-100 text-amber-700 border-amber-200 text-xs"
+                    }
+                  >
+                    Total: {recipientsTotalShare.toFixed(2)}%
+                  </Badge>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => openRecipientForm()}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Adicionar Recebedor
+              </Button>
+            </div>
+
+            {recipients.length === 0 ? (
+              <div className="rounded-lg bg-muted/30 p-4 text-center text-sm text-muted-foreground">
+                Nenhum recebedor cadastrado.
+                <br />
+                <span className="text-xs">
+                  Por padrão, o repasse vai para os dados bancários acima do proprietário.
+                  <br />
+                  Configure recebedores apenas se o repasse precisa ser dividido entre
+                  múltiplas pessoas (ex: parte pra você, parte pra um familiar).
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {recipients.map((rec) => (
+                    <div
+                      key={rec.id}
+                      className="flex items-start gap-3 p-3 rounded-lg border hover:bg-muted/30"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                        <span className="text-xs font-bold text-primary">
+                          {rec.sharePercent.toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">{rec.name}</p>
+                          {rec.cpfCnpj && (
+                            <span className="text-xs text-muted-foreground">
+                              {rec.cpfCnpj}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-3 mt-1 text-xs text-muted-foreground">
+                          {rec.bankPix && (
+                            <span>
+                              PIX{rec.bankPixType ? ` (${rec.bankPixType})` : ""}: <strong>{rec.bankPix}</strong>
+                            </span>
+                          )}
+                          {rec.bankName && rec.bankAgency && rec.bankAccount && (
+                            <span>
+                              {rec.bankName} | Ag {rec.bankAgency} | Cc {rec.bankAccount}
+                            </span>
+                          )}
+                          {!rec.bankPix && !(rec.bankName && rec.bankAgency) && (
+                            <span className="text-amber-600">Sem dados bancários</span>
+                          )}
+                        </div>
+                        {rec.notes && (
+                          <p className="text-xs text-muted-foreground mt-1 italic">
+                            {rec.notes}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          onClick={() => openRecipientForm(rec)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => removeRecipient(rec)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {Math.abs(recipientsTotalShare - 100) > 0.01 && (
+                  <div className="mt-3 rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
+                    ⚠️ A soma dos percentuais é{" "}
+                    <strong>{recipientsTotalShare.toFixed(2)}%</strong>. Ajuste para
+                    totalizar 100% antes de gerar repasses.
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Portal do Proprietário */}
         <Card className="border-0 shadow-sm">
           <CardContent className="p-5">
@@ -887,6 +1169,137 @@ export default function OwnerDetailPage() {
         owner={owner}
         onSuccess={handleFormSuccess}
       />
+
+      {/* Recipient Form Dialog */}
+      <Dialog open={recipientFormOpen} onOpenChange={setRecipientFormOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingRecipient ? "Editar Recebedor" : "Adicionar Recebedor"}
+            </DialogTitle>
+            <DialogDescription>
+              Configure quem recebe e qual % do repasse. A soma dos recebedores
+              ativos deve totalizar 100%.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="grid gap-1.5 col-span-2">
+                <Label htmlFor="rec-name">Nome do Recebedor *</Label>
+                <Input
+                  id="rec-name"
+                  value={recipientForm.name}
+                  onChange={(e) => setRecipientForm({ ...recipientForm, name: e.target.value })}
+                  placeholder="Ex: Maria (irma)"
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="rec-pct">% do Repasse *</Label>
+                <Input
+                  id="rec-pct"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max="100"
+                  value={recipientForm.sharePercent}
+                  onChange={(e) => setRecipientForm({ ...recipientForm, sharePercent: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="rec-doc">CPF/CNPJ</Label>
+              <Input
+                id="rec-doc"
+                value={recipientForm.cpfCnpj}
+                onChange={(e) => setRecipientForm({ ...recipientForm, cpfCnpj: e.target.value })}
+                placeholder="Opcional"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="rec-pix-type">Tipo PIX</Label>
+                <Select
+                  value={recipientForm.bankPixType || "_none"}
+                  onValueChange={(v) =>
+                    setRecipientForm({ ...recipientForm, bankPixType: v === "_none" ? "" : v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">—</SelectItem>
+                    <SelectItem value="CPF">CPF</SelectItem>
+                    <SelectItem value="CNPJ">CNPJ</SelectItem>
+                    <SelectItem value="EMAIL">Email</SelectItem>
+                    <SelectItem value="TELEFONE">Telefone</SelectItem>
+                    <SelectItem value="ALEATORIA">Aleatória</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="rec-pix">Chave PIX</Label>
+                <Input
+                  id="rec-pix"
+                  value={recipientForm.bankPix}
+                  onChange={(e) => setRecipientForm({ ...recipientForm, bankPix: e.target.value })}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Ou preencha os dados bancários (TED) abaixo:
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="grid gap-1.5 col-span-2">
+                <Label htmlFor="rec-bank">Banco</Label>
+                <Input
+                  id="rec-bank"
+                  value={recipientForm.bankName}
+                  onChange={(e) => setRecipientForm({ ...recipientForm, bankName: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="rec-ag">Agência</Label>
+                <Input
+                  id="rec-ag"
+                  value={recipientForm.bankAgency}
+                  onChange={(e) => setRecipientForm({ ...recipientForm, bankAgency: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-1.5 col-span-3">
+                <Label htmlFor="rec-cc">Conta</Label>
+                <Input
+                  id="rec-cc"
+                  value={recipientForm.bankAccount}
+                  onChange={(e) => setRecipientForm({ ...recipientForm, bankAccount: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="rec-notes">Observações</Label>
+              <Input
+                id="rec-notes"
+                value={recipientForm.notes}
+                onChange={(e) => setRecipientForm({ ...recipientForm, notes: e.target.value })}
+                placeholder="Ex: Irmã - dividir o aluguel"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRecipientFormOpen(false)}
+              disabled={recipientLoading}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={saveRecipient} disabled={recipientLoading}>
+              {recipientLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingRecipient ? "Salvar" : "Adicionar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

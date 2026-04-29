@@ -126,9 +126,45 @@ model Owner {
   contracts       Contract[]
   payments        Payment[]
   entries         OwnerEntry[]
+  recipients      OwnerRecipient[]
 
   @@index([active])
   @@map("owners")
+}
+
+// ==========================================
+// RECEBEDORES DO PROPRIETARIO
+// Permite que o repasse seja dividido entre N pessoas com diferentes
+// dados bancarios (ex: Roberta declara IR sozinha, mas metade do
+// aluguel vai pro PIX dela e metade pro PIX da irma).
+// Quando o proprietario tem 1+ recipient, o repasse eh dividido
+// conforme sharePercent. Soma deve dar 100%.
+// ==========================================
+
+model OwnerRecipient {
+  id           String   @id @default(cuid())
+  ownerId      String
+  // Identificacao do recebedor
+  name         String   // pode ser o proprio owner ou outra pessoa
+  cpfCnpj      String?  // documento do recebedor (opcional)
+  // Dados bancarios proprios
+  bankName     String?
+  bankAgency   String?
+  bankAccount  String?
+  bankPix      String?
+  bankPixType  String?  // CPF | CNPJ | EMAIL | TELEFONE | ALEATORIA
+  // Distribuicao
+  sharePercent Float    // % do repasse para esse recebedor (soma de todos = 100)
+  // Meta
+  notes        String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  owner Owner @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
+  @@map("owner_recipients")
 }
 
 // ==========================================
