@@ -8,9 +8,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const search = searchParams.get("search");
+  const contractId = searchParams.get("contractId");
 
   const where: Record<string, unknown> = {};
   if (status && status !== "all") where.status = status;
+  if (contractId) where.contractId = contractId;
   if (search) {
     where.OR = [
       { code: { contains: search } },

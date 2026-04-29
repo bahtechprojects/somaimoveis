@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PaymentDetailSheet } from "@/components/financeiro/payment-detail-sheet";
 import {
   Tooltip,
   TooltipContent,
@@ -182,6 +183,14 @@ function FinanceiroContent() {
   const [dateField, setDateField] = useState<"dueDate" | "paidAt" | "createdAt">("dueDate");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // Sheet lateral de detalhe (conferencia rapida)
+  const [detailPaymentId, setDetailPaymentId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  function openDetail(paymentId: string) {
+    setDetailPaymentId(paymentId);
+    setDetailOpen(true);
+  }
   const [monthShortcut, setMonthShortcut] = useState(""); // YYYY-MM ou ""
 
   // Aplica atalho de mes: preenche dateFrom (1o dia) e dateTo (ultimo dia)
@@ -736,7 +745,7 @@ function FinanceiroContent() {
                   const StatusIcon = status.icon;
                   const breakdown = parseBreakdown(payment.notes);
                   return (
-                    <div key={payment.id} className="p-4 active:bg-muted/50 cursor-pointer" onClick={() => router.push(`/contratos/${payment.contractId}`)}>
+                    <div key={payment.id} className="p-4 active:bg-muted/50 cursor-pointer" onClick={() => openDetail(payment.id)}>
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
@@ -943,7 +952,7 @@ function FinanceiroContent() {
                     const StatusIcon = status.icon;
                     const breakdown = parseBreakdown(payment.notes);
                     return (
-                      <TableRow key={payment.id} className="cursor-pointer" onClick={() => router.push(`/contratos/${payment.contractId}`)}>
+                      <TableRow key={payment.id} className="cursor-pointer hover:bg-muted/30" onClick={() => openDetail(payment.id)}>
                         <TableCell className="font-mono text-xs">{payment.code}</TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {payment.contract.code}
@@ -1232,6 +1241,18 @@ function FinanceiroContent() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Sheet lateral de detalhe (conferencia rapida) */}
+      <PaymentDetailSheet
+        paymentId={detailPaymentId}
+        payments={payments as any}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onMarkPaid={(id) => {
+          const p = payments.find((x) => x.id === id);
+          if (p) handleMarkAsPaid(p as Payment);
+        }}
+      />
     </div>
   );
 }
