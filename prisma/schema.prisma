@@ -565,6 +565,7 @@ model TenantEntry {
   @@index([type])
   @@index([status])
   @@index([dueDate])
+  @@index([createdAt])
   @@index([createdById])
   @@map("tenant_entries")
 }
@@ -607,6 +608,8 @@ model OwnerEntry {
   @@index([ownerId])
   @@index([type])
   @@index([status])
+  @@index([dueDate])
+  @@index([createdAt])
   @@index([createdById])
   @@map("owner_entries")
 }

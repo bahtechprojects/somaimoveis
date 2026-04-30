@@ -159,9 +159,17 @@ function LancamentosContent() {
   const [owners, setOwners] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [activeTab, setActiveTab] = useState("todos");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [sourceFilter, setSourceFilter] = useState("todos"); // todos, locatario, proprietario
+  // Server-side pagination
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 50;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalEntries, setTotalEntries] = useState(0);
+  const [totalDebitos, setTotalDebitos] = useState(0);
+  const [totalCreditos, setTotalCreditos] = useState(0);
   const [formOpen, setFormOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<EntryItem | null>(null);
@@ -186,45 +194,61 @@ function LancamentosContent() {
   const [editingEntry, setEditingEntry] = useState<EntryItem | null>(null);
   const [editOpen, setEditOpen] = useState(false);
 
+  function buildQueryParams() {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(PAGE_SIZE));
+    if (sourceFilter !== "todos") params.set("source", sourceFilter);
+    if (activeTab === "debitos") params.set("type", "DEBITO");
+    if (activeTab === "creditos") params.set("type", "CREDITO");
+    if (statusFilter !== "todos") params.set("status", statusFilter);
+    if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+    return params.toString();
+  }
+
   async function fetchEntries() {
     setLoading(true);
     try {
-      const [tenantRes, ownerRes] = await Promise.all([
-        fetch("/api/tenant-entries"),
-        fetch("/api/owner-entries"),
-      ]);
-
-      const allEntries: EntryItem[] = [];
-
-      if (tenantRes.ok) {
-        const tenantData = await tenantRes.json();
-        for (const e of tenantData) {
-          allEntries.push({
-            ...e,
-            entrySource: "tenant" as const,
-            personName: e.tenant?.name || "N/A",
-          });
-        }
-      }
-
-      if (ownerRes.ok) {
-        const ownerData = await ownerRes.json();
-        for (const e of ownerData) {
-          allEntries.push({
-            ...e,
-            entrySource: "owner" as const,
-            personName: e.owner?.name || "N/A",
-          });
-        }
-      }
-
-      // Ordenar por data de criacao (mais recente primeiro)
-      allEntries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setEntries(allEntries);
+      const qs = buildQueryParams();
+      const res = await fetch(`/api/entries?${qs}`);
+      if (!res.ok) throw new Error("Failed to fetch entries");
+      const data = await res.json();
+      setEntries(
+        (data.data || []).map((e: any) => ({
+          ...e,
+          // Normalize date fields to ISO strings for display utilities
+          dueDate: e.dueDate ? new Date(e.dueDate).toISOString() : null,
+          createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : new Date().toISOString(),
+        })),
+      );
+      setTotalPages(data.pagination?.totalPages || 1);
+      setTotalEntries(data.pagination?.total || 0);
     } catch (error) {
       console.error("Erro ao buscar lancamentos:", error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function refresh() {
+    await Promise.all([fetchEntries(), fetchStats()]);
+  }
+
+  async function fetchStats() {
+    try {
+      const params = new URLSearchParams();
+      if (sourceFilter !== "todos") params.set("source", sourceFilter);
+      if (activeTab === "debitos") params.set("type", "DEBITO");
+      if (activeTab === "creditos") params.set("type", "CREDITO");
+      if (statusFilter !== "todos") params.set("status", statusFilter);
+      if (debouncedSearch.trim()) params.set("search", debouncedSearch.trim());
+      const res = await fetch(`/api/entries/stats?${params.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setTotalDebitos(data.totalDebitos || 0);
+      setTotalCreditos(data.totalCreditos || 0);
+    } catch (error) {
+      console.error("Erro ao buscar stats:", error);
     }
   }
 
@@ -247,42 +271,37 @@ function LancamentosContent() {
     }
   }
 
+  // Initial mount: fetch people only once
   useEffect(() => {
-    fetchEntries();
     fetchPeople();
   }, []);
 
-  // Filter by source (locatario/proprietario)
-  const filteredBySource = entries.filter((entry) => {
-    if (sourceFilter === "todos") return true;
-    if (sourceFilter === "locatario") return entry.entrySource === "tenant";
-    if (sourceFilter === "proprietario") return entry.entrySource === "owner";
-    return true;
-  });
+  // Debounce search input (avoid fetching on every keystroke)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  // Filter by type tab
-  const filteredByType = filteredBySource.filter((entry) => {
-    if (activeTab === "todos") return true;
-    if (activeTab === "debitos") return entry.type === "DEBITO";
-    if (activeTab === "creditos") return entry.type === "CREDITO";
-    return true;
-  });
+  // Reset to page 1 when filters or search change
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds(new Set());
+  }, [sourceFilter, activeTab, statusFilter, debouncedSearch]);
 
-  // Filter by status
-  const filteredByStatus = filteredByType.filter((entry) => {
-    if (statusFilter === "todos") return true;
-    return entry.status === statusFilter;
-  });
+  // Clear selection when navigating to a different page
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page]);
 
-  // Search filter
-  const filteredEntries = filteredByStatus.filter((entry) => {
-    if (!search) return true;
-    const term = search.toLowerCase();
-    return (
-      entry.personName.toLowerCase().includes(term) ||
-      (entry.description || "").toLowerCase().includes(term)
-    );
-  });
+  // Refetch entries + stats when filters/page/search change
+  useEffect(() => {
+    fetchEntries();
+    fetchStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, sourceFilter, activeTab, statusFilter, debouncedSearch]);
+
+  // Server already filtered — entries are the page rows
+  const filteredEntries = entries;
 
   // Group installments: entries with same parentEntryId or parent itself
   interface EntryGroup {
@@ -373,13 +392,7 @@ function LancamentosContent() {
     });
   }
 
-  // Summary
-  const totalDebitos = entries
-    .filter((e) => e.type === "DEBITO" && e.status !== "CANCELADO")
-    .reduce((sum, e) => sum + e.value, 0);
-  const totalCreditos = entries
-    .filter((e) => e.type === "CREDITO" && e.status !== "CANCELADO")
-    .reduce((sum, e) => sum + e.value, 0);
+  // Summary comes from server (totalDebitos / totalCreditos / totalEntries)
 
   function resetForm() {
     setFormTarget("locatario");
@@ -448,6 +461,7 @@ function LancamentosContent() {
       setEditOpen(false);
       setEditingEntry(null);
       fetchEntries();
+      fetchStats();
     } catch {
       toast.error("Erro ao atualizar lancamento");
     } finally {
@@ -473,6 +487,7 @@ function LancamentosContent() {
       }
       toast.success(`Lançamento de ${entry.personName} marcado como pago`);
       fetchEntries();
+      fetchStats();
     } catch {
       toast.error("Erro ao marcar como pago");
     }
@@ -495,6 +510,7 @@ function LancamentosContent() {
       }
       toast.success("Status revertido para pendente");
       fetchEntries();
+      fetchStats();
     } catch {
       toast.error("Erro ao reverter status");
     }
@@ -514,6 +530,7 @@ function LancamentosContent() {
       }
       toast.success("Lançamento cancelado");
       fetchEntries();
+      fetchStats();
     } catch {
       toast.error("Erro ao cancelar lançamento");
     }
@@ -572,7 +589,7 @@ function LancamentosContent() {
       }
       setFormOpen(false);
       resetForm();
-      fetchEntries();
+      refresh();
     } catch (error) {
       toast.error("Erro ao criar lancamento");
     } finally {
@@ -597,7 +614,7 @@ function LancamentosContent() {
         toast.error(error.error || "Erro ao excluir lancamento");
         return;
       }
-      fetchEntries();
+      refresh();
     } catch (error) {
       toast.error("Erro ao excluir lancamento");
     } finally {
@@ -641,7 +658,7 @@ function LancamentosContent() {
     else toast.success(`${ids.length} lançamento(s) excluído(s)`);
     setSelectedIds(new Set());
     setBulkDeleteDialogOpen(false);
-    fetchEntries();
+    refresh();
   }
 
   function renderEntryActions(entry: EntryItem) {
@@ -684,7 +701,7 @@ function LancamentosContent() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">Total Lançamentos</p>
-                  <p className="text-2xl font-bold mt-1">{loading ? "..." : entries.length}</p>
+                  <p className="text-2xl font-bold mt-1">{loading && totalEntries === 0 ? "..." : totalEntries.toLocaleString("pt-BR")}</p>
                 </div>
               </div>
             </CardContent>
@@ -1153,6 +1170,56 @@ function LancamentosContent() {
                   </Table>
                 </div>
               </>
+            )}
+
+            {/* Pagination */}
+            {totalEntries > PAGE_SIZE && (
+              <div className="flex items-center justify-between gap-2 px-4 py-3 border-t flex-wrap">
+                <p className="text-xs text-muted-foreground">
+                  Mostrando {Math.min((page - 1) * PAGE_SIZE + 1, totalEntries)}-{Math.min(page * PAGE_SIZE, totalEntries)} de {totalEntries.toLocaleString("pt-BR")}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage(1)}
+                  >
+                    Primeira
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Anterior
+                  </Button>
+                  <span className="text-xs text-muted-foreground px-2">
+                    Pagina {page} de {totalPages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Proxima
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage(totalPages)}
+                  >
+                    Ultima
+                  </Button>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
