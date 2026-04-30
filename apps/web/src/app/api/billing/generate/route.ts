@@ -121,22 +121,34 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Contrato que começa no mês alvo: primeira cobrança é no mês seguinte
-      const contractStartDate = new Date(contract.startDate);
-      const csYearCheck = contractStartDate.getUTCFullYear();
-      const csMonthCheck = contractStartDate.getUTCMonth();
+      // Contrato que comeca no mes alvo: pula este mes
+      // (paymentDay provavelmente eh anterior ao inicio do contrato)
+      // → o pro-rata sera incluido como CATCH-UP no boleto do mes seguinte
+      const contractStartDateRaw = new Date(contract.startDate);
+      const csYearCheck = contractStartDateRaw.getUTCFullYear();
+      const csMonthCheck = contractStartDateRaw.getUTCMonth();
       if (csYearCheck === targetYear && csMonthCheck === targetMonth) {
         skipped++;
         skippedDetails.push({
           contract: contractCode,
           tenant: tenantName,
-          reason: `Contrato comeca neste mes (primeira cobranca sera no mes seguinte)`,
+          reason: `Contrato comeca neste mes — pro-rata sera incluido na 1a cobranca do mes seguinte`,
         });
-        console.log(`[Billing] ${contract.code}: pulando mês de início do contrato. Primeira cobrança será no mês seguinte.`);
+        console.log(`[Billing] ${contract.code}: pulando mes de inicio. Pro-rata sera adicionado como catch-up na primeira cobranca do proximo mes.`);
         continue;
       }
 
       try {
+        // Detectar se eh a primeira cobranca deste contrato
+        // (usado para incluir pro-rata retroativo do mes de inicio quando
+        // o contrato comecou em mes anterior e nunca teve cobranca)
+        const previousPaymentsCount = await prisma.payment.count({
+          where: {
+            contractId: contract.id,
+            status: { not: "CANCELADO" },
+          },
+        });
+        const isFirstBilling = previousPaymentsCount === 0;
         // Calculate due date using paymentDay
         let paymentDay = contract.paymentDay || 10;
         // Clamp to last day of month if needed
@@ -191,6 +203,29 @@ export async function POST(request: NextRequest) {
           console.log(`[Billing] Pro-rata ${contract.code}: início=${csDay}/${csMonth + 1}/${csYear}, dias=${prorataDays}, aluguel=${contract.rentalValue} → ${prorataRentalValue}`);
         }
 
+        // CATCH-UP PRO-RATA: primeira cobranca do contrato que comecou
+        // em mes anterior (mid-month) e nunca teve cobranca gerada.
+        // Ex: contrato comecou 20/04, primeira cobranca eh em maio →
+        // adiciona pro-rata de abril (dias 20-30) ao boleto de maio.
+        let catchUpProrataDays = 0;
+        let catchUpProrataValue = 0;
+        let catchUpMonthLabel = "";
+        const startedBeforeTarget =
+          csYear < targetYear ||
+          (csYear === targetYear && csMonth < targetMonth);
+        if (
+          isFirstBilling &&
+          !isProrata &&
+          startedBeforeTarget &&
+          csDay > 1
+        ) {
+          const startMonthLastDay = new Date(csYear, csMonth + 1, 0).getDate();
+          catchUpProrataDays = startMonthLastDay - csDay + 1;
+          catchUpProrataValue = Math.round(dailyRate * catchUpProrataDays * 100) / 100;
+          catchUpMonthLabel = `${String(csMonth + 1).padStart(2, "0")}/${csYear}`;
+          console.log(`[Billing] Catch-up pro-rata ${contract.code}: contrato comecou ${csDay}/${csMonth + 1}/${csYear}, incluindo ${catchUpProrataDays} dias do mes de inicio (R$ ${catchUpProrataValue}) na primeira cobranca de ${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`);
+        }
+
         // Calculate condominium and IPTU values
         const condoFee = contract.property?.condoFee || 0;
         const iptuMonthly = contract.property?.iptuValue
@@ -219,14 +254,16 @@ export async function POST(request: NextRequest) {
         const totalCredits = discountEntries.reduce((sum, e) => sum + e.value, 0);
         const totalDebits = chargeEntries.reduce((sum, e) => sum + e.value, 0);
 
-        // Total = aluguel (proporcional se pro-rata) + condominio + IPTU + seguro + taxa bancaria + debitos - creditos
+        // Total = aluguel (proporcional se pro-rata) + catch-up pro-rata mes anterior + condominio + IPTU + seguro + taxa bancaria + debitos - creditos
         const bankFee = contract.bankFee || 0;
         const insuranceFee = contract.insuranceFee || 0;
-        const totalValue = Math.max(0, Math.round((prorataRentalValue + condoFee + iptuMonthly + bankFee + insuranceFee + totalDebits - totalCredits) * 100) / 100);
+        // Aluguel efetivo: pro-rata do mes alvo + catch-up do mes de inicio (se primeira cobranca)
+        const effectiveRentalValue = Math.round((prorataRentalValue + catchUpProrataValue) * 100) / 100;
+        const totalValue = Math.max(0, Math.round((effectiveRentalValue + condoFee + iptuMonthly + bankFee + insuranceFee + totalDebits - totalCredits) * 100) / 100);
 
-        // Calculate split values (admin fee applies to rental value proporcional)
+        // Calculate split values (admin fee applies to rental value proporcional + catch-up)
         const adminFee = contract.adminFeePercent || 10;
-        let adminFeeBase = Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100;
+        let adminFeeBase = Math.round(effectiveRentalValue * (adminFee / 100) * 100) / 100;
 
         // ============================================================
         // INTERMEDIACAO COM SALDO PENDENTE (rolo)
@@ -253,17 +290,28 @@ export async function POST(request: NextRequest) {
           intermediationMonthNumber = contractMonthNumber;
 
           const installments = contract.intermediationInstallments || 1;
+          const baseIntermedRental = contract.rentalValue || prorataRentalValue;
+          const totalIntermediationValue = baseIntermedRental * (contract.intermediationFee / 100);
+          const valorPorParcela = Math.round((totalIntermediationValue / installments) * 100) / 100;
 
           // Parcela base do mes (apenas durante as parcelas previstas)
           let parcelaBase = 0;
           if (contractMonthNumber >= 1 && contractMonthNumber <= installments) {
-            const baseIntermedRental = contract.rentalValue || prorataRentalValue;
-            const totalIntermediationValue = baseIntermedRental * (contract.intermediationFee / 100);
-            parcelaBase = Math.round((totalIntermediationValue / installments) * 100) / 100;
+            parcelaBase = valorPorParcela;
           }
 
-          // Total a cobrar este mes = parcela do mes + saldo nao cobrado em meses anteriores
-          intermediationParcelaTeorica = Math.round((parcelaBase + saldoAnterior) * 100) / 100;
+          // Catch-up: se primeira cobranca e contrato comecou em mes anterior,
+          // soma as parcelas que deveriam ter sido cobradas nos meses pulados.
+          // Ex: contrato 20/04 com 2 parcelas, 1a cobranca em maio →
+          // cobra parcela 1 (catch-up de abril) + parcela 2 (maio).
+          let parcelasCatchUp = 0;
+          if (isFirstBilling && contractMonthNumber > 1) {
+            const parcelasPerdidas = Math.min(contractMonthNumber - 1, installments);
+            parcelasCatchUp = Math.round(valorPorParcela * parcelasPerdidas * 100) / 100;
+          }
+
+          // Total a cobrar este mes = parcela do mes + parcelas em catch-up + saldo pendente
+          intermediationParcelaTeorica = Math.round((parcelaBase + parcelasCatchUp + saldoAnterior) * 100) / 100;
         } else if (saldoAnterior > 0) {
           // Sem intermediacao nova, mas tem saldo pendente → tenta cobrar
           intermediationParcelaTeorica = saldoAnterior;
@@ -283,18 +331,22 @@ export async function POST(request: NextRequest) {
         let adminWaivedReason = "";
 
         // REGRA 1: 1o mes do contrato com intermediacao → isentar taxa adm
+        // Tambem aplica quando eh a 1a cobranca do contrato (catch-up de meses pulados),
+        // ja que inclui a parcela 1 da intermediacao.
+        const isPrimeiroMesIntermediacao =
+          intermediationMonthNumber === 1 || (isFirstBilling && intermediationMonthNumber > 1);
         if (
           intermediationParcelaTeorica > 0 &&
-          intermediationMonthNumber === 1 &&
+          isPrimeiroMesIntermediacao &&
           adminFeeBase > 0
         ) {
           adminFeeBase = 0;
           adminWaived = true;
-          adminWaivedReason = `Taxa de administracao isenta no 1o mes do contrato (mes da intermediacao)`;
+          adminWaivedReason = `Taxa de administracao isenta na 1a cobranca do contrato (inclui parcela 1 da intermediacao)`;
         }
 
         // Quanto sobra apos cobrar taxa adm (que ja pode ter sido isentada acima)
-        const sobraAposAdm = prorataRentalValue - adminFeeBase;
+        const sobraAposAdm = effectiveRentalValue - adminFeeBase;
 
         // REGRA 2: se ainda nao couber, waive admin (caso 1o mes ja tenha sido isentado, esse if nao pega)
         if (sobraAposAdm < intermediationParcelaTeorica) {
@@ -305,7 +357,7 @@ export async function POST(request: NextRequest) {
           }
 
           // Recalcula sobra (agora sem taxa adm)
-          const sobraSemAdm = prorataRentalValue;
+          const sobraSemAdm = effectiveRentalValue;
 
           if (sobraSemAdm >= intermediationParcelaTeorica) {
             intermediationDescontado = intermediationParcelaTeorica;
@@ -341,7 +393,7 @@ export async function POST(request: NextRequest) {
         const intermediationInstallmentValue = intermediationDescontado;
 
         const splitAdminValue = Math.round((adminFeeBase + intermediationInstallmentValue) * 100) / 100;
-        const splitOwnerValue = Math.round((prorataRentalValue - splitAdminValue) * 100) / 100;
+        const splitOwnerValue = Math.round((effectiveRentalValue - splitAdminValue) * 100) / 100;
 
         // Calculate IRRF on owner's gross income (rental - admin fee).
         // IRRF is calculated ONLY on the rental value (aluguel) minus admin fee.
@@ -364,6 +416,9 @@ export async function POST(request: NextRequest) {
             : `Aluguel ${mLabel} - ${contract.code}`,
         ];
         if (isProrata) descParts.push(`Pro-rata: R$ ${prorataRentalValue.toFixed(2)} (${prorataDays}/30 dias)`);
+        if (catchUpProrataValue > 0) {
+          descParts.push(`Pro-rata retroativo ${catchUpMonthLabel} (${catchUpProrataDays} dias - inicio do contrato): R$ ${catchUpProrataValue.toFixed(2)}`);
+        }
         if (totalCredits > 0) descParts.push(`Créditos: -R$ ${totalCredits.toFixed(2)}`);
         if (totalDebits > 0) descParts.push(`Débitos: +R$ ${totalDebits.toFixed(2)}`);
         if (condoFee > 0) descParts.push(`Condominio: R$ ${condoFee.toFixed(2)}`);
@@ -382,6 +437,10 @@ export async function POST(request: NextRequest) {
           aluguelOriginal: isProrata ? contract.rentalValue : undefined,
           isProrata,
           prorataDias: isProrata ? prorataDays : undefined,
+          catchUpProrataValue: catchUpProrataValue > 0 ? catchUpProrataValue : undefined,
+          catchUpProrataDias: catchUpProrataValue > 0 ? catchUpProrataDays : undefined,
+          catchUpMes: catchUpProrataValue > 0 ? catchUpMonthLabel : undefined,
+          aluguelEfetivo: catchUpProrataValue > 0 ? effectiveRentalValue : undefined,
           creditos: totalCredits,
           debitos: totalDebits,
           condominio: condoFee,
@@ -463,10 +522,10 @@ export async function POST(request: NextRequest) {
         // Taxa adm é sobre o valor total, depois divide pela porcentagem.
         // Se adminWaived (taxa isenta no mes pq intermediacao consumiu o repasse),
         // o totalAdminFeeValue eh ZERO.
-        const baseAluguel = isProrata ? prorataRentalValue : contract.rentalValue;
+        const baseAluguel = effectiveRentalValue;
         const totalAdminFeeValue = adminWaived
           ? 0
-          : Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100;
+          : Math.round(effectiveRentalValue * (adminFee / 100) * 100) / 100;
 
         const buildOwnerNotes = (sharePercent: number) => {
           return JSON.stringify({
@@ -835,16 +894,36 @@ export async function GET(request: NextRequest) {
           });
           return null;
         }
-        // Comeca no mes alvo
+        // Comeca no mes alvo → pula este mes (catch-up no proximo)
         const cs = new Date(c.startDate);
-        if (cs.getUTCFullYear() === targetYear && cs.getUTCMonth() === targetMonth) {
+        const csYear = cs.getUTCFullYear();
+        const csMonth = cs.getUTCMonth();
+        const csDay = cs.getUTCDate();
+        if (csYear === targetYear && csMonth === targetMonth) {
           skippedContracts.push({
             contractCode: c.code,
             property: c.property?.title || "—",
             tenant: c.tenant?.name || "—",
-            reason: "Inicia neste mes (1a cobranca no proximo mes)",
+            reason: "Inicia neste mes — pro-rata sera adicionado como catch-up na 1a cobranca do mes seguinte",
           });
           return null;
+        }
+
+        // Detectar primeira cobranca + catch-up de pro-rata do mes de inicio
+        const startedBeforeTarget =
+          csYear < targetYear ||
+          (csYear === targetYear && csMonth < targetMonth);
+        let catchUpDays = 0;
+        let catchUpValue = 0;
+        let catchUpLabel = "";
+        if (startedBeforeTarget && csDay > 1) {
+          // Verifica se ja existe alguma cobranca anterior para esse contrato
+          // (preview: aproximacao — assume que se nao tem cobranca no mes alvo nem antes esta listado, eh 1a)
+          // Para ser preciso, preview poderia consultar payments anteriores; aqui mantemos estimativa.
+          const startMonthLastDay = new Date(csYear, csMonth + 1, 0).getDate();
+          catchUpDays = startMonthLastDay - csDay + 1;
+          catchUpValue = Math.round((c.rentalValue / 30) * catchUpDays * 100) / 100;
+          catchUpLabel = `${String(csMonth + 1).padStart(2, "0")}/${csYear}`;
         }
 
         const condoFee = c.property?.condoFee || 0;
@@ -859,6 +938,10 @@ export async function GET(request: NextRequest) {
           tenant: c.tenant?.name || "N/A",
           owner: c.owner.name,
           rentalValue: c.rentalValue,
+          startDate: c.startDate,
+          catchUpProrataValue: catchUpValue > 0 ? catchUpValue : undefined,
+          catchUpProrataDias: catchUpValue > 0 ? catchUpDays : undefined,
+          catchUpMes: catchUpValue > 0 ? catchUpLabel : undefined,
           condoFee,
           iptuMonthly,
           value: totalValue,
