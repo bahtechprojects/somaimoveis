@@ -35,6 +35,45 @@
 export type SearchField = string; // "tenant.name" => relation tenant, field name
 
 /**
+ * Normaliza string para busca case-insensitive e accent-insensitive.
+ *  - Lowercase
+ *  - Remove acentos (NFD + remove combining marks)
+ *  - Remove espacos extras nas pontas
+ *
+ * Ex: "João da Silva" → "joao da silva"
+ *     "MARIA" → "maria"
+ *     "Café"  → "cafe"
+ */
+export function normalizeForSearch(input: string | null | undefined): string {
+  if (!input) return "";
+  return input
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // remove diacriticos
+    .toLowerCase()
+    .trim();
+}
+
+/**
+ * Mapeia paths de field "regulares" para suas versoes normalizadas no banco.
+ * Ex: "tenant.name" → "tenant.nameNormalized"
+ *     "owner.name"  → "owner.nameNormalized"
+ *     "property.title" → "property.titleNormalized"
+ *     "title" (em /api/properties) → "titleNormalized"
+ *     "name" (em /api/owners ou /api/tenants) → "nameNormalized"
+ */
+function mapToNormalizedField(field: string): string | null {
+  // Path direto: name → nameNormalized, title → titleNormalized
+  const parts = field.split(".");
+  const last = parts[parts.length - 1];
+  let normalizedLast: string | null = null;
+  if (last === "name") normalizedLast = "nameNormalized";
+  else if (last === "title") normalizedLast = "titleNormalized";
+  if (!normalizedLast) return null;
+  parts[parts.length - 1] = normalizedLast;
+  return parts.join(".");
+}
+
+/**
  * Constroi uma clausula AND para o where do Prisma. Cada palavra do termo
  * de busca vira uma sub-clausula OR procurando a palavra em qualquer um
  * dos campos. Todas as palavras precisam casar (AND entre palavras).
@@ -61,11 +100,23 @@ export function buildSearchWhere(
   const digitsOnly = trimmed.replace(/\D/g, "");
   const isNumericSearch = digitsOnly.length >= 3 && digitsOnly.length === trimmed.replace(/[\s.\-/()]/g, "").length;
 
-  // Para cada token, gera um OR procurando em todos os fields
+  // Para cada token, gera um OR procurando em todos os fields.
+  // Para campos *.name e *.title, usa a versao Normalized (lowercase + sem
+  // acentos), comparada ao token tambem normalizado. Isso da busca
+  // case-insensitive e accent-insensitive em SQLite.
   const andClauses: Array<Record<string, unknown>> = tokens.map((token) => {
-    const orClauses: Array<Record<string, unknown>> = fields.map((field) =>
-      buildContainsClause(field, token),
-    );
+    const tokenNormalized = normalizeForSearch(token);
+    const orClauses: Array<Record<string, unknown>> = [];
+    for (const field of fields) {
+      const normalizedField = mapToNormalizedField(field);
+      if (normalizedField) {
+        // Campo tem versao Normalized: usa ela com token normalizado
+        orClauses.push(buildContainsClause(normalizedField, tokenNormalized));
+      }
+      // Tambem busca no campo original (cobre dados antigos sem o normalized
+      // populado e tambem campos como description, code, email).
+      orClauses.push(buildContainsClause(field, token));
+    }
     // Se o token tem digitos, busca tambem por digitos puros nos campos numericos
     const tokenDigits = token.replace(/\D/g, "");
     if (tokenDigits.length >= 3 && options.numericFields?.length) {

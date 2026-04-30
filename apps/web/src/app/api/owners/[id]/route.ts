@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requirePagePermission, isAuthError } from "@/lib/api-auth";
+import { normalizeForSearch } from "@/lib/search";
 
 export async function GET(
   request: NextRequest,
@@ -42,6 +43,7 @@ export async function PUT(
     const body = await request.json();
     const data: Record<string, unknown> = {
       name: body.name || undefined,
+      nameNormalized: body.name ? normalizeForSearch(body.name) : undefined,
       cpfCnpj: body.cpfCnpj || undefined,
       personType: body.personType || undefined,
       email: body.email || null,

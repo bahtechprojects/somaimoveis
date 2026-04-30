@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requirePagePermission, isAuthError } from "@/lib/api-auth";
+import { normalizeForSearch } from "@/lib/search";
 
 export async function GET(
   request: NextRequest,
@@ -38,7 +39,10 @@ export async function PUT(
     const body = await request.json();
     const data: Record<string, unknown> = {};
     // String fields
-    if (body.title !== undefined) data.title = body.title;
+    if (body.title !== undefined) {
+      data.title = body.title;
+      data.titleNormalized = normalizeForSearch(body.title);
+    }
     if (body.description !== undefined) data.description = body.description;
     if (body.type !== undefined) data.type = body.type;
     if (body.status !== undefined) data.status = body.status;

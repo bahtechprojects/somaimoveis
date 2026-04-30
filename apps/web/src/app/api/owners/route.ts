@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requirePagePermission, isAuthError } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit-log";
-import { buildSearchWhere } from "@/lib/search";
+import { buildSearchWhere, normalizeForSearch } from "@/lib/search";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -150,7 +150,9 @@ export async function POST(request: NextRequest) {
   try {
     const owner = await prisma.owner.create({
       data: {
-        name, cpfCnpj,
+        name,
+        nameNormalized: normalizeForSearch(name),
+        cpfCnpj,
         email: body.email || null,
         phone: body.phone || null,
         phone2: body.phone2 || null,

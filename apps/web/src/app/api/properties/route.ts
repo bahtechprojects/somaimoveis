@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requirePagePermission, isAuthError } from "@/lib/api-auth";
 import { logAudit } from "@/lib/audit-log";
-import { buildSearchWhere } from "@/lib/search";
+import { buildSearchWhere, normalizeForSearch } from "@/lib/search";
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
@@ -83,7 +83,9 @@ export async function POST(request: NextRequest) {
   try {
     const property = await prisma.property.create({
       data: {
-        title, type, street, number, neighborhood, city, state, zipCode, ownerId,
+        title,
+        titleNormalized: normalizeForSearch(title),
+        type, street, number, neighborhood, city, state, zipCode, ownerId,
         description: body.description || null,
         complement: body.complement || null,
         status: body.status || "DISPONIVEL",

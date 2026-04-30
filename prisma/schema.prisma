@@ -139,6 +139,10 @@ model FiscalSettings {
 model Owner {
   id           String   @id @default(cuid())
   name         String
+  // Versao normalizada do nome (lowercase + sem acentos) para busca
+  // case-insensitive e accent-insensitive em SQLite. Atualizada
+  // automaticamente nos POST/PUT.
+  nameNormalized String?
   email        String?
   phone        String?
   phone2       String?
@@ -194,6 +198,7 @@ model Owner {
 
   @@index([active])
   @@index([createdById])
+  @@index([nameNormalized])
   @@map("owners")
 }
 
@@ -204,6 +209,8 @@ model Owner {
 model Tenant {
   id           String   @id @default(cuid())
   name         String
+  // Versao normalizada do nome para busca case/accent-insensitive
+  nameNormalized String?
   email        String?
   phone        String?
   phone2       String?
@@ -245,6 +252,7 @@ model Tenant {
 
   @@index([active])
   @@index([createdById])
+  @@index([nameNormalized])
   @@map("tenants")
 }
 
@@ -255,6 +263,8 @@ model Tenant {
 model Property {
   id            String   @id @default(cuid())
   title         String
+  // Versao normalizada do titulo para busca case/accent-insensitive
+  titleNormalized String?
   description   String?
   type          String // CASA, APARTAMENTO, COMERCIAL, TERRENO, SALA, PAVILHAO
   status        String   @default("DISPONIVEL") // DISPONIVEL, ALUGADO, MANUTENCAO, INATIVO
@@ -305,6 +315,7 @@ model Property {
   @@index([ownerId])
   @@index([status])
   @@index([createdById])
+  @@index([titleNormalized])
   @@map("properties")
 }
 
