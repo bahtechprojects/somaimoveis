@@ -54,13 +54,23 @@ export async function DELETE(request: NextRequest) {
           where: { paymentId: payment.id },
         });
 
-        // Delete owner entries
+        // Delete TODAS as owner entries criadas pela geracao de cobrancas:
+        //  - REPASSE (do aluguel)
+        //  - IPTU/CONDOMINIO (creditos dos lancamentos do locatario com
+        //    destination=PROPRIETARIO — identificados pela presenca de
+        //    'tenantEntryId' no notes)
+        //  - DESCONTO/etc (debitos dos lancamentos com destination=PROPRIETARIO)
+        // NAO apaga lancamentos manuais que o usuario criou via UI (esses
+        // nao tem tenantEntryId no notes nem categoria REPASSE).
         await prisma.ownerEntry.deleteMany({
           where: {
             contractId: payment.contractId,
             dueDate: payment.dueDate,
-            category: "REPASSE",
             status: "PENDENTE",
+            OR: [
+              { category: "REPASSE" },
+              { notes: { contains: "tenantEntryId" } },
+            ],
           },
         });
 

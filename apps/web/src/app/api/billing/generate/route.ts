@@ -11,6 +11,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const monthStr = body.month as string | undefined;
+    // Lista opcional de codigos de contrato para gerar — se vazia/ausente,
+    // gera para todos. Permite o usuario selecionar especificos no dialog.
+    const contractCodesFilter: string[] | undefined = Array.isArray(body.contractCodes)
+      ? body.contractCodes.filter((c: unknown) => typeof c === "string" && c.length > 0)
+      : undefined;
 
     // ============================================================
     // COBRANCA EM ATRASO (in-arrears)
@@ -59,6 +64,9 @@ export async function POST(request: NextRequest) {
       where: {
         status: { in: ["ATIVO", "PENDENTE_RENOVACAO"] },
         startDate: { lte: refMonthEnd },
+        ...(contractCodesFilter && contractCodesFilter.length > 0
+          ? { code: { in: contractCodesFilter } }
+          : {}),
       },
       include: {
         property: {

@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useMemo } from "react"
 import { toast } from "sonner"
-import { CalendarPlusIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon, Trash2Icon } from "lucide-react"
+import { CalendarPlusIcon, Loader2Icon, CheckCircle2Icon, AlertCircleIcon, Trash2Icon, SearchIcon } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -95,6 +97,10 @@ export function GenerateChargesDialog({
   const [generating, setGenerating] = useState(false)
   const [clearing, setClearing] = useState(false)
   const [result, setResult] = useState<GenerateResult | null>(null)
+  // Selecao especifica de contratos
+  const [search, setSearch] = useState("")
+  const [selectedCodes, setSelectedCodes] = useState<Set<string>>(new Set())
+  const [selectMode, setSelectMode] = useState<"all" | "specific">("all")
 
   const loadPreview = useCallback(async (month: string) => {
     setLoadingPreview(true)
@@ -121,22 +127,35 @@ export function GenerateChargesDialog({
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
-      // Delay reset so close animation completes
       const timer = setTimeout(() => {
         setResult(null)
         setPreview(null)
+        setSearch("")
+        setSelectedCodes(new Set())
+        setSelectMode("all")
       }, 200)
       return () => clearTimeout(timer)
     }
   }, [open])
 
+  // Reset selecao quando muda o mes
+  useEffect(() => {
+    setSelectedCodes(new Set())
+    setSearch("")
+    setSelectMode("all")
+  }, [selectedMonth])
+
   async function handleGenerate() {
     setGenerating(true)
     try {
+      const payload: { month: string; contractCodes?: string[] } = { month: selectedMonth }
+      if (selectMode === "specific" && selectedCodes.size > 0) {
+        payload.contractCodes = Array.from(selectedCodes)
+      }
       const res = await fetch("/api/billing/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month: selectedMonth }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       setResult(data)
@@ -177,6 +196,52 @@ export function GenerateChargesDialog({
 
   const pendingContracts = preview?.contracts.filter((c) => !c.alreadyExists) || []
   const existingContracts = preview?.contracts.filter((c) => c.alreadyExists) || []
+
+  // Filtra pendentes pela busca (locatario, codigo do contrato, imovel)
+  const filteredPending = useMemo(() => {
+    if (!search.trim()) return pendingContracts
+    const term = search.trim().toLowerCase()
+    const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+    const termN = norm(term)
+    return pendingContracts.filter(
+      (c) =>
+        norm(c.tenant || "").includes(termN) ||
+        norm(c.contractCode || "").includes(termN) ||
+        norm(c.property || "").includes(termN) ||
+        norm(c.owner || "").includes(termN),
+    )
+  }, [pendingContracts, search])
+
+  // Quais contratos serao gerados ao clicar no botao
+  const contractsToGenerate = selectMode === "specific"
+    ? pendingContracts.filter((c) => selectedCodes.has(c.contractCode))
+    : pendingContracts
+
+  function toggleSelect(code: string) {
+    setSelectedCodes((prev) => {
+      const next = new Set(prev)
+      if (next.has(code)) next.delete(code)
+      else next.add(code)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (filteredPending.every((c) => selectedCodes.has(c.contractCode))) {
+      // Todos da busca atual ja selecionados → desmarca os filtrados
+      setSelectedCodes((prev) => {
+        const next = new Set(prev)
+        for (const c of filteredPending) next.delete(c.contractCode)
+        return next
+      })
+    } else {
+      setSelectedCodes((prev) => {
+        const next = new Set(prev)
+        for (const c of filteredPending) next.add(c.contractCode)
+        return next
+      })
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -224,24 +289,98 @@ export function GenerateChargesDialog({
           <div className="space-y-3">
             {pendingContracts.length > 0 && (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">
-                  {pendingContracts.length} cobranca(s) a gerar:
-                </p>
-                <div className="max-h-48 overflow-y-auto rounded-md border divide-y">
-                  {pendingContracts.map((c) => (
-                    <div key={c.contractCode} className="px-3 py-2 text-sm">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{c.contractCode}</span>
-                        <span className="text-emerald-600 font-medium">{formatCurrency(c.value)}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {c.tenant} &bull; Venc. dia {c.paymentDay}
-                      </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">
+                    {pendingContracts.length} cobranca(s) a gerar
+                  </p>
+                  {/* Toggle entre 'todos' e 'especificos' */}
+                  <div className="flex items-center gap-1 text-xs">
+                    <button
+                      type="button"
+                      className={`px-2 py-1 rounded ${selectMode === "all" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}
+                      onClick={() => setSelectMode("all")}
+                    >
+                      Todos
+                    </button>
+                    <button
+                      type="button"
+                      className={`px-2 py-1 rounded ${selectMode === "specific" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}
+                      onClick={() => setSelectMode("specific")}
+                    >
+                      Selecionar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Busca + selecionar tudo (so aparece no modo 'specific') */}
+                {selectMode === "specific" && (
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar por locatario, contrato ou imovel..."
+                        className="pl-8 h-8 text-xs"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                      />
                     </div>
-                  ))}
+                    <div className="flex items-center justify-between text-xs">
+                      <button
+                        type="button"
+                        className="text-primary hover:underline"
+                        onClick={toggleSelectAll}
+                      >
+                        {filteredPending.length > 0 && filteredPending.every((c) => selectedCodes.has(c.contractCode))
+                          ? "Desmarcar todos"
+                          : "Selecionar todos"}{search ? " (filtrados)" : ""}
+                      </button>
+                      <span className="text-muted-foreground">
+                        {selectedCodes.size} selecionado(s)
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="max-h-56 overflow-y-auto rounded-md border divide-y">
+                  {(selectMode === "specific" ? filteredPending : pendingContracts).map((c) => {
+                    const checked = selectedCodes.has(c.contractCode)
+                    return (
+                      <label
+                        key={c.contractCode}
+                        className={`px-3 py-2 text-sm flex items-start gap-2 ${selectMode === "specific" ? "cursor-pointer hover:bg-muted/40" : ""}`}
+                      >
+                        {selectMode === "specific" && (
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() => toggleSelect(c.contractCode)}
+                            className="mt-0.5"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium">{c.contractCode}</span>
+                            <span className="text-emerald-600 font-medium shrink-0">{formatCurrency(c.value)}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                            {c.tenant} &bull; Venc. dia {c.paymentDay}
+                          </p>
+                        </div>
+                      </label>
+                    )
+                  })}
+                  {selectMode === "specific" && filteredPending.length === 0 && (
+                    <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+                      Nenhum contrato encontrado para a busca.
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Total: {formatCurrency(pendingContracts.reduce((sum, c) => sum + c.value, 0))}
+                  Total: {formatCurrency(contractsToGenerate.reduce((sum, c) => sum + c.value, 0))}
+                  {selectMode === "specific" && (
+                    <span className="ml-1">
+                      ({contractsToGenerate.length} de {pendingContracts.length})
+                    </span>
+                  )}
                 </p>
               </div>
             )}
@@ -390,7 +529,7 @@ export function GenerateChargesDialog({
               </Button>
               <Button
                 onClick={handleGenerate}
-                disabled={generating || loadingPreview || pendingContracts.length === 0}
+                disabled={generating || loadingPreview || contractsToGenerate.length === 0}
               >
                 {generating ? (
                   <>
@@ -400,7 +539,7 @@ export function GenerateChargesDialog({
                 ) : (
                   <>
                     <CalendarPlusIcon className="size-4" />
-                    Gerar {pendingContracts.length} cobranca(s)
+                    Gerar {contractsToGenerate.length} cobranca(s)
                   </>
                 )}
               </Button>

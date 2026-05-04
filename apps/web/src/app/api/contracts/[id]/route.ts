@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, requirePagePermission, isAuthError } from "@/lib/api-auth";
 import { logAudit, computeDiff } from "@/lib/audit-log";
+import { nextBusinessDay } from "@/lib/business-days";
 
 export async function GET(
   request: NextRequest,
@@ -130,7 +131,43 @@ export async function PUT(
       }
     }
 
-    return NextResponse.json(contract);
+    // Se o paymentDay foi alterado, ajusta os boletos PENDENTES que ainda
+    // NAO foram emitidos no banco (sem nossoNumero) para o novo dia.
+    // Boletos ja emitidos ficam como estao (cliente ja recebeu) — o usuario
+    // pode cancelar e regerar manualmente se quiser.
+    let paymentsUpdated = 0;
+    if (
+      before &&
+      body.paymentDay !== undefined &&
+      typeof contract.paymentDay === "number" &&
+      contract.paymentDay !== before.paymentDay
+    ) {
+      const pendingUnissued = await prisma.payment.findMany({
+        where: {
+          contractId: contract.id,
+          status: "PENDENTE",
+          OR: [{ nossoNumero: null }, { nossoNumero: "" }],
+        },
+        select: { id: true, dueDate: true },
+      });
+      for (const p of pendingUnissued) {
+        if (!p.dueDate) continue;
+        const due = new Date(p.dueDate);
+        const year = due.getFullYear();
+        const month = due.getMonth();
+        const lastDay = new Date(year, month + 1, 0).getDate();
+        const newDay = Math.min(contract.paymentDay, lastDay);
+        const rawNew = new Date(year, month, newDay, 12, 0, 0);
+        const adjusted = nextBusinessDay(rawNew);
+        await prisma.payment.update({
+          where: { id: p.id },
+          data: { dueDate: adjusted },
+        });
+        paymentsUpdated++;
+      }
+    }
+
+    return NextResponse.json({ ...contract, paymentsUpdated });
   } catch (error: any) {
     if (error?.code === "P2025") {
       return NextResponse.json({ error: "Contrato não encontrado" }, { status: 404 });
