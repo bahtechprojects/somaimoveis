@@ -1,0 +1,285 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireAuth, requirePagePermission, isAuthError } from "@/lib/api-auth";
+import { decryptString } from "@/lib/crypto";
+import { emitirNFSe, getIbgeCode, type Ambiente } from "@/lib/nfse-gov-br-client";
+
+/**
+ * POST /api/invoices/emit
+ * Body: { ownerEntryIds: string[] }
+ *
+ * Emite uma NFS-e para cada OwnerEntry de REPASSE/GARANTIA listado.
+ * Usa as configuracoes da FiscalSettings (cert + dados da empresa) e
+ * o cliente NFS-e Nacional (gov.br).
+ *
+ * Por enquanto opera em modo MOCK (NFSE_MOCK=true por default em dev).
+ * Em producao, defina NFSE_MOCK=false e tenha o certificado uploaded.
+ */
+export async function POST(request: NextRequest) {
+  const auth = await requirePagePermission("notas_fiscais");
+  if (isAuthError(auth)) return auth;
+
+  const body = await request.json().catch(() => ({}));
+  const ownerEntryIds: string[] = Array.isArray(body.ownerEntryIds)
+    ? body.ownerEntryIds.filter((s: unknown) => typeof s === "string")
+    : [];
+
+  if (ownerEntryIds.length === 0) {
+    return NextResponse.json(
+      { error: "ownerEntryIds obrigatorio (array de IDs)" },
+      { status: 400 },
+    );
+  }
+
+  // Carrega FiscalSettings (precisa de cert + dados da empresa)
+  const settings = await prisma.fiscalSettings.findFirst();
+  if (!settings) {
+    return NextResponse.json(
+      { error: "Configuracoes fiscais nao definidas. Acesse /configuracoes/fiscal." },
+      { status: 400 },
+    );
+  }
+
+  if (!settings.cnpj || !settings.inscricaoMunicipal || !settings.codigoServicoMunicipal) {
+    return NextResponse.json(
+      {
+        error: "Configuracoes fiscais incompletas. Faltam: " +
+          [
+            !settings.cnpj && "CNPJ",
+            !settings.inscricaoMunicipal && "Inscricao Municipal",
+            !settings.codigoServicoMunicipal && "Codigo de Servico Municipal",
+          ].filter(Boolean).join(", "),
+      },
+      { status: 400 },
+    );
+  }
+
+  if (!settings.certificadoPfx || !settings.certificadoPassword) {
+    return NextResponse.json(
+      { error: "Certificado A1 nao carregado. Acesse /configuracoes/fiscal." },
+      { status: 400 },
+    );
+  }
+
+  let certPassword: string;
+  try {
+    certPassword = decryptString(settings.certificadoPassword);
+  } catch (err) {
+    console.error("[Invoice Emit] Erro ao descriptografar senha:", err);
+    return NextResponse.json(
+      { error: "Erro ao acessar senha do certificado. Re-uploade o certificado." },
+      { status: 500 },
+    );
+  }
+
+  const ambiente: Ambiente = settings.ambiente === "PRODUCAO" ? "PRODUCAO" : "HOMOLOGACAO";
+
+  // Carrega os owner entries
+  const entriesRaw = await prisma.ownerEntry.findMany({
+    where: { id: { in: ownerEntryIds } },
+    include: {
+      owner: true,
+      invoice: true,
+    },
+  });
+
+  // Carrega contracts separadamente (FK sem @relation no schema)
+  const contractIds = entriesRaw
+    .map((e) => e.contractId)
+    .filter((id): id is string => !!id);
+  const contracts = contractIds.length > 0
+    ? await prisma.contract.findMany({
+        where: { id: { in: contractIds } },
+        select: { id: true, code: true, rentalValue: true, adminFeePercent: true },
+      })
+    : [];
+  const contractMap = new Map(contracts.map((c) => [c.id, c]));
+
+  const entries = entriesRaw.map((e) => ({
+    ...e,
+    contract: e.contractId ? contractMap.get(e.contractId) || null : null,
+  }));
+
+  const results: Array<{
+    ownerEntryId: string;
+    ownerName: string;
+    success: boolean;
+    invoiceId?: string;
+    numero?: string;
+    error?: string;
+  }> = [];
+
+  const ibge = getIbgeCode(settings.city || "", settings.state || "RS");
+
+  for (const entry of entries) {
+    // Pula se ja tem NF emitida
+    if (entry.invoice && entry.invoice.status === "AUTORIZADA") {
+      results.push({
+        ownerEntryId: entry.id,
+        ownerName: entry.owner.name,
+        success: false,
+        error: "Ja possui NF emitida",
+      });
+      continue;
+    }
+
+    // Calcula a taxa adm a partir do notes do entry (foi salva pelo billing)
+    let adminFeeValue = 0;
+    let adminFeePercent = entry.contract?.adminFeePercent || 10;
+    let aluguelBruto = 0;
+    if (entry.notes) {
+      try {
+        const n = JSON.parse(entry.notes);
+        if (typeof n.adminFeeValue === "number") adminFeeValue = n.adminFeeValue;
+        if (typeof n.adminFeePercent === "number") adminFeePercent = n.adminFeePercent;
+        if (typeof n.aluguelBruto === "number") aluguelBruto = n.aluguelBruto;
+      } catch {
+        // ignore
+      }
+    }
+    if (!adminFeeValue && entry.contract && aluguelBruto) {
+      adminFeeValue = Math.round(aluguelBruto * (adminFeePercent / 100) * 100) / 100;
+    }
+    if (!adminFeeValue) {
+      results.push({
+        ownerEntryId: entry.id,
+        ownerName: entry.owner.name,
+        success: false,
+        error: "Nao foi possivel determinar o valor da taxa de administracao",
+      });
+      continue;
+    }
+
+    const tomadorTipo = entry.owner.personType === "PJ" ? "PJ" : "PF";
+    const tomadorDoc = entry.owner.cpfCnpj.replace(/\D/g, "");
+    const competencia = entry.dueDate
+      ? `${entry.dueDate.getFullYear()}-${String(entry.dueDate.getMonth() + 1).padStart(2, "0")}`
+      : null;
+
+    try {
+      const result = await emitirNFSe({
+        ambiente,
+        certificado: {
+          pfx: Buffer.from(settings.certificadoPfx),
+          password: certPassword,
+        },
+        prestador: {
+          cnpj: settings.cnpj.replace(/\D/g, ""),
+          inscricaoMunicipal: settings.inscricaoMunicipal,
+          razaoSocial: settings.razaoSocial || "SOMMA IMOVEIS LTDA",
+          regimeTributario: (settings.regimeTributario as any) || "SIMPLES_NACIONAL",
+        },
+        tomador: {
+          tipo: tomadorTipo,
+          documento: tomadorDoc,
+          nome: entry.owner.name,
+          email: entry.owner.email || undefined,
+          endereco: entry.owner.street ? {
+            logradouro: entry.owner.street,
+            numero: entry.owner.number || "S/N",
+            complemento: entry.owner.complement || undefined,
+            bairro: entry.owner.neighborhood || "",
+            cidade: entry.owner.city || "",
+            uf: entry.owner.state || "RS",
+            cep: (entry.owner.zipCode || "").replace(/\D/g, ""),
+          } : undefined,
+        },
+        servico: {
+          codigoServico: settings.codigoServicoMunicipal,
+          discriminacao: `Taxa de administracao imobiliaria${entry.contract ? ` ref. contrato ${entry.contract.code}` : ""}${competencia ? ` - competencia ${competencia}` : ""}`,
+          valorServicos: adminFeeValue,
+          aliquotaIss: settings.aliquotaIss || 2,
+          issRetido: settings.retemIss,
+          municipioPrestacao: ibge || "4316808",
+        },
+      });
+
+      if (!result.sucesso) {
+        results.push({
+          ownerEntryId: entry.id,
+          ownerName: entry.owner.name,
+          success: false,
+          error: `${result.rejeicaoCodigo || "?"}: ${result.rejeicaoMotivo || "rejeitada"}`,
+        });
+        continue;
+      }
+
+      // Cria registro Invoice no banco (ou atualiza se ja existe)
+      const invoice = await prisma.invoice.upsert({
+        where: { ownerEntryId: entry.id },
+        create: {
+          numero: result.numero,
+          serie: result.serie,
+          codigoVerificacao: result.codigoVerificacao,
+          chaveAcesso: result.chaveAcesso,
+          status: "AUTORIZADA",
+          dataEmissao: new Date(),
+          prestadorCnpj: settings.cnpj.replace(/\D/g, ""),
+          prestadorIm: settings.inscricaoMunicipal,
+          prestadorNome: settings.razaoSocial || "SOMMA IMOVEIS LTDA",
+          tomadorTipo,
+          tomadorDoc,
+          tomadorNome: entry.owner.name,
+          tomadorEmail: entry.owner.email,
+          codigoServico: settings.codigoServicoMunicipal,
+          discriminacao: `Taxa de administracao imobiliaria${entry.contract ? ` ref. contrato ${entry.contract.code}` : ""}${competencia ? ` - competencia ${competencia}` : ""}`,
+          valorServicos: adminFeeValue,
+          aliquotaIss: settings.aliquotaIss,
+          valorIss: settings.retemIss ? Math.round(adminFeeValue * (settings.aliquotaIss || 2) / 100 * 100) / 100 : 0,
+          issRetido: settings.retemIss,
+          regimeTributario: settings.regimeTributario,
+          dpsXml: result.dpsXml,
+          respostaXml: result.xmlRetorno,
+          pdfUrl: result.pdfUrl,
+          ownerId: entry.owner.id,
+          contractId: entry.contractId,
+          ownerEntryId: entry.id,
+          competencia,
+          ambiente,
+          createdById: auth.user.id,
+        },
+        update: {
+          numero: result.numero,
+          serie: result.serie,
+          codigoVerificacao: result.codigoVerificacao,
+          chaveAcesso: result.chaveAcesso,
+          status: "AUTORIZADA",
+          dataEmissao: new Date(),
+          dpsXml: result.dpsXml,
+          respostaXml: result.xmlRetorno,
+          pdfUrl: result.pdfUrl,
+          rejeicaoCodigo: null,
+          rejeicaoMotivo: null,
+        },
+      });
+
+      results.push({
+        ownerEntryId: entry.id,
+        ownerName: entry.owner.name,
+        success: true,
+        invoiceId: invoice.id,
+        numero: result.numero,
+      });
+    } catch (err: any) {
+      console.error(`[Invoice Emit] Erro na entry ${entry.id}:`, err);
+      results.push({
+        ownerEntryId: entry.id,
+        ownerName: entry.owner.name,
+        success: false,
+        error: err?.message || "Erro desconhecido",
+      });
+    }
+  }
+
+  const success = results.filter((r) => r.success).length;
+  const failed = results.length - success;
+
+  return NextResponse.json({
+    message: `Emissao concluida: ${success} sucesso, ${failed} falha(s).`,
+    success,
+    failed,
+    results,
+    ambiente,
+    mockMode: process.env.NFSE_MOCK !== "false",
+  });
+}

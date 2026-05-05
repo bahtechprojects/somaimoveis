@@ -32,6 +32,7 @@ model User {
   paymentsCreated     Payment[]     @relation("PaymentCreatedBy")
   ownerEntriesCreated OwnerEntry[]  @relation("OwnerEntryCreatedBy")
   tenantEntriesCreated TenantEntry[] @relation("TenantEntryCreatedBy")
+  invoicesCreated     Invoice[]     @relation("InvoiceCreatedBy")
   auditLogs           AuditLog[]
 
   @@index([role])
@@ -120,6 +121,8 @@ model FiscalSettings {
   // Certificado digital A1
   certificadoNome      String?  // nome do arquivo (referencia)
   certificadoExpiraEm  DateTime?
+  certificadoPfx       Bytes?   // arquivo .pfx em si (raw bytes)
+  certificadoPassword  String?  // senha do .pfx, criptografada com AES-256-GCM
   // Integracao
   provedor             String?  // NFSE_NACIONAL | NFE_IO | PLUG_NOTAS | GISSONLINE | MANUAL
   apiToken             String?  // criptografado
@@ -195,6 +198,7 @@ model Owner {
   contracts       Contract[]
   payments        Payment[]
   entries         OwnerEntry[]
+  invoices        Invoice[]
 
   @@index([active])
   @@index([createdById])
@@ -404,6 +408,7 @@ model Contract {
   createdBy      User?    @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   payments Payment[]
+  invoices Invoice[]
 
   @@index([status])
   @@index([ownerId])
@@ -616,6 +621,9 @@ model OwnerEntry {
   createdById String?
   createdBy   User?    @relation("OwnerEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  // NF emitida (1-1 — cada repasse pode ter uma NF)
+  invoice     Invoice?
+
   @@index([ownerId])
   @@index([type])
   @@index([status])
@@ -730,4 +738,74 @@ model AppSetting {
   updatedAt DateTime @updatedAt
 
   @@map("app_settings")
+}
+
+// ==========================================
+// NOTAS FISCAIS DE SERVICO ELETRONICAS (NFS-e)
+// ==========================================
+// Cada NF emitida (taxa de administracao do proprietario) gera 1 registro.
+// Linkado opcionalmente a um OwnerEntry de REPASSE — fonte do valor cobrado.
+
+model Invoice {
+  id               String   @id @default(cuid())
+  // Numero atribuido pelo municipio (apos autorizacao)
+  numero           String?  // numero da NFS-e
+  serie            String?  // serie (ex: '1' ou 'A')
+  codigoVerificacao String? // codigo de verificacao (alfanumerico)
+  chaveAcesso     String?   @unique // chave nacional NFS-e (50 digitos)
+  // Status
+  status           String   @default("PENDENTE") // PENDENTE | PROCESSANDO | AUTORIZADA | REJEITADA | CANCELADA
+  // Dados do servico
+  dataEmissao      DateTime?
+  dataCancelamento DateTime?
+  cancelamentoMotivo String?
+  // Prestador (Somma) — replicados pra historicidade
+  prestadorCnpj    String
+  prestadorIm      String?
+  prestadorNome    String
+  // Tomador (proprietario que recebe o repasse)
+  tomadorTipo      String   // PF | PJ
+  tomadorDoc       String   // CPF ou CNPJ
+  tomadorNome      String
+  tomadorEmail     String?
+  tomadorEndereco  String?
+  // Servico
+  codigoServico    String   // ex: '10.05'
+  discriminacao    String   // descricao detalhada do servico
+  valorServicos    Float    // valor bruto da NF
+  aliquotaIss      Float?   // % de ISS (informativa pra Simples)
+  valorIss         Float    @default(0) // ISS efetivamente cobrado
+  issRetido        Boolean  @default(false)
+  regimeTributario String?  // SIMPLES_NACIONAL etc
+  // XMLs (gerados/recebidos)
+  dpsXml           String?  // XML da Declaracao de Prestacao de Servicos enviado
+  respostaXml      String?  // XML retornado pela SEFIN
+  pdfUrl           String?  // URL do DANFSE (se gerado)
+  // Erros (se rejeitada)
+  rejeicaoCodigo   String?
+  rejeicaoMotivo   String?
+  // Linkagens
+  ownerId          String
+  owner            Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  contractId       String?
+  contract         Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  ownerEntryId     String?   @unique  // 1 NF por OwnerEntry (REPASSE)
+  ownerEntry       OwnerEntry? @relation(fields: [ownerEntryId], references: [id], onDelete: SetNull)
+  // Mes de referencia (ex: '2026-04' = NF do repasse de abril)
+  competencia      String?
+  // Ambiente
+  ambiente         String   @default("HOMOLOGACAO") // HOMOLOGACAO | PRODUCAO
+  // Tracking
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  createdById      String?
+  createdBy        User?    @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+  @@index([contractId])
+  @@index([status])
+  @@index([competencia])
+  @@index([numero])
+  @@index([createdById])
+  @@map("invoices")
 }

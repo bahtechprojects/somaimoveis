@@ -157,6 +157,50 @@ export default function NotasFiscaisPage() {
     }
   }
 
+  async function emitirNFsSelecionadas() {
+    if (selected.size === 0) {
+      toast.error("Selecione pelo menos uma NF");
+      return;
+    }
+    if (!confirm(`Emitir ${selected.size} NF(s) eletronicamente via gov.br? A operacao nao pode ser desfeita.`)) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/invoices/emit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerEntryIds: Array.from(selected) }),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        toast.error(d.error || "Erro ao emitir NFs");
+        return;
+      }
+      const lines: string[] = [d.message];
+      if (d.mockMode) lines.push("⚠️ MODO MOCK ativo (sem integracao real)");
+      if (d.failed > 0) {
+        const errors = (d.results || [])
+          .filter((r: any) => !r.success)
+          .slice(0, 5)
+          .map((r: any) => `• ${r.ownerName}: ${r.error}`)
+          .join("\n");
+        lines.push("Falhas:\n" + errors);
+      }
+      if (d.success > 0) {
+        toast.success(lines.join(" — "));
+      } else {
+        toast.error(lines.join(" — "));
+      }
+      setSelected(new Set());
+      fetchNotas();
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao emitir NFs");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   async function reverterEmitida(entryId: string) {
     try {
       const res = await fetch("/api/notas-fiscais", {
@@ -301,11 +345,23 @@ export default function NotasFiscaisPage() {
                     <Button
                       size="sm"
                       className="gap-1.5 h-9 text-xs bg-emerald-600 hover:bg-emerald-700"
+                      onClick={emitirNFsSelecionadas}
+                      disabled={actionLoading}
+                      title="Emite NF eletronicamente via gov.br"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      {actionLoading ? "Emitindo..." : `Emitir ${selected.size} NF(s) eletronica(s)`}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-9 text-xs"
                       onClick={marcarEmitidas}
                       disabled={actionLoading}
+                      title="Apenas marca como emitida (sem chamar gov.br) — para NFs ja emitidas manualmente"
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      {actionLoading ? "..." : `Marcar ${selected.size} como Emitida(s)`}
+                      Marcar como Emitida(s)
                     </Button>
                     <Button
                       size="sm"

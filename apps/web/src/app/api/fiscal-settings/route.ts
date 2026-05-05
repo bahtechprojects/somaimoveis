@@ -17,11 +17,14 @@ export async function GET() {
   if (!settings) {
     settings = await prisma.fiscalSettings.create({ data: {} });
   }
-  // Nao expor o apiToken cru — apenas indicar se existe
+  // Nao expor o apiToken cru, certificadoPfx (binario gigante) nem a senha
+  const { certificadoPfx, certificadoPassword, apiToken, ...safe } = settings;
   return NextResponse.json({
-    ...settings,
-    apiToken: settings.apiToken ? "***" : null,
-    apiTokenSet: !!settings.apiToken,
+    ...safe,
+    apiToken: apiToken ? "***" : null,
+    apiTokenSet: !!apiToken,
+    certificadoUploaded: !!certificadoPfx,
+    certificadoPasswordSet: !!certificadoPassword,
   });
 }
 
@@ -89,10 +92,13 @@ export async function PUT(request: NextRequest) {
       data,
     });
 
+    const { certificadoPfx, certificadoPassword, apiToken, ...safe } = updated;
     return NextResponse.json({
-      ...updated,
-      apiToken: updated.apiToken ? "***" : null,
-      apiTokenSet: !!updated.apiToken,
+      ...safe,
+      apiToken: apiToken ? "***" : null,
+      apiTokenSet: !!apiToken,
+      certificadoUploaded: !!certificadoPfx,
+      certificadoPasswordSet: !!certificadoPassword,
     });
   } catch (error: any) {
     console.error("[Fiscal Settings PUT]", error);

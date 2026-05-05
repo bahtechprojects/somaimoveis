@@ -38,6 +38,8 @@ interface FiscalSettings {
   retemIss: boolean;
   certificadoNome: string | null;
   certificadoExpiraEm: string | null;
+  certificadoUploaded: boolean;
+  certificadoPasswordSet: boolean;
   provedor: string | null;
   apiTokenSet: boolean;
   ambiente: string;
@@ -49,6 +51,66 @@ export default function ConfiguracoesFiscalPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [apiTokenInput, setApiTokenInput] = useState("");
+  // Certificate upload
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [certPwdInput, setCertPwdInput] = useState("");
+  const [uploadingCert, setUploadingCert] = useState(false);
+  const [removingCert, setRemovingCert] = useState(false);
+
+  async function reloadSettings() {
+    const res = await fetch("/api/fiscal-settings");
+    if (res.ok) {
+      const data = await res.json();
+      setSettings(data);
+    }
+  }
+
+  async function handleUploadCertificate() {
+    if (!certFile || !certPwdInput) return;
+    setUploadingCert(true);
+    try {
+      const formData = new FormData();
+      formData.append("certificate", certFile);
+      formData.append("password", certPwdInput);
+      const res = await fetch("/api/fiscal-settings/certificate", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao subir certificado");
+      toast.success(data.message || "Certificado carregado");
+      setCertFile(null);
+      setCertPwdInput("");
+      // Limpa o input file na DOM
+      const input = document.getElementById("certFile") as HTMLInputElement;
+      if (input) input.value = "";
+      await reloadSettings();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao subir certificado");
+    } finally {
+      setUploadingCert(false);
+    }
+  }
+
+  async function handleRemoveCertificate() {
+    if (!confirm("Remover o certificado salvo? Voce tera que subir novamente para emitir NFs.")) {
+      return;
+    }
+    setRemovingCert(true);
+    try {
+      const res = await fetch("/api/fiscal-settings/certificate", {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao remover");
+      toast.success(data.message || "Certificado removido");
+      await reloadSettings();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao remover certificado");
+    } finally {
+      setRemovingCert(false);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/fiscal-settings")
@@ -442,9 +504,78 @@ export default function ConfiguracoesFiscalPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Status do certificado uploaded */}
+            {settings.certificadoUploaded ? (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 flex items-start gap-3">
+                <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div className="flex-1 text-sm">
+                  <p className="font-semibold text-emerald-900">
+                    Certificado A1 carregado
+                  </p>
+                  <p className="text-emerald-700 text-xs mt-0.5">
+                    {settings.certificadoNome || "arquivo .pfx"}
+                    {settings.certificadoPasswordSet && " - senha salva (criptografada)"}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={handleRemoveCertificate}
+                  disabled={removingCert}
+                >
+                  Remover
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
+                <strong>Nenhum certificado carregado.</strong> Faça upload do
+                arquivo .pfx (e a senha) abaixo para emitir NFS-e.
+              </div>
+            )}
+
+            {/* Upload */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label htmlFor="certificadoNome">Identificação do Certificado</Label>
+                <Label htmlFor="certFile">Arquivo .pfx ou .p12</Label>
+                <Input
+                  id="certFile"
+                  type="file"
+                  accept=".pfx,.p12"
+                  onChange={(e) => setCertFile(e.target.files?.[0] || null)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="certPwd">Senha do certificado</Label>
+                <Input
+                  id="certPwd"
+                  type="password"
+                  value={certPwdInput}
+                  onChange={(e) => setCertPwdInput(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={handleUploadCertificate}
+                disabled={!certFile || !certPwdInput || uploadingCert}
+                className="gap-2"
+              >
+                {uploadingCert && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {uploadingCert ? "Enviando..." : "Enviar certificado"}
+              </Button>
+              {settings.certificadoUploaded && (
+                <p className="text-xs text-muted-foreground">
+                  Re-enviar substitui o certificado atual.
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
+              <div className="space-y-1.5">
+                <Label htmlFor="certificadoNome">Identificação manual</Label>
                 <Input
                   id="certificadoNome"
                   value={settings.certificadoNome || ""}
@@ -453,7 +584,7 @@ export default function ConfiguracoesFiscalPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="certificadoExpiraEm">Validade</Label>
+                <Label htmlFor="certificadoExpiraEm">Validade (anote manual)</Label>
                 <Input
                   id="certificadoExpiraEm"
                   type="date"
@@ -467,13 +598,6 @@ export default function ConfiguracoesFiscalPage() {
                   }
                 />
               </div>
-            </div>
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900">
-              <strong>Como obter:</strong> Compre um Certificado Digital A1 em
-              autoridades certificadoras (Serasa, Certisign, Valid, AC Soluti).
-              Custa ~R$ 200/ano. O upload do arquivo (.pfx) será feito pelo
-              suporte técnico Bahflash quando o sistema estiver pronto para
-              emitir NFS-e em produção.
             </div>
           </CardContent>
         </Card>
