@@ -17,6 +17,7 @@
  *   POST /eventos     — cancelamento, substituicao
  */
 import https from "https";
+import zlib from "zlib";
 import { extractPfx } from "./nfse-pfx";
 import { buildDpsXml, type PrestadorData, type TomadorData, type ServicoData } from "./nfse-dps-builder";
 import { signDps } from "./nfse-xades-signer";
@@ -215,12 +216,18 @@ export async function emitirNFSe(params: EmitirNFSeParams): Promise<EmitirNFSeRe
   }
 
   // 4) Envia via mTLS
+  // O endpoint Padrao Nacional NAO aceita XML cru — exige JSON com o XML
+  // gzipped + base64 no campo dpsXmlGZipB64 (ou similar).
   const baseUrl = ENDPOINT[params.ambiente];
+  const gzipped = zlib.gzipSync(Buffer.from(signedXml, "utf8"));
+  const dpsB64 = gzipped.toString("base64");
+  const requestBody = JSON.stringify({ dpsXmlGZipB64: dpsB64 });
+
   try {
     const response = await postMtls({
       url: `${baseUrl}/nfse`,
-      body: signedXml,
-      contentType: "application/xml",
+      body: requestBody,
+      contentType: "application/json",
       certPem: certData.certPem,
       keyPem: certData.keyPem,
       caPem: certData.caPem,
@@ -241,7 +248,7 @@ export async function emitirNFSe(params: EmitirNFSeParams): Promise<EmitirNFSeRe
         dpsXml: signedXml,
       };
     } else {
-      const erro = parseSefinError(responseText);
+      const erro = parseSefinError(responseText, response.statusCode);
       return {
         sucesso: false,
         rejeicaoCodigo: erro.codigo || String(response.statusCode),
@@ -303,25 +310,49 @@ async function postMtls(params: {
 }
 
 /**
- * Parser simples de resposta de sucesso da SEFIN.
- * O retorno real eh um XML com NFS-e completa — extraimos os campos chave.
+ * Parser de resposta de sucesso da SEFIN.
+ * O retorno pode vir como JSON (envelope) ou XML (NFS-e completa).
+ * Tentamos JSON primeiro, fallback pra XML.
  */
-function parseSefinResponse(xml: string): {
+function parseSefinResponse(text: string): {
   numero?: string;
   serie?: string;
   codigoVerificacao?: string;
   chaveAcesso?: string;
 } {
-  const numero = matchTag(xml, "nNFSe") || matchTag(xml, "NumeroNFSe");
-  const serie = matchTag(xml, "serie") || matchTag(xml, "Serie");
-  const codigoVerificacao = matchTag(xml, "cVerifNFSe") || matchTag(xml, "CodigoVerificacao");
-  const chaveAcesso = matchTag(xml, "chNFSe") || matchTag(xml, "ChaveAcesso");
-  return { numero, serie, codigoVerificacao, chaveAcesso };
+  // Tenta JSON primeiro
+  try {
+    const json = JSON.parse(text);
+    return {
+      numero: json.numeroNFSe || json.numero || json.nNFSe,
+      serie: json.serie || json.Serie,
+      codigoVerificacao: json.codigoVerificacao || json.cVerifNFSe,
+      chaveAcesso: json.chaveAcesso || json.chNFSe,
+    };
+  } catch {
+    // Fallback XML
+    return {
+      numero: matchTag(text, "nNFSe") || matchTag(text, "NumeroNFSe"),
+      serie: matchTag(text, "serie") || matchTag(text, "Serie"),
+      codigoVerificacao: matchTag(text, "cVerifNFSe") || matchTag(text, "CodigoVerificacao"),
+      chaveAcesso: matchTag(text, "chNFSe") || matchTag(text, "ChaveAcesso"),
+    };
+  }
 }
 
-function parseSefinError(xml: string): { codigo?: string; motivo?: string } {
-  const codigo = matchTag(xml, "cMsg") || matchTag(xml, "codigo") || matchTag(xml, "Codigo");
-  const motivo = matchTag(xml, "xMsg") || matchTag(xml, "mensagem") || matchTag(xml, "Mensagem");
+function parseSefinError(text: string, statusCode: number): { codigo?: string; motivo?: string } {
+  // Tenta JSON primeiro (Padrao Nacional retorna JSON em erros)
+  try {
+    const json = JSON.parse(text);
+    const motivo = json.message || json.mensagem || json.detail || json.error;
+    const codigo = json.code || json.codigo || String(statusCode);
+    if (motivo) return { codigo, motivo };
+  } catch {
+    // ignore
+  }
+  // Fallback XML
+  const codigo = matchTag(text, "cMsg") || matchTag(text, "codigo") || matchTag(text, "Codigo");
+  const motivo = matchTag(text, "xMsg") || matchTag(text, "mensagem") || matchTag(text, "Mensagem");
   return { codigo, motivo };
 }
 
