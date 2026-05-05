@@ -110,15 +110,20 @@ export function buildDpsXml(params: DpsParams): { xml: string; idDps: string } {
 
   // ID da DPS no padrao Sefin Nacional v1.6 (pattern: DPS\d{41}, 44 chars).
   // Estrutura DECODIFICADA de XML real funcionando:
-  //   DPS + cMun(7) + "2"(1) + CNPJ(14) + serie(5) + nDPS(14)
+  //   DPS + cMun(7) + tpEmit(1) + CNPJ(14) + serie(5) + nDPS(14)
   // Total: 3 + 41 = 44 caracteres
-  // O "2" na pos 11 eh um indicador constante (talvez modelo NFSe).
+  // tpEmit constante "2" para emissor por aplicativo (vs "1" emissor web).
+  // serie deve comecar com digito nao-zero (Paulo usa "70000").
   const cMun = onlyDigits(params.codigoMunicipioEmissao).padStart(7, "0").substring(0, 7);
-  const flagConst = "2"; // indicador (constante observada em XMLs reais)
+  const tpEmit = "2"; // 2 = emissor por aplicativo / contribuinte direto
   const nInsc = onlyDigits(prestador.cnpj).padStart(14, "0");
-  const serieStr = onlyDigits(params.numeroSerie).padStart(5, "0").substring(0, 5);
+  // Serie default "70000" — precisa comecar com digito nao-zero pra evitar
+  // pattern fail. Vai ser configuravel depois.
+  let serieRaw = onlyDigits(params.numeroSerie);
+  if (!serieRaw || serieRaw.startsWith("0")) serieRaw = "70000";
+  const serieStr = serieRaw.padStart(5, "0").substring(0, 5);
   const nDPSStr = String(params.numeroDps).padStart(14, "0").substring(0, 14);
-  const idDps = `DPS${cMun}${flagConst}${nInsc}${serieStr}${nDPSStr}`;
+  const idDps = `DPS${cMun}${tpEmit}${nInsc}${serieStr}${nDPSStr}`;
   const dhEmi = formatDateIso(params.dhEmissao);
   const dCompet = params.competencia.split("T")[0];
 
@@ -145,7 +150,7 @@ export function buildDpsXml(params: DpsParams): { xml: string; idDps: string } {
     <tpAmb>${tpAmb}</tpAmb>
     <dhEmi>${dhEmi}</dhEmi>
     <verAplic>SommaImoveis_1.0</verAplic>
-    <serie>${escapeXml(serieStr)}</serie>
+    <serie>${escapeXml(serieRaw)}</serie>
     <nDPS>${params.numeroDps}</nDPS>
     <dCompet>${dCompet}</dCompet>
     <tpEmit>1</tpEmit>
