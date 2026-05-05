@@ -5,6 +5,23 @@ import { NextRequest, NextResponse } from "next/server";
 const ADMIN_ROUTES = ["/usuarios", "/configuracoes"];
 const PORTAL_JWT_ISSUER = "somma-portal";
 
+// Paginas com dados financeiros agregados/sensiveis da empresa.
+// Mesmo se um User existir com role/permissao errada, sao bloqueadas
+// aqui antes de servir a pagina (defense-in-depth). Proprietarios
+// do portal NUNCA passam (eles nem chegam aqui — nao tem cookie).
+const SENSITIVE_DASHBOARD_ROUTES: Record<string, string[]> = {
+  "/repasses": ["ADMIN", "CORRETOR"],
+  "/financeiro": ["ADMIN", "CORRETOR", "FINANCEIRO"],
+  "/notas-fiscais": ["ADMIN", "CORRETOR"],
+  "/lancamentos": ["ADMIN", "CORRETOR", "FINANCEIRO"],
+  "/fiscal": ["ADMIN", "CORRETOR", "FINANCEIRO"],
+};
+
+function rolesFromToken(role: unknown): string[] {
+  if (!role || typeof role !== "string") return [];
+  return role.split(",").map((r) => r.trim().toUpperCase()).filter(Boolean);
+}
+
 /**
  * Verifies a portal Bearer token in the Edge runtime.
  * Uses jose (Edge-compatible) directly instead of importing portal-auth.ts
@@ -109,6 +126,22 @@ export async function middleware(request: NextRequest) {
   const isAdminRoute = ADMIN_ROUTES.some(route => pathname.startsWith(route));
   if (isAdminRoute && token.role !== "ADMIN") {
     return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  // Defense-in-depth: rotas com dados financeiros agregados/sensiveis
+  // exigem role explicito. ADMIN sempre passa.
+  const userRoles = rolesFromToken(token.role);
+  const isAdmin = userRoles.includes("ADMIN");
+  if (!isAdmin) {
+    for (const [route, allowedRoles] of Object.entries(SENSITIVE_DASHBOARD_ROUTES)) {
+      if (pathname === route || pathname.startsWith(`${route}/`)) {
+        const ok = userRoles.some((r) => allowedRoles.includes(r));
+        if (!ok) {
+          return NextResponse.redirect(new URL("/", request.url));
+        }
+        break;
+      }
+    }
   }
 
   return NextResponse.next();
