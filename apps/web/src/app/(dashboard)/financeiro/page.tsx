@@ -82,6 +82,11 @@ interface Payment {
   interestValue: number | null;
   fineRetidaImobiliaria: boolean | null;
   interestRetidaImobiliaria: boolean | null;
+  // Snapshot das regras enviadas ao Sicredi no registro do boleto
+  multaTipoBoleto: string | null;
+  multaValorBoleto: number | null;
+  jurosTipoBoleto: string | null;
+  jurosValorBoleto: number | null;
   discountValue: number | null;
   dueDate: string;
   paidAt: string | null;
@@ -157,8 +162,17 @@ function estimateFineInterest(
     jurosValor: number;
     diaCorteJurosMulta: number;
   } | null,
-): { fine: number; interest: number; total: number; daysLate: number } | null {
-  if (!settings) return null;
+): {
+  fine: number;
+  interest: number;
+  total: number;
+  daysLate: number;
+  source: "BOLETO" | "GLOBAL"; // de onde vieram as regras
+  multaTipo: string;
+  multaValor: number;
+  jurosTipo: string;
+  jurosValor: number;
+} | null {
   if (!payment.dueDate) return null;
   if (payment.paidAt) return null; // ja foi pago, usa valores reais
 
@@ -170,25 +184,56 @@ function estimateFineInterest(
   );
   if (daysLate <= 0) return null;
 
+  // PREFERE o snapshot do proprio boleto (regras enviadas ao Sicredi
+  // no registro). Fallback pra BillingSettings global se o snapshot
+  // nao existir (boletos antigos antes do snapshot ser gravado).
+  const hasSnapshot =
+    payment.multaTipoBoleto !== null ||
+    payment.multaValorBoleto !== null ||
+    payment.jurosTipoBoleto !== null ||
+    payment.jurosValorBoleto !== null;
+
+  let multaTipo: string;
+  let multaValor: number;
+  let multaAposVenc: boolean;
+  let jurosTipo: string;
+  let jurosValor: number;
+  let source: "BOLETO" | "GLOBAL";
+
+  if (hasSnapshot) {
+    multaTipo = payment.multaTipoBoleto || "PERCENTUAL";
+    multaValor = payment.multaValorBoleto ?? 0;
+    multaAposVenc = multaValor > 0;
+    jurosTipo = payment.jurosTipoBoleto || "ISENTO";
+    jurosValor = payment.jurosValorBoleto ?? 0;
+    source = "BOLETO";
+  } else if (settings) {
+    multaTipo = settings.multaTipo;
+    multaValor = settings.multaValor;
+    multaAposVenc = settings.multaAposVenc;
+    jurosTipo = settings.jurosTipo;
+    jurosValor = settings.jurosValor;
+    source = "GLOBAL";
+  } else {
+    return null;
+  }
+
   const valor = payment.value;
 
   // Multa (aplicada uma vez)
   let fine = 0;
-  if (settings.multaAposVenc) {
-    fine =
-      settings.multaTipo === "PERCENTUAL"
-        ? (valor * settings.multaValor) / 100
-        : settings.multaValor;
+  if (multaAposVenc && multaValor > 0) {
+    fine = multaTipo === "PERCENTUAL" ? (valor * multaValor) / 100 : multaValor;
   }
 
   // Juros (por dia)
   let interest = 0;
-  if (settings.jurosTipo === "PERCENTUAL_MES") {
-    interest = ((valor * settings.jurosValor) / 100 / 30) * daysLate;
-  } else if (settings.jurosTipo === "PERCENTUAL_DIA") {
-    interest = ((valor * settings.jurosValor) / 100) * daysLate;
-  } else if (settings.jurosTipo === "VALOR_DIA") {
-    interest = settings.jurosValor * daysLate;
+  if (jurosTipo === "PERCENTUAL_MES") {
+    interest = ((valor * jurosValor) / 100 / 30) * daysLate;
+  } else if (jurosTipo === "PERCENTUAL_DIA") {
+    interest = ((valor * jurosValor) / 100) * daysLate;
+  } else if (jurosTipo === "VALOR_DIA") {
+    interest = jurosValor * daysLate;
   } else {
     interest = 0; // ISENTO
   }
@@ -197,7 +242,17 @@ function estimateFineInterest(
   interest = Math.round(interest * 100) / 100;
   const total = Math.round((fine + interest) * 100) / 100;
   if (total <= 0) return null;
-  return { fine, interest, total, daysLate };
+  return {
+    fine,
+    interest,
+    total,
+    daysLate,
+    source,
+    multaTipo,
+    multaValor,
+    jurosTipo,
+    jurosValor,
+  };
 }
 
 /**
@@ -211,7 +266,11 @@ function EstimatedFineInterestChip({
   diaCorte,
 }: {
   payment: Payment;
-  estimate: { fine: number; interest: number; total: number; daysLate: number };
+  estimate: {
+    fine: number; interest: number; total: number; daysLate: number;
+    source: "BOLETO" | "GLOBAL"; multaTipo: string; multaValor: number;
+    jurosTipo: string; jurosValor: number;
+  };
   diaCorte: number;
 }) {
   // Previsao de destino: se hoje.dia <= corte → imobiliaria; se nao → owner
@@ -260,9 +319,24 @@ function EstimatedFineInterestChip({
             📌 Se pagar hoje, destino:
           </div>
           <div className="text-[11px]">{destinoLabel}</div>
-          <div className="text-[10px] text-muted-foreground italic mt-1">
-            * Estimativa — valor real é confirmado pelo banco no momento do pagamento.
+          <div className="text-[10px] text-muted-foreground italic mt-2">
+            Regras aplicadas{estimate.source === "BOLETO" ? " (deste boleto)" : " (configuração global)"}:
+            {" "}multa {estimate.multaTipo === "PERCENTUAL" ? `${estimate.multaValor}%` : formatCurrency(estimate.multaValor)};
+            {" "}juros {estimate.jurosTipo === "PERCENTUAL_MES" ? `${estimate.jurosValor}%/mês`
+              : estimate.jurosTipo === "PERCENTUAL_DIA" ? `${estimate.jurosValor}%/dia`
+              : estimate.jurosTipo === "VALOR_DIA" ? `${formatCurrency(estimate.jurosValor)}/dia`
+              : "isento"}.
           </div>
+          {estimate.source === "BOLETO" ? (
+            <div className="text-[10px] text-emerald-700 mt-1">
+              ✓ Estimativa usa as mesmas regras enviadas ao Sicredi no registro do boleto.
+            </div>
+          ) : (
+            <div className="text-[10px] text-muted-foreground italic mt-1">
+              * Boleto registrado antes do snapshot — usa configuração global.
+              Pode haver pequena diferença com o valor real do Sicredi.
+            </div>
+          )}
         </div>
       </div>
     </div>

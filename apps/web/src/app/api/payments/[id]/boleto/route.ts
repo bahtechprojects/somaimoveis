@@ -202,6 +202,14 @@ export async function POST(
       );
     }
 
+    // Snapshot das regras de juros/multa enviadas ao Sicredi —
+    // permite que a estimativa no front BATA com o que o Sicredi vai
+    // cobrar, mesmo se BillingSettings mudar depois.
+    const multaTipoBoleto = boletoParams.multa?.tipo ?? null;
+    const multaValorBoleto = boletoParams.multa?.valor ?? null;
+    const jurosTipoBoleto = boletoParams.juros?.tipo ?? null;
+    const jurosValorBoleto = boletoParams.juros?.valor ?? null;
+
     const updated = await prisma.payment.update({
       where: { id },
       data: {
@@ -211,6 +219,10 @@ export async function POST(
         pixCopiaECola: result.pixCopiaECola || null,
         boletoStatus: "EMITIDO",
         boletoEmitidoEm: new Date(),
+        multaTipoBoleto,
+        multaValorBoleto,
+        jurosTipoBoleto,
+        jurosValorBoleto,
       },
       include: { tenant: true, owner: true },
     });

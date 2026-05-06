@@ -473,6 +473,13 @@ model Payment {
   // false = repassado ao proprietario (pago apos o dia de corte)
   fineRetidaImobiliaria     Boolean?
   interestRetidaImobiliaria Boolean?
+  // Snapshot das regras enviadas ao Sicredi no registro do boleto.
+  // Usado pra calcular estimativa de juros/multa que BATA com o que o
+  // Sicredi vai cobrar (caso BillingSettings mude depois do registro).
+  multaTipoBoleto    String?  // VALOR | PERCENTUAL
+  multaValorBoleto   Float?
+  jurosTipoBoleto    String?  // VALOR_DIA | PERCENTUAL_DIA | PERCENTUAL_MES | ISENTO
+  jurosValorBoleto   Float?
   // Boleto Sicredi
   nossoNumero       String?   // ID unico do boleto no Sicredi
   linhaDigitavel    String?   // Linha digitavel para pagamento
