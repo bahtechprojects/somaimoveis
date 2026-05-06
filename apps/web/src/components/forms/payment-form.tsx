@@ -736,6 +736,41 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
             <h3 className="text-sm font-semibold text-foreground border-b pb-2">
               Valores
             </h3>
+
+            {/* Aviso quando o usuario esta marcando como PAGO um boleto
+                que venceu antes da data de pagamento sem juros/multa */}
+            {selectedStatus === "PAGO" && (() => {
+              const due = watch("dueDate");
+              const paidAtVal = watch("paidAt");
+              const fine = parseFloat(String(watch("fineValue") ?? 0)) || 0;
+              const interest = parseFloat(String(watch("interestValue") ?? 0)) || 0;
+              if (!due || !paidAtVal) return null;
+              const dueDate = new Date(due + "T12:00:00");
+              const paidDate = new Date(paidAtVal + "T12:00:00");
+              const daysLate = Math.floor((paidDate.getTime() - dueDate.getTime()) / 86400000);
+              if (daysLate > 0 && fine === 0 && interest === 0) {
+                return (
+                  <div className="p-3 rounded-md border border-amber-300 bg-amber-50 text-xs space-y-1">
+                    <div className="font-semibold text-amber-900">
+                      ⚠️ Atenção: pagamento atrasado sem juros/multa
+                    </div>
+                    <div className="text-amber-800 leading-relaxed">
+                      Este boleto venceu em{" "}
+                      <strong>{dueDate.toLocaleDateString("pt-BR")}</strong> e foi
+                      pago em{" "}
+                      <strong>{paidDate.toLocaleDateString("pt-BR")}</strong>{" "}
+                      ({daysLate} dia{daysLate > 1 ? "s" : ""} de atraso).
+                      Se o cliente pagou <strong>sem</strong> juros/multa
+                      (ex: dinheiro com isenção combinada), deixe os campos
+                      Multa e Juros com 0,00. Caso contrário, preencha com
+                      o valor que ele efetivamente pagou.
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="value">Valor (R$) *</Label>
@@ -833,6 +868,11 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
                   type="date"
                   {...register("paidAt")}
                 />
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  ⚠️ Use a data <strong>REAL</strong> do pagamento (não a data
+                  de hoje). Essa data decide se juros/multa fica com a
+                  imobiliária ou vai pro proprietário.
+                </p>
               </div>
 
               <div className="space-y-2">
