@@ -119,7 +119,18 @@ function parseBreakdown(notes: string | null): Breakdown | null {
  * Usa snapshot do boleto se disponivel, senao fallback de mercado
  * (multa 2% + juros 1%/mes).
  */
-function estimatePaymentFineInterest(payment: PaymentLite): {
+interface BillingRules {
+  multaTipo: string;
+  multaValor: number;
+  multaAposVenc: boolean;
+  jurosTipo: string;
+  jurosValor: number;
+}
+
+function estimatePaymentFineInterest(
+  payment: PaymentLite,
+  globalSettings: BillingRules | null,
+): {
   fine: number;
   interest: number;
   total: number;
@@ -145,14 +156,33 @@ function estimatePaymentFineInterest(payment: PaymentLite): {
     payment.jurosTipoBoleto != null ||
     payment.jurosValorBoleto != null;
 
-  const multaTipo = hasSnapshot
-    ? (payment.multaTipoBoleto || "PERCENTUAL")
-    : "PERCENTUAL";
-  const multaValor = hasSnapshot ? (payment.multaValorBoleto ?? 0) : 2;
-  const jurosTipo = hasSnapshot
-    ? (payment.jurosTipoBoleto || "ISENTO")
-    : "PERCENTUAL_MES";
-  const jurosValor = hasSnapshot ? (payment.jurosValorBoleto ?? 0) : 1;
+  let multaTipo: string;
+  let multaValor: number;
+  let jurosTipo: string;
+  let jurosValor: number;
+  let source: "BOLETO" | "GLOBAL";
+
+  if (hasSnapshot) {
+    multaTipo = payment.multaTipoBoleto || "PERCENTUAL";
+    multaValor = payment.multaValorBoleto ?? 0;
+    jurosTipo = payment.jurosTipoBoleto || "ISENTO";
+    jurosValor = payment.jurosValorBoleto ?? 0;
+    source = "BOLETO";
+  } else if (globalSettings) {
+    // Usa config global (BillingSettings — bate com a tabela do /financeiro)
+    multaTipo = globalSettings.multaTipo;
+    multaValor = globalSettings.multaAposVenc ? globalSettings.multaValor : 0;
+    jurosTipo = globalSettings.jurosTipo;
+    jurosValor = globalSettings.jurosValor;
+    source = "GLOBAL";
+  } else {
+    // Fallback hardcoded (caso billingSettings nao tenha carregado)
+    multaTipo = "PERCENTUAL";
+    multaValor = 2;
+    jurosTipo = "PERCENTUAL_MES";
+    jurosValor = 1;
+    source = "GLOBAL";
+  }
 
   const valor = payment.value;
   let fine = 0;
@@ -191,11 +221,19 @@ function estimatePaymentFineInterest(payment: PaymentLite): {
  *  - Boleto ATRASADO nao pago: mostra estimativa "se pagar hoje"
  *  - Sem encargos: nao renderiza nada
  */
-function FineInterestSection({ payment }: { payment: PaymentLite }) {
+function FineInterestSection({
+  payment,
+  globalSettings,
+}: {
+  payment: PaymentLite;
+  globalSettings: BillingRules | null;
+}) {
   const realFine = payment.fineValue ?? 0;
   const realInterest = payment.interestValue ?? 0;
   const hasReal = realFine > 0 || realInterest > 0;
-  const estimate = !hasReal ? estimatePaymentFineInterest(payment) : null;
+  const estimate = !hasReal
+    ? estimatePaymentFineInterest(payment, globalSettings)
+    : null;
 
   if (!hasReal && !estimate) return null;
 
@@ -304,6 +342,7 @@ interface Props {
 export function PaymentDetailSheet({ paymentId, payments, open, onOpenChange, onMarkPaid }: Props) {
   const [contractPayments, setContractPayments] = useState<ContractPayment[]>([]);
   const [loading, setLoading] = useState(false);
+  const [billingSettings, setBillingSettings] = useState<BillingRules | null>(null);
 
   const payment = payments.find((p) => p.id === paymentId) || null;
 
@@ -323,6 +362,25 @@ export function PaymentDetailSheet({ paymentId, payments, open, onOpenChange, on
       .catch(() => setContractPayments([]))
       .finally(() => setLoading(false));
   }, [payment?.contractId, open]);
+
+  // Buscar regras de juros/multa global pra estimativa bater com a tabela
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/billing-settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        if (s && !s.error) {
+          setBillingSettings({
+            multaTipo: s.multaTipo || "PERCENTUAL",
+            multaValor: s.multaValor ?? 2,
+            multaAposVenc: s.multaAposVenc ?? true,
+            jurosTipo: s.jurosTipo || "PERCENTUAL_MES",
+            jurosValor: s.jurosValor ?? 1,
+          });
+        }
+      })
+      .catch(() => { /* tolerante: cai no fallback hardcoded */ });
+  }, [open]);
 
   if (!payment) return null;
 
@@ -473,7 +531,7 @@ export function PaymentDetailSheet({ paymentId, payments, open, onOpenChange, on
           )}
 
           {/* Juros/Multa — REAL (boleto pago) ou ESTIMADO (atrasado nao pago) */}
-          <FineInterestSection payment={payment} />
+          <FineInterestSection payment={payment} globalSettings={billingSettings} />
 
           {/* Partes envolvidas */}
           <div>
