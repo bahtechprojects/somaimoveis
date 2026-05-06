@@ -7,6 +7,7 @@ import {
   sicrediCancelBoleto,
 } from "@/lib/sicredi-client";
 import type { CreateBoletoParams } from "@/lib/sicredi-client";
+import { nextBusinessDay } from "@/lib/business-days";
 
 function tipoPessoa(cpfCnpj: string): "PESSOA_FISICA" | "PESSOA_JURIDICA" {
   return cpfCnpj.replace(/\D/g, "").length === 11
@@ -83,10 +84,37 @@ export async function POST(
   try {
     const { id } = await params;
 
-    const payment = await prisma.payment.findUnique({
+    let payment = await prisma.payment.findUnique({
       where: { id },
       include: { tenant: true, owner: true },
     });
+
+    // Sicredi nao aceita criar boleto com data no passado.
+    // Se dueDate < hoje, ajusta automaticamente pra hoje (ou proximo dia util).
+    if (payment?.dueDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const due = new Date(payment.dueDate);
+      due.setHours(0, 0, 0, 0);
+      if (due < today) {
+        const newRaw = new Date();
+        newRaw.setHours(12, 0, 0, 0);
+        const adjusted = nextBusinessDay(newRaw);
+        await prisma.payment.update({
+          where: { id },
+          data: { dueDate: adjusted },
+        });
+        // Re-fetch pra usar a nova data abaixo
+        payment = await prisma.payment.findUnique({
+          where: { id },
+          include: { tenant: true, owner: true },
+        });
+        console.log(
+          `[Boleto] dueDate de ${due.toISOString().slice(0, 10)} estava no ` +
+          `passado — ajustada pra ${adjusted.toISOString().slice(0, 10)}`,
+        );
+      }
+    }
 
     if (!payment) {
       return NextResponse.json(
