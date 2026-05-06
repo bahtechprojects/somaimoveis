@@ -80,6 +80,8 @@ interface Payment {
   paidValue: number | null;
   fineValue: number | null;
   interestValue: number | null;
+  fineRetidaImobiliaria: boolean | null;
+  interestRetidaImobiliaria: boolean | null;
   discountValue: number | null;
   dueDate: string;
   paidAt: string | null;
@@ -134,6 +136,85 @@ function formatCurrency(value: number): string {
     style: "currency",
     currency: "BRL",
   }).format(value);
+}
+
+/**
+ * Chip de juros/multa com tooltip explicativo. Mostra o destino
+ * (imobiliária retém / repassado ao proprietário) e o motivo.
+ */
+function FineInterestChip({ payment }: { payment: Payment }) {
+  const fine = payment.fineValue ?? 0;
+  const interest = payment.interestValue ?? 0;
+  const total = fine + interest;
+  if (total <= 0) return null;
+
+  // Determinar destino: se ambos retidos pela imobiliaria, "imobiliaria";
+  // se ambos repassados, "proprietario"; se misto, "misto"
+  const fineRetida = payment.fineRetidaImobiliaria === true;
+  const interestRetida = payment.interestRetidaImobiliaria === true;
+  const todosRetidos = (fine === 0 || fineRetida) && (interest === 0 || interestRetida);
+  const todosRepassados = (fine === 0 || !fineRetida) && (interest === 0 || !interestRetida);
+
+  const destino = todosRetidos
+    ? "Retido pela imobiliária"
+    : todosRepassados
+    ? "Repassado ao proprietário"
+    : "Destino misto";
+
+  const chipColor = todosRetidos
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : todosRepassados
+    ? "bg-blue-50 text-blue-700 border-blue-200"
+    : "bg-amber-50 text-amber-700 border-amber-200";
+
+  // Calcula motivo legivel
+  let motivo = "";
+  const dia = payment.paidAt ? new Date(payment.paidAt).getUTCDate() : null;
+  if (todosRetidos && dia) {
+    motivo = `Pago dia ${dia} — dentro do prazo (até dia 10)`;
+  } else if (todosRepassados && dia) {
+    motivo = `Pago dia ${dia} — após o dia de corte (dia 10)`;
+  } else if (todosRetidos) {
+    motivo = "Aluguel garantido pela imobiliária ou dentro do prazo";
+  }
+
+  return (
+    <div className="mt-1 group relative inline-block">
+      <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border ${chipColor} cursor-help`}>
+        +{formatCurrency(total)} juros/multa
+        <span className="text-muted-foreground">ⓘ</span>
+      </span>
+      {/* Tooltip on hover */}
+      <div className="invisible group-hover:visible absolute left-0 top-full mt-1 z-50 w-72 p-3 rounded-md border bg-popover shadow-md text-xs space-y-1.5">
+        <div className="font-semibold border-b pb-1.5 mb-1.5">
+          Detalhamento juros/multa
+        </div>
+        {fine > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Multa:</span>
+            <span className="font-medium">{formatCurrency(fine)}</span>
+          </div>
+        )}
+        {interest > 0 && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Juros:</span>
+            <span className="font-medium">{formatCurrency(interest)}</span>
+          </div>
+        )}
+        <div className="flex justify-between border-t pt-1.5">
+          <span className="font-semibold">Total:</span>
+          <span className="font-semibold">{formatCurrency(total)}</span>
+        </div>
+        <div className="border-t pt-1.5 mt-1.5">
+          <div className="text-[11px] font-semibold mb-0.5">📌 Destino:</div>
+          <div className="text-[11px]">{destino}</div>
+          {motivo && (
+            <div className="text-[10px] text-muted-foreground mt-1">{motivo}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 interface PaymentBreakdown {
@@ -874,7 +955,14 @@ function FinanceiroContent() {
                         <p className="mt-1 text-[11px] text-muted-foreground">
                           Pago em {formatDate(payment.paidAt)}
                           {payment.paymentMethod ? ` via ${methodLabels[payment.paymentMethod] || payment.paymentMethod}` : ""}
+                          {payment.paidValue && Math.abs(payment.paidValue - payment.value) > 0.01 && (
+                            <> • Valor pago: <strong>{formatCurrency(payment.paidValue)}</strong></>
+                          )}
                         </p>
+                      )}
+                      {/* Chip de juros/multa quando houver — com tooltip explicativo */}
+                      {((payment.fineValue ?? 0) > 0 || (payment.interestValue ?? 0) > 0) && (
+                        <FineInterestChip payment={payment} />
                       )}
                       {payment.nossoNumero && (
                         <p className="mt-1 text-[11px] text-muted-foreground font-mono">

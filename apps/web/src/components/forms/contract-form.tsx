@@ -49,6 +49,7 @@ const contractSchema = z.object({
   guaranteeType: z.string().optional(),
   guaranteeValue: z.coerce.number().optional(),
   guaranteeNotes: z.string().optional(),
+  aluguelGarantido: z.boolean().optional(),
   adjustmentIndex: z.string().optional(),
   adjustmentMonth: z.coerce.number().int().min(1).max(12).optional(),
   lastAdjustmentPercent: z.coerce.number().optional(),
@@ -77,6 +78,7 @@ type ContractFormData = {
   guaranteeType?: string;
   guaranteeValue?: number;
   guaranteeNotes?: string;
+  aluguelGarantido?: boolean;
   adjustmentIndex?: string;
   adjustmentMonth?: number;
   lastAdjustmentPercent?: number;
@@ -145,6 +147,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
       guaranteeType: "",
       guaranteeValue: undefined,
       guaranteeNotes: "",
+      aluguelGarantido: false,
       adjustmentIndex: "IGPM",
       adjustmentMonth: undefined,
       lastAdjustmentPercent: undefined,
@@ -252,6 +255,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
           guaranteeType: contract.guaranteeType || "",
           guaranteeValue: contract.guaranteeValue ?? undefined,
           guaranteeNotes: contract.guaranteeNotes || "",
+          aluguelGarantido: (contract as any).aluguelGarantido ?? false,
           adjustmentIndex: contract.adjustmentIndex || "IGPM",
           adjustmentMonth: contract.adjustmentMonth ?? undefined,
           lastAdjustmentPercent: contract.lastAdjustmentPercent ?? undefined,
@@ -334,6 +338,7 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
         guaranteeType: data.guaranteeType || null,
         guaranteeValue: data.guaranteeValue || null,
         guaranteeNotes: data.guaranteeNotes || null,
+        aluguelGarantido: data.aluguelGarantido ?? false,
         guarantorIds: data.guaranteeType === "FIADOR" ? selectedGuarantorIds : [],
         adjustmentIndex: data.adjustmentIndex || null,
         adjustmentMonth: data.adjustmentMonth || null,
@@ -839,6 +844,29 @@ export function ContractForm({ open, onOpenChange, contract, onSuccess }: Contra
                   placeholder="Detalhes sobre a garantia"
                   {...register("guaranteeNotes")}
                 />
+              </div>
+
+              {/* Aluguel garantido pela imobiliaria — afeta o destino de juros/multa */}
+              <div className="space-y-1 sm:col-span-2 p-3 rounded-md border border-amber-200 bg-amber-50/50">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    {...register("aluguelGarantido")}
+                    className="mt-1 h-4 w-4 rounded border-input"
+                  />
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium">
+                      Aluguel garantido pela imobiliária
+                    </div>
+                    <div className="text-xs text-muted-foreground leading-relaxed">
+                      Quando marcado, a imobiliária adianta o repasse ao
+                      proprietário mesmo se o inquilino atrasar.
+                      Consequência: <strong>juros e multa por atraso ficam
+                      sempre com a imobiliária</strong> (não são repassados
+                      ao proprietário).
+                    </div>
+                  </div>
+                </label>
               </div>
 
               {selectedGuaranteeType === "FIADOR" && (

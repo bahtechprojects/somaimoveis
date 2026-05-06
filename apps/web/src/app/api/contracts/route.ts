@@ -172,6 +172,7 @@ export async function POST(request: NextRequest) {
         guaranteeType: body.guaranteeType || null,
         guaranteeValue: body.guaranteeValue ? parseFloat(String(body.guaranteeValue)) : null,
         guaranteeNotes: body.guaranteeNotes || null,
+        aluguelGarantido: body.aluguelGarantido === true,
         intermediationInstallments: body.intermediationInstallments ? parseInt(String(body.intermediationInstallments)) : 1,
         renewalMonths: body.renewalMonths ? parseInt(String(body.renewalMonths)) : 12,
         penaltyPercent: body.penaltyPercent ? parseFloat(String(body.penaltyPercent)) : 3,

@@ -24,6 +24,7 @@ interface BillingSettings {
   jurosTipo: string;
   jurosValor: number;
   validadeAposVencimentoDias: number;
+  diaCorteJurosMulta: number;
   mensagemPadrao: string | null;
   notes: string | null;
 }
@@ -261,6 +262,48 @@ export default function ConfiguracoesCobrancaPage() {
                 dia do vencimento (causa o erro &quot;não foi possível pagar&quot;
                 que vocês viram). Com 30, o cliente pode pagar via PIX por 30
                 dias após vencer (com juros/multa aplicados automaticamente).
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Dia limite juros/multa retidos pela imobiliaria */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Receipt className="h-4 w-4" />
+              Destino de Juros e Multa por Atraso
+            </CardTitle>
+            <CardDescription>
+              Define até que dia do mês os juros e multa do inquilino atrasado
+              ficam com a imobiliária. Após esse dia, são repassados ao
+              proprietário.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="diaCorte">
+                Dia de corte (do mês)
+              </Label>
+              <Input
+                id="diaCorte"
+                type="number"
+                min="1"
+                max="31"
+                value={settings.diaCorteJurosMulta ?? 10}
+                onChange={(e) =>
+                  update("diaCorteJurosMulta", parseInt(e.target.value) || 10)
+                }
+                placeholder="10"
+              />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                <strong>Padrão: dia 10.</strong> Inquilino paga até esse dia →
+                juros/multa fica com a <strong>imobiliária</strong>. Paga
+                depois → juros/multa vai pro <strong>proprietário</strong>.
+                <br />
+                <em>Exceção: contratos com &quot;Aluguel garantido pela imobiliária&quot; marcado
+                — juros/multa fica sempre com a imobiliária, independente
+                do dia.</em>
               </p>
             </div>
           </CardContent>

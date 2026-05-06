@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 import { sicrediCancelBoleto } from "@/lib/sicredi-client";
+import { applyFineInterestSplit } from "@/lib/fine-interest-split";
 
 export async function GET(
   request: NextRequest,
@@ -62,6 +63,48 @@ export async function PUT(
     if (body.irrfRate !== undefined) data.irrfRate = body.irrfRate ? parseFloat(body.irrfRate) : null;
     if (body.grossToOwner !== undefined) data.grossToOwner = body.grossToOwner ? parseFloat(body.grossToOwner) : null;
     if (body.netToOwner !== undefined) data.netToOwner = body.netToOwner ? parseFloat(body.netToOwner) : null;
+
+    // Override manual do split de juros/multa (botao "excluir do repasse" na UI)
+    if (body.fineRetidaImobiliaria !== undefined) data.fineRetidaImobiliaria = body.fineRetidaImobiliaria;
+    if (body.interestRetidaImobiliaria !== undefined) data.interestRetidaImobiliaria = body.interestRetidaImobiliaria;
+
+    // Auto-recalcula o split de juros/multa quando edita pagamento PAGO
+    // com fineValue/interestValue/paidAt — exceto se o usuario passou
+    // explicitamente o override.
+    const overrideSplit =
+      body.fineRetidaImobiliaria !== undefined ||
+      body.interestRetidaImobiliaria !== undefined;
+    if (!overrideSplit && body.status === "PAGO") {
+      // Buscar o estado atual + contrato pra rodar a regra
+      const current = await prisma.payment.findUnique({
+        where: { id },
+        select: {
+          fineValue: true,
+          interestValue: true,
+          paidAt: true,
+          contract: { select: { aluguelGarantido: true } },
+        },
+      });
+      if (current) {
+        const fine = (data.fineValue as number | null) ?? current.fineValue;
+        const interest = (data.interestValue as number | null) ?? current.interestValue;
+        const paidAt = (data.paidAt as Date | null) ?? current.paidAt;
+        const aluguelGarantido = current.contract?.aluguelGarantido ?? false;
+        if ((fine ?? 0) > 0 || (interest ?? 0) > 0) {
+          const billingSettings = await prisma.billingSettings.findFirst();
+          const diaCorte = billingSettings?.diaCorteJurosMulta ?? 10;
+          const split = applyFineInterestSplit({
+            fineValue: fine,
+            interestValue: interest,
+            paidAt,
+            aluguelGarantido,
+            diaCorte,
+          });
+          data.fineRetidaImobiliaria = split.fineRetidaImobiliaria;
+          data.interestRetidaImobiliaria = split.interestRetidaImobiliaria;
+        }
+      }
+    }
 
     const payment = await prisma.payment.update({
       where: { id },

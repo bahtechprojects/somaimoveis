@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyWebhookSignature } from "@/lib/webhook-verify";
+import { applyFineInterestSplit } from "@/lib/fine-interest-split";
 
 // GET - Health check para verificacao do endpoint pelo Sicredi
 export async function GET() {
@@ -109,7 +110,10 @@ export async function POST(request: NextRequest) {
     // Buscar pagamento pelo nossoNumero
     const payment = await prisma.payment.findFirst({
       where: { nossoNumero },
-      include: { owner: true, contract: { select: { id: true } } },
+      include: {
+        owner: true,
+        contract: { select: { id: true, aluguelGarantido: true } },
+      },
     });
 
     if (!payment) {
@@ -139,16 +143,37 @@ export async function POST(request: NextRequest) {
     // Montar dados de pagamento
     const paidAt = dataPagamento || new Date();
 
+    // Aplicar regra de split de juros/multa (Leo's rule):
+    // - aluguelGarantido = sempre retido pela imobiliaria
+    // - paidAt.dia <= diaCorte (default 10) = retido pela imobiliaria
+    // - paidAt.dia > diaCorte = repassado ao proprietario
+    const billingSettings = await prisma.billingSettings.findFirst();
+    const diaCorte = billingSettings?.diaCorteJurosMulta ?? 10;
+    const split = applyFineInterestSplit({
+      fineValue: valorMulta,
+      interestValue: valorJuros,
+      paidAt,
+      aluguelGarantido: payment.contract?.aluguelGarantido ?? false,
+      diaCorte,
+    });
+
     const updated = await prisma.payment.update({
       where: { id: payment.id },
       data: {
         status: "PAGO",
         paidValue: valorPagoNum ?? payment.value,
         paidAt,
+        // Persiste juros/multa em campos estruturados (antes ia so na description)
+        fineValue: valorMulta || null,
+        interestValue: valorJuros || null,
+        discountValue: valorDesconto || null,
+        // Split: pra onde foi cada parte (auditoria)
+        fineRetidaImobiliaria: split.fineRetidaImobiliaria,
+        interestRetidaImobiliaria: split.interestRetidaImobiliaria,
         boletoStatus: "LIQUIDADO",
         boletoLiquidadoEm: new Date(),
         paymentMethod: "BOLETO",
-        description: `Sicredi: ${movimento} | Valor: R$ ${(valorPagoNum ?? payment.value).toFixed(2)} | Juros: R$ ${valorJuros.toFixed(2)} | Multa: R$ ${valorMulta.toFixed(2)} | Desconto: R$ ${valorDesconto.toFixed(2)} | ID: ${body.idEventoWebhook || "N/A"}`,
+        description: `Sicredi: ${movimento} | Valor: R$ ${(valorPagoNum ?? payment.value).toFixed(2)} | Juros: R$ ${valorJuros.toFixed(2)} | Multa: R$ ${valorMulta.toFixed(2)} | Desconto: R$ ${valorDesconto.toFixed(2)} | ${split.motivoLabel} | ID: ${body.idEventoWebhook || "N/A"}`,
       },
     });
 

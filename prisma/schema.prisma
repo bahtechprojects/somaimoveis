@@ -81,6 +81,11 @@ model BillingSettings {
   jurosValor               Float    @default(1.0)              // 1% ao mes (~0.033%/dia)
   // PIX cobv: dias em que o PIX continua valido apos vencer
   validadeAposVencimentoDias Int    @default(30)
+  // Dia limite (do mes) ate o qual juros/multa ficam com a imobiliaria.
+  // Inquilino paga ATE esse dia → juros/multa retido (cobre o atraso curto antes do repasse).
+  // Inquilino paga DEPOIS → juros/multa repassado ao proprietario.
+  // Excecao: se contrato.aluguelGarantido = true, sempre fica com a imobiliaria.
+  diaCorteJurosMulta       Int      @default(10)
   // Mensagens padrao
   mensagemPadrao           String?
   notes                    String?
@@ -386,6 +391,10 @@ model Contract {
   guaranteeType  String?  // FIADOR, CAUCAO, SEGURO_FIANCA, TITULO_CAPITALIZACAO, SEM_GARANTIA
   guaranteeValue Float?
   guaranteeNotes String?
+  // Aluguel garantido pela imobiliaria — quando true, juros/multa por atraso
+  // do inquilino SEMPRE ficam com a imobiliaria (cobre o adiantamento ja feito
+  // ao proprietario). Default false = regra padrao (depende da data de pagamento).
+  aluguelGarantido Boolean @default(false)
   // Fiadores (many-to-many via join table)
   guarantors     ContractGuarantor[]
   // Renovacao
@@ -458,6 +467,12 @@ model Payment {
   irrfRate            Float?    // Aliquota do IRRF aplicada
   grossToOwner        Float?    // Valor bruto ao proprietario (aluguel - taxa adm)
   netToOwner          Float?    // Valor liquido ao proprietario (grossToOwner - IRRF)
+  // Destino dos juros/multa quando o boleto eh pago com atraso.
+  // null = nao calculado ainda (boleto ainda nao foi pago ou nao tem juros/multa)
+  // true = retido pela imobiliaria (cobre o atraso curto ou aluguel garantido)
+  // false = repassado ao proprietario (pago apos o dia de corte)
+  fineRetidaImobiliaria     Boolean?
+  interestRetidaImobiliaria Boolean?
   // Boleto Sicredi
   nossoNumero       String?   // ID unico do boleto no Sicredi
   linhaDigitavel    String?   // Linha digitavel para pagamento

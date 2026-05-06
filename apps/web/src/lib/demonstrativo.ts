@@ -106,9 +106,48 @@ export async function buildDemonstrativo(
           contractId: { in: contractIds },
           dueDate: { gte: monthStart, lte: monthEnd },
         },
-        select: { id: true, contractId: true, dueDate: true, notes: true },
+        select: {
+          id: true,
+          contractId: true,
+          dueDate: true,
+          paidAt: true,
+          notes: true,
+          // Juros/multa: novos campos estruturados (a partir de 2026-05)
+          fineValue: true,
+          interestValue: true,
+          fineRetidaImobiliaria: true,
+          interestRetidaImobiliaria: true,
+        },
       })
     : [];
+
+  // Mapa de juros/multa por contrato (so o que VAI pro proprietario neste mes)
+  type FineInterestInfo = {
+    fineToOwner: number;
+    fineToImob: number;
+    interestToOwner: number;
+    interestToImob: number;
+    paidAt: Date | null;
+  };
+  const fineInterestByContract = new Map<string, FineInterestInfo>();
+  for (const p of payments) {
+    if (!p.contractId) continue;
+    const fine = p.fineValue ?? 0;
+    const interest = p.interestValue ?? 0;
+    if (fine === 0 && interest === 0) continue;
+    const fineRetida = p.fineRetidaImobiliaria === true;
+    const interestRetida = p.interestRetidaImobiliaria === true;
+    const cur = fineInterestByContract.get(p.contractId) || {
+      fineToOwner: 0, fineToImob: 0, interestToOwner: 0, interestToImob: 0,
+      paidAt: p.paidAt,
+    };
+    cur.fineToImob += fineRetida ? fine : 0;
+    cur.fineToOwner += fineRetida ? 0 : fine;
+    cur.interestToImob += interestRetida ? interest : 0;
+    cur.interestToOwner += interestRetida ? 0 : interest;
+    if (!cur.paidAt) cur.paidAt = p.paidAt;
+    fineInterestByContract.set(p.contractId, cur);
+  }
 
   type TenantLanc = {
     id?: string;
@@ -151,6 +190,8 @@ export async function buildDemonstrativo(
     aluguelLiquido: number;
     adminFee: number;
     irrf: number;
+    /** Juros/multa retidos pela imobiliaria (nota informativa, nao soma) */
+    infoRetidoPelaImobiliaria?: { juros: number; multa: number; total: number };
   };
 
   const groups = new Map<string, ContractGroup>();
@@ -434,6 +475,46 @@ export async function buildDemonstrativo(
           saida: valorProprio,
         });
         g.totalSaidas += valorProprio;
+      }
+
+      // Juros/multa por atraso (Lei do Leo: dia <= 10 = imob; dia > 10 = owner; aluguel garantido = imob sempre)
+      const fi = fineInterestByContract.get(contractId);
+      if (fi) {
+        const dataPagto = fi.paidAt
+          ? new Date(fi.paidAt).toLocaleDateString("pt-BR", { timeZone: "UTC" })
+          : dateStr;
+        // ENTRADAS — quando juros/multa foi REPASSADO ao proprietario
+        const jurosOwner = Math.round(fi.interestToOwner * shareRatio * 100) / 100;
+        const multaOwner = Math.round(fi.fineToOwner * shareRatio * 100) / 100;
+        if (jurosOwner > 0) {
+          g.movimentos.push({
+            date: dataPagto,
+            descricao: `Juros por atraso Ref ${monthRef}${shareLabel}`,
+            entrada: jurosOwner,
+            saida: 0,
+          });
+          g.totalEntradas += jurosOwner;
+        }
+        if (multaOwner > 0) {
+          g.movimentos.push({
+            date: dataPagto,
+            descricao: `Multa por atraso Ref ${monthRef}${shareLabel}`,
+            entrada: multaOwner,
+            saida: 0,
+          });
+          g.totalEntradas += multaOwner;
+        }
+        // INFO — quando juros/multa foi RETIDO pela imobiliaria
+        // (nao soma nos totais, eh apenas nota de transparencia)
+        const jurosImob = Math.round(fi.interestToImob * shareRatio * 100) / 100;
+        const multaImob = Math.round(fi.fineToImob * shareRatio * 100) / 100;
+        if (jurosImob + multaImob > 0) {
+          (g as any).infoRetidoPelaImobiliaria = {
+            juros: jurosImob,
+            multa: multaImob,
+            total: jurosImob + multaImob,
+          };
+        }
       }
     }
 

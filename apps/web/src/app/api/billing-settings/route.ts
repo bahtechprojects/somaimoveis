@@ -40,6 +40,11 @@ export async function PUT(request: NextRequest) {
     if (body.validadeAposVencimentoDias !== undefined)
       data.validadeAposVencimentoDias = parseInt(body.validadeAposVencimentoDias) || 0;
 
+    if (body.diaCorteJurosMulta !== undefined) {
+      const v = parseInt(body.diaCorteJurosMulta);
+      data.diaCorteJurosMulta = isFinite(v) && v >= 1 && v <= 31 ? v : 10;
+    }
+
     if (body.mensagemPadrao !== undefined) data.mensagemPadrao = body.mensagemPadrao || null;
     if (body.notes !== undefined) data.notes = body.notes || null;
 

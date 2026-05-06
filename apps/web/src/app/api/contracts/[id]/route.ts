@@ -75,6 +75,7 @@ export async function PUT(
     if (body.ownerId !== undefined) data.ownerId = body.ownerId;
     if (body.tenantId !== undefined) data.tenantId = body.tenantId;
     if (body.guaranteeType !== undefined) data.guaranteeType = body.guaranteeType;
+    if (body.aluguelGarantido !== undefined) data.aluguelGarantido = body.aluguelGarantido === true;
     if (body.adjustmentIndex !== undefined) data.adjustmentIndex = body.adjustmentIndex;
     if (body.notes !== undefined) data.notes = body.notes;
 
