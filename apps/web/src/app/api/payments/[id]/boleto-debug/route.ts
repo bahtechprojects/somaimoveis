@@ -85,19 +85,26 @@ export async function POST(
 
   switch (mode) {
     case "minimal":
-      // Apenas pagador + beneficiarioFinal + valor + dueDate
+      // Apenas pagador + beneficiarioFinal + valor + dueDate (HIBRIDO)
+      break;
+    case "normal":
+      // Igual minimal mas com tipoCobranca=NORMAL (sem PIX)
+      params2.tipoCobranca = "NORMAL";
       break;
     case "fees":
-      // Adiciona multa + juros
+      params2.multa = { tipo: "PERCENTUAL", valor: 2 };
+      params2.juros = { tipo: "PERCENTUAL_MES", valor: 1 };
+      break;
+    case "fees-normal":
+      // Multa/juros + NORMAL (sem PIX)
+      params2.tipoCobranca = "NORMAL";
       params2.multa = { tipo: "PERCENTUAL", valor: 2 };
       params2.juros = { tipo: "PERCENTUAL_MES", valor: 1 };
       break;
     case "validade":
-      // Adiciona so validadeAposVencimento
       params2.validadeAposVencimento = 30;
       break;
     case "informativos":
-      // Adiciona so informativos
       params2.informativos = ["Teste 1", "Teste 2"];
       break;
     case "full":
