@@ -135,14 +135,10 @@ export function buildSearchWhere(
     return { OR: orClauses };
   });
 
-  // Se a busca inteira eh numerica e tem campos numericos, adiciona a busca
-  // pelos digitos puros (ex: "519731-9990" → procura "5197319990")
-  if (isNumericSearch && options.numericFields?.length) {
-    const numericClauses: Array<Record<string, unknown>> = options.numericFields.map(
-      (field) => buildContainsClause(field, digitsOnly),
-    );
-    andClauses.push({ OR: numericClauses });
-  }
+  // (Removido) AND extra que exigia o termo numerico estar EM
+  // numericFields. Esse bloco quebrava buscas onde o termo esta apenas
+  // no `code` (ex: "490" -> CTR-490). A busca por digitos puros em
+  // numericFields ja eh feita dentro do OR principal de cada token.
 
   return andClauses;
 }
