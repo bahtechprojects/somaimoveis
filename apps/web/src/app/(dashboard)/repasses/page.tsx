@@ -237,6 +237,28 @@ function isAluguelGarantidoMes(entry: OwnerEntry): boolean {
   }
 }
 
+/** Detecta REPASSE com value=0 porque a intermediacao consumiu o aluguel todo.
+ *  Retorna nota explicativa quando aplicavel, ou null caso contrario. */
+function getIntermediacaoConsumidaInfo(
+  entry: OwnerEntry
+): { intermediacao: number; saldoNovo?: number; nota?: string } | null {
+  if (!["REPASSE", "GARANTIA"].includes(entry.category)) return null;
+  if (entry.value > 0) return null;
+  if (!entry.notes) return null;
+  try {
+    const n = JSON.parse(entry.notes);
+    const interm = typeof n.intermediacao === "number" ? n.intermediacao : 0;
+    if (interm <= 0) return null;
+    return {
+      intermediacao: interm,
+      saldoNovo: typeof n.intermediacaoSaldoNovo === "number" ? n.intermediacaoSaldoNovo : undefined,
+      nota: typeof n.intermediacaoNota === "string" ? n.intermediacaoNota : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function RepassesPage() {
   const { data: session } = useSession();
   // canAdmin: pode usar acoes destrutivas (Sincronizar, Importar Retorno,
@@ -1923,6 +1945,33 @@ export default function RepassesPage() {
                                             </TooltipProvider>
                                           );
                                         })()}
+                                        {(() => {
+                                          const info = getIntermediacaoConsumidaInfo(entry);
+                                          if (!info) return null;
+                                          return (
+                                            <TooltipProvider delayDuration={200}>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-[10px] h-5 border gap-1 cursor-help bg-cyan-50 text-cyan-700 border-cyan-200"
+                                                  >
+                                                    <AlertCircle className="h-2.5 w-2.5" />
+                                                    Intermediação consumiu repasse
+                                                  </Badge>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="bottom" className="max-w-xs space-y-1">
+                                                  <p className="text-xs">
+                                                    A parcela de intermediação ({formatCurrency(info.intermediacao)}) foi descontada inteira do repasse deste mês — por isso o valor a repassar ficou em zero.
+                                                  </p>
+                                                  {info.nota && (
+                                                    <p className="text-[10px] text-muted-foreground">{info.nota}</p>
+                                                  )}
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
+                                          );
+                                        })()}
                                       </div>
                                     </TableCell>
                                     <TableCell className="text-right text-xs font-semibold">
@@ -2010,6 +2059,28 @@ export default function RepassesPage() {
                                           </TableCell>
                                           <TableCell className="text-right text-xs font-semibold text-red-600">
                                             -{formatCurrency(debit.value)}
+                                          </TableCell>
+                                          <TableCell>
+                                            <div className="flex items-center gap-0.5">
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-muted-foreground hover:text-blue-600"
+                                                title="Editar valor / descrição"
+                                                onClick={() => handleEditEntryValue(debit as OwnerEntry)}
+                                              >
+                                                <Pencil className="h-3.5 w-3.5" />
+                                              </Button>
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-muted-foreground hover:text-red-600"
+                                                title="Excluir débito"
+                                                onClick={() => handleDeleteEntry(debit.id, debit.description)}
+                                              >
+                                                <X className="h-3.5 w-3.5" />
+                                              </Button>
+                                            </div>
                                           </TableCell>
                                         </TableRow>
                                       );
