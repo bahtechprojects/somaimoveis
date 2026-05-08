@@ -48,6 +48,10 @@ export async function GET(request: NextRequest) {
     thirdPartyPix: true,
     paymentDay: true,
     notes: true,
+    payoutBeneficiaries: {
+      orderBy: { order: "asc" } as const,
+      select: { id: true, name: true, pixKey: true, pixKeyType: true, percentage: true },
+    },
   };
 
   const entries = await prisma.ownerEntry.findMany({
@@ -129,6 +133,45 @@ export async function GET(request: NextRequest) {
     }
   } catch (err) {
     console.error("[Repasses] Erro no enriquecimento de notes:", err);
+  }
+
+  // Anexar status do Payment de origem em cada entry REPASSE/GARANTIA.
+  // Sem FK direta entre OwnerEntry e Payment: usamos o par (contractId, dueDate)
+  // para localizar o boleto correspondente. Permite a UI exibir
+  // "Boleto nao pago" quando o repasse esta pendente do inquilino.
+  try {
+    const repasseEntries = entries.filter(
+      (e) => ["REPASSE", "GARANTIA"].includes(e.category) && e.contractId && e.dueDate
+    );
+    if (repasseEntries.length > 0) {
+      const contractIds = [...new Set(repasseEntries.map((e) => e.contractId as string))];
+      const dueDates = repasseEntries.map((e) => e.dueDate as Date);
+      const payments = await prisma.payment.findMany({
+        where: {
+          contractId: { in: contractIds },
+          dueDate: { in: dueDates },
+        },
+        select: { contractId: true, dueDate: true, status: true, paidAt: true },
+      });
+      const paymentByKey = new Map<string, { status: string; paidAt: Date | null }>();
+      for (const p of payments) {
+        const key = `${p.contractId}_${p.dueDate.toISOString()}`;
+        paymentByKey.set(key, { status: p.status, paidAt: p.paidAt });
+      }
+      for (const entry of entries) {
+        if (["REPASSE", "GARANTIA"].includes(entry.category) && entry.contractId && entry.dueDate) {
+          const key = `${entry.contractId}_${(entry.dueDate as Date).toISOString()}`;
+          const p = paymentByKey.get(key);
+          (entry as any).paymentStatus = p?.status ?? null;
+          (entry as any).paymentPaidAt = p?.paidAt ?? null;
+        } else {
+          (entry as any).paymentStatus = null;
+          (entry as any).paymentPaidAt = null;
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[Repasses] Erro ao buscar status do Payment:", err);
   }
 
   // Buscar debitos PENDENTES dos proprietarios para descontar do repasse

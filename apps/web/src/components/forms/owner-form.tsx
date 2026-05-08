@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Trash2 } from "lucide-react";
 import { useCepLookup } from "@/hooks/use-cep-lookup";
 import { useCnpjLookup } from "@/hooks/use-cnpj-lookup";
 import { Button } from "@/components/ui/button";
@@ -70,8 +70,18 @@ interface OwnerFormProps {
   onSuccess: () => void;
 }
 
+interface BeneficiaryRow {
+  name: string;
+  pixKey: string;
+  pixKeyType: string;
+  percentage: string; // string no form para permitir digitar livremente
+}
+
+const EMPTY_BENEF: BeneficiaryRow = { name: "", pixKey: "", pixKeyType: "CPF", percentage: "" };
+
 export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormProps) {
   const [loading, setLoading] = useState(false);
+  const [beneficiaries, setBeneficiaries] = useState<BeneficiaryRow[]>([]);
   const isEditing = !!owner;
 
   const {
@@ -199,7 +209,22 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
           paymentDay: owner.paymentDay ?? 10,
           notes: owner.notes || "",
         });
+        // Carrega beneficiarios de repasse cadastrados (Fase 2.9 — caso Roberta)
+        if (Array.isArray(owner.payoutBeneficiaries)) {
+          setBeneficiaries(
+            owner.payoutBeneficiaries.map((b: any) => ({
+              name: b.name || "",
+              pixKey: b.pixKey || "",
+              pixKeyType: b.pixKeyType || "CPF",
+              percentage: b.percentage != null ? String(b.percentage) : "",
+            }))
+          );
+        } else {
+          setBeneficiaries([]);
+        }
       } else {
+        // Novo cadastro: limpa beneficiarios
+        setBeneficiaries([]);
         // Try to restore draft
         try {
           const draft = localStorage.getItem(DRAFT_KEY);
@@ -245,7 +270,59 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
     onOpenChange(newOpen);
   }, [isEditing, watch, onOpenChange]);
 
+  // Soma dos percentuais dos beneficiarios (clamp em 100). O proprietario
+  // recebe o restante (100 - soma) automaticamente.
+  const beneficiariesSum = beneficiaries.reduce((s, b) => {
+    const v = parseFloat((b.percentage || "0").replace(",", "."));
+    return s + (Number.isFinite(v) ? v : 0);
+  }, 0);
+  const ownerRemainingPercent = Math.max(0, Math.round((100 - beneficiariesSum) * 100) / 100);
+
+  function addBeneficiary() {
+    if (beneficiaries.length >= 3) {
+      toast.error("Maximo de 3 beneficiarios.");
+      return;
+    }
+    setBeneficiaries([...beneficiaries, { ...EMPTY_BENEF }]);
+  }
+
+  function updateBeneficiary(index: number, patch: Partial<BeneficiaryRow>) {
+    setBeneficiaries((prev) => prev.map((b, i) => (i === index ? { ...b, ...patch } : b)));
+  }
+
+  function removeBeneficiary(index: number) {
+    setBeneficiaries((prev) => prev.filter((_, i) => i !== index));
+  }
+
   async function onSubmit(data: OwnerFormData) {
+    // Validacao dos beneficiarios antes de submeter
+    const cleaned: { name: string; pixKey: string; pixKeyType: string; percentage: number }[] = [];
+    let sum = 0;
+    for (let i = 0; i < beneficiaries.length; i++) {
+      const b = beneficiaries[i];
+      const pct = parseFloat((b.percentage || "").replace(",", "."));
+      if (!b.name.trim() && !b.pixKey.trim() && !b.percentage.trim()) continue; // linha vazia, ignora
+      if (!b.name.trim() || !b.pixKey.trim()) {
+        toast.error(`Beneficiario ${i + 1}: nome e chave PIX sao obrigatorios.`);
+        return;
+      }
+      if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+        toast.error(`Beneficiario ${i + 1}: percentual deve ser maior que 0 e ate 100.`);
+        return;
+      }
+      sum += pct;
+      cleaned.push({
+        name: b.name.trim(),
+        pixKey: b.pixKey.trim(),
+        pixKeyType: (b.pixKeyType || "CPF").toUpperCase(),
+        percentage: pct,
+      });
+    }
+    if (sum > 100.0001) {
+      toast.error(`Soma dos percentuais (${sum.toFixed(2)}%) excede 100%.`);
+      return;
+    }
+
     setLoading(true);
     try {
       const url = isEditing ? `/api/owners/${owner.id}` : "/api/owners";
@@ -254,7 +331,7 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, payoutBeneficiaries: cleaned }),
       });
 
       if (!response.ok) {
@@ -697,6 +774,96 @@ export function OwnerForm({ open, onOpenChange, owner, onSuccess }: OwnerFormPro
                 />
               </div>
             </div>
+          </div>
+
+          {/* Divisao do repasse — beneficiarios secundarios (caso Roberta) */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground border-b pb-2 flex items-center justify-between">
+              <span>Divisão do repasse</span>
+              <span className="text-[11px] font-normal text-muted-foreground">
+                Restante para o proprietário: <strong>{ownerRemainingPercent.toFixed(2)}%</strong>
+              </span>
+            </h3>
+            <p className="text-[11px] text-muted-foreground -mt-2">
+              Use para dividir o pagamento mensal entre múltiplos destinos PIX (ex: irmã, cônjuge).
+              Não tem efeito fiscal — IRRF, contrato e DIRF continuam no CPF do proprietário.
+              Máximo 3 beneficiários, soma ≤ 100%.
+            </p>
+
+            {beneficiaries.map((b, i) => (
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end p-3 border rounded-md">
+                <div className="space-y-1 sm:col-span-4">
+                  <Label className="text-xs">Nome</Label>
+                  <Input
+                    placeholder="Nome do beneficiário"
+                    value={b.name}
+                    onChange={(e) => updateBeneficiary(i, { name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-3">
+                  <Label className="text-xs">Tipo PIX</Label>
+                  <Select
+                    value={b.pixKeyType}
+                    onValueChange={(v) => updateBeneficiary(i, { pixKeyType: v })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CPF">CPF</SelectItem>
+                      <SelectItem value="CNPJ">CNPJ</SelectItem>
+                      <SelectItem value="EMAIL">EMAIL</SelectItem>
+                      <SelectItem value="TELEFONE">TELEFONE</SelectItem>
+                      <SelectItem value="ALEATORIA">ALEATORIA</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1 sm:col-span-3">
+                  <Label className="text-xs">Chave PIX</Label>
+                  <Input
+                    placeholder="Chave PIX"
+                    value={b.pixKey}
+                    onChange={(e) => updateBeneficiary(i, { pixKey: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-1">
+                  <Label className="text-xs">%</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max="100"
+                    placeholder="30"
+                    value={b.percentage}
+                    onChange={(e) => updateBeneficiary(i, { percentage: e.target.value })}
+                  />
+                </div>
+                <div className="sm:col-span-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                    onClick={() => removeBeneficiary(i)}
+                    title="Remover beneficiário"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            {beneficiaries.length < 3 && (
+              <Button type="button" variant="outline" size="sm" onClick={addBeneficiary}>
+                + Adicionar beneficiário
+              </Button>
+            )}
+
+            {beneficiariesSum > 100 && (
+              <p className="text-xs text-destructive">
+                Soma dos percentuais ({beneficiariesSum.toFixed(2)}%) excede 100%.
+              </p>
+            )}
           </div>
 
           {/* Pagamento */}

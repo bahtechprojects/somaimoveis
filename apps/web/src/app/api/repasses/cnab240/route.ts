@@ -71,6 +71,10 @@ export async function POST(request: NextRequest) {
             thirdPartyAccount: true,
             thirdPartyPixKeyType: true,
             thirdPartyPix: true,
+            payoutBeneficiaries: {
+              orderBy: { order: "asc" },
+              select: { name: true, pixKey: true, pixKeyType: true, percentage: true },
+            },
           },
         },
       },
@@ -211,13 +215,63 @@ export async function POST(request: NextRequest) {
         uf: o.state || undefined,
       };
 
-      pagamentos.push({
-        favorecido,
-        valor: Math.round(group.valor * 100) / 100,
-        dataPagamento: new Date(),
-        documentoEmpresa: `REP-${o.cpfCnpj.replace(/\D/g, "").slice(-8)}`,
-        informacoes: `REPASSE ALUGUEL${month ? ` ${month}` : ""}`,
-      });
+      // Split de repasse (Fase 2.9): se houver beneficiarios cadastrados,
+      // divide o liquido entre owner + beneficiarios PIX. O owner sempre
+      // absorve o drift de centavos (parte = total - soma das partes dos benefs).
+      const benefs = (o as any).payoutBeneficiaries as
+        | { name: string; pixKey: string; pixKeyType: string; percentage: number }[]
+        | undefined;
+      const totalLiquido = Math.round(group.valor * 100) / 100;
+
+      if (benefs && benefs.length > 0 && (forma === "PIX")) {
+        // Calcula partes de beneficiarios
+        let acumuladoBenef = 0;
+        const benefPagamentos: CnabPagamento[] = [];
+        for (const b of benefs) {
+          const valorB = Math.round((totalLiquido * b.percentage / 100) * 100) / 100;
+          acumuladoBenef += valorB;
+          benefPagamentos.push({
+            favorecido: {
+              nome: b.name,
+              documento: (b.pixKeyType === "CPF" || b.pixKeyType === "CNPJ"
+                ? b.pixKey
+                : o.cpfCnpj
+              ).replace(/\D/g, ""),
+              banco: o.bankName || "748",
+              agencia: " ",
+              agenciaDv: " ",
+              conta: " ",
+              contaDv: " ",
+              chavePix: b.pixKey,
+              tipoChavePix: b.pixKeyType,
+            },
+            valor: valorB,
+            dataPagamento: new Date(),
+            documentoEmpresa: `REP-${o.cpfCnpj.replace(/\D/g, "").slice(-8)}-${b.name.slice(0, 4).toUpperCase()}`,
+            informacoes: `REPASSE BENEF ${b.name.slice(0, 20)}${month ? ` ${month}` : ""}`,
+          });
+        }
+        // Owner recebe o resto (drift absorvido aqui)
+        const valorOwner = Math.round((totalLiquido - acumuladoBenef) * 100) / 100;
+        if (valorOwner > 0) {
+          pagamentos.push({
+            favorecido,
+            valor: valorOwner,
+            dataPagamento: new Date(),
+            documentoEmpresa: `REP-${o.cpfCnpj.replace(/\D/g, "").slice(-8)}`,
+            informacoes: `REPASSE ALUGUEL${month ? ` ${month}` : ""}`,
+          });
+        }
+        pagamentos.push(...benefPagamentos);
+      } else {
+        pagamentos.push({
+          favorecido,
+          valor: totalLiquido,
+          dataPagamento: new Date(),
+          documentoEmpresa: `REP-${o.cpfCnpj.replace(/\D/g, "").slice(-8)}`,
+          informacoes: `REPASSE ALUGUEL${month ? ` ${month}` : ""}`,
+        });
+      }
     }
 
     if (pagamentos.length === 0) {

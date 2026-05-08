@@ -57,6 +57,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface PayoutBeneficiary {
+  id: string;
+  name: string;
+  pixKey: string;
+  pixKeyType: string;
+  percentage: number;
+}
+
 interface OwnerData {
   id: string;
   name: string;
@@ -77,6 +85,7 @@ interface OwnerData {
   thirdPartyPix: string | null;
   paymentDay: number;
   notes: string | null;
+  payoutBeneficiaries?: PayoutBeneficiary[];
 }
 
 interface OwnerEntry {
@@ -92,6 +101,10 @@ interface OwnerEntry {
   contractId: string | null;
   propertyId: string | null;
   notes: string | null;
+  // Status do boleto (Payment) que originou este repasse. null quando nao
+  // houver boleto correspondente (ex: lancamento manual sem contractId).
+  paymentStatus?: "PAGO" | "PENDENTE" | "ATRASADO" | "CANCELADO" | "PARCIAL" | null;
+  paymentPaidAt?: string | null;
 }
 
 interface OwnerGroup {
@@ -167,6 +180,41 @@ function getOwnerPaymentTypes(owner: OwnerData): ("PIX" | "TED")[] {
   const cc = owner.thirdPartyAccount || owner.bankAccount;
   if (ag && cc) return ["TED"];
   return [];
+}
+
+/** Aviso visual quando o boleto que originou o repasse ainda nao foi pago. */
+function getBoletoStatusBadge(
+  entry: OwnerEntry
+): { label: string; className: string; tooltip: string } | null {
+  if (!["REPASSE", "GARANTIA"].includes(entry.category)) return null;
+  const ps = entry.paymentStatus;
+  if (!ps || ps === "PAGO") return null;
+  if (ps === "ATRASADO") {
+    return {
+      label: "Boleto vencido",
+      className: "bg-red-50 text-red-700 border-red-200",
+      tooltip: "O inquilino ainda nao pagou e o boleto esta vencido.",
+    };
+  }
+  if (ps === "CANCELADO") {
+    return {
+      label: "Boleto cancelado",
+      className: "bg-slate-100 text-slate-600 border-slate-200",
+      tooltip: "O boleto foi cancelado. Verifique antes de repassar.",
+    };
+  }
+  return {
+    label: "Boleto nao pago",
+    className: "bg-amber-50 text-amber-700 border-amber-200",
+    tooltip: "Aguardando pagamento do inquilino. Nao repassar antes.",
+  };
+}
+
+/** True quando o repasse esta liberado para pagamento (boleto pago ou sem vinculo). */
+function isRepassReleased(entry: OwnerEntry): boolean {
+  if (!["REPASSE", "GARANTIA"].includes(entry.category)) return true;
+  if (entry.paymentStatus == null) return true;
+  return entry.paymentStatus === "PAGO";
 }
 
 export default function RepassesPage() {
@@ -354,7 +402,7 @@ export default function RepassesPage() {
     try {
       const params = new URLSearchParams();
       if (month) params.set("month", month);
-      if (activeTab === "pix" || activeTab === "ted") {
+      if (activeTab === "pix" || activeTab === "ted" || activeTab === "aguardando") {
         params.set("status", "PENDENTE");
       } else if (activeTab === "pagos") {
         params.set("status", "PAGO");
@@ -409,6 +457,21 @@ export default function RepassesPage() {
       // Ocultar negativados das abas PIX/TED (viram débito no próximo mês)
       const liq = g.totalLiquido ?? g.totalPendente;
       if (liq <= 0) return false;
+      // Ocultar repasses cujo boleto ainda nao foi pago — eles aparecem
+      // exclusivamente na aba "Aguardando boleto" para nao induzir o admin
+      // a transferir antes da liquidacao.
+      const allBlocked = g.entries.every((e) => !isRepassReleased(e));
+      if (allBlocked) return false;
+    }
+    if (activeTab === "aguardando") {
+      // So mostra grupos com pelo menos 1 repasse cujo boleto nao foi pago
+      const hasUnpaidBoleto = g.entries.some(
+        (e) =>
+          ["REPASSE", "GARANTIA"].includes(e.category) &&
+          e.paymentStatus &&
+          e.paymentStatus !== "PAGO"
+      );
+      if (!hasUnpaidBoleto) return false;
     }
     if (!search) return true;
     const term = search.toLowerCase();
@@ -431,7 +494,7 @@ export default function RepassesPage() {
   function toggleSelectAll(ownerId: string, entries: OwnerEntry[]) {
     const targetStatus = isPagos ? "PAGO" : "PENDENTE";
     const pendingIds = entries
-      .filter((e) => e.status === targetStatus)
+      .filter((e) => e.status === targetStatus && isRepassReleased(e))
       .map((e) => e.id);
     const allSelected = pendingIds.every((id) => selectedEntries.has(id));
 
@@ -458,7 +521,9 @@ export default function RepassesPage() {
   function selectAllPending() {
     const targetStatus = isPagos ? "PAGO" : "PENDENTE";
     const allIds = groups.flatMap((g) =>
-      g.entries.filter((e) => e.status === targetStatus).map((e) => e.id)
+      g.entries
+        .filter((e) => e.status === targetStatus && isRepassReleased(e))
+        .map((e) => e.id)
     );
     setSelectedEntries(new Set(allIds));
   }
@@ -912,6 +977,9 @@ export default function RepassesPage() {
                     <TabsTrigger value="ted" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">
                       A Repassar TED
                     </TabsTrigger>
+                    <TabsTrigger value="aguardando" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">
+                      Aguardando boleto
+                    </TabsTrigger>
                     <TabsTrigger value="pagos" className="text-xs h-8 sm:h-7 px-2.5 sm:px-3">
                       Repassados
                     </TabsTrigger>
@@ -1079,7 +1147,7 @@ export default function RepassesPage() {
                 <p className="text-sm text-muted-foreground">
                   {search
                     ? "Nenhum proprietario encontrado."
-                    : `Nenhum repasse ${activeTab === "pix" ? "PIX a repassar" : activeTab === "ted" ? "TED a repassar" : activeTab === "pagos" ? "repassado" : ""} para ${formatMonthLabel(month)}.`}
+                    : `Nenhum repasse ${activeTab === "pix" ? "PIX a repassar" : activeTab === "ted" ? "TED a repassar" : activeTab === "pagos" ? "repassado" : activeTab === "aguardando" ? "aguardando boleto" : ""} para ${formatMonthLabel(month)}.`}
                 </p>
               </div>
             ) : (
@@ -1208,6 +1276,18 @@ export default function RepassesPage() {
                                       Dados bancarios nao cadastrados
                                     </p>
                                   )}
+                                  {group.owner.payoutBeneficiaries && group.owner.payoutBeneficiaries.length > 0 && (() => {
+                                    const sumPct = group.owner.payoutBeneficiaries!.reduce((s, b) => s + b.percentage, 0);
+                                    const ownerPct = Math.max(0, Math.round((100 - sumPct) * 100) / 100);
+                                    return (
+                                      <p className="mt-1 ml-5 text-[10px] text-purple-700">
+                                        Split: titular {ownerPct.toFixed(2)}%
+                                        {group.owner.payoutBeneficiaries!.map((b, idx) => (
+                                          <span key={idx}> | {b.name.split(" ")[0]} {b.percentage}%</span>
+                                        ))}
+                                      </p>
+                                    );
+                                  })()}
                                 </div>
                                 {(group.owner.bankPix || group.owner.thirdPartyPix) && (
                                   <Button
@@ -1230,10 +1310,18 @@ export default function RepassesPage() {
                               >
                                 <div className="flex items-center gap-2 min-w-0">
                                   {entry.status === "PENDENTE" && (
-                                    <Checkbox
-                                      checked={selectedEntries.has(entry.id)}
-                                      onCheckedChange={() => toggleEntry(entry.id)}
-                                    />
+                                    isRepassReleased(entry) ? (
+                                      <Checkbox
+                                        checked={selectedEntries.has(entry.id)}
+                                        onCheckedChange={() => toggleEntry(entry.id)}
+                                      />
+                                    ) : (
+                                      <Checkbox
+                                        checked={false}
+                                        disabled
+                                        title="Aguardando pagamento do boleto"
+                                      />
+                                    )
                                   )}
                                   <div className="min-w-0">
                                     <p className="text-xs truncate">{entry.description}</p>
@@ -1243,6 +1331,20 @@ export default function RepassesPage() {
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
+                                  {(() => {
+                                    const b = getBoletoStatusBadge(entry);
+                                    if (!b) return null;
+                                    return (
+                                      <Badge
+                                        variant="outline"
+                                        className={cn("text-[9px] h-5 border gap-1 px-1.5", b.className)}
+                                        title={b.tooltip}
+                                      >
+                                        <AlertCircle className="h-2.5 w-2.5" />
+                                        {b.label}
+                                      </Badge>
+                                    );
+                                  })()}
                                   <Badge
                                     variant="outline"
                                     className={cn(
@@ -1469,6 +1571,18 @@ export default function RepassesPage() {
                               ) : (
                                 <span className="text-amber-600">Dados bancarios nao cadastrados</span>
                               )}
+                              {group.owner.payoutBeneficiaries && group.owner.payoutBeneficiaries.length > 0 && (() => {
+                                const sumPct = group.owner.payoutBeneficiaries!.reduce((s, b) => s + b.percentage, 0);
+                                const ownerPct = Math.max(0, Math.round((100 - sumPct) * 100) / 100);
+                                return (
+                                  <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-purple-700 bg-purple-50 border border-purple-200 rounded px-1.5 py-0.5">
+                                    Split: {ownerPct.toFixed(2)}% titular
+                                    {group.owner.payoutBeneficiaries!.map((b, idx) => (
+                                      <span key={idx}> | {b.name.split(" ")[0]} {b.percentage}%</span>
+                                    ))}
+                                  </span>
+                                );
+                              })()}
                               <div className="flex items-center gap-1.5 ml-auto">
                                 <Button
                                   variant="outline"
@@ -1614,10 +1728,25 @@ export default function RepassesPage() {
                                     {isSelectable && (
                                       <TableCell>
                                         {((isPendente && entry.status === "PENDENTE") || (isPagos && entry.status === "PAGO")) && !isNegativo && (
-                                          <Checkbox
-                                            checked={selectedEntries.has(entry.id)}
-                                            onCheckedChange={() => toggleEntry(entry.id)}
-                                          />
+                                          isRepassReleased(entry) ? (
+                                            <Checkbox
+                                              checked={selectedEntries.has(entry.id)}
+                                              onCheckedChange={() => toggleEntry(entry.id)}
+                                            />
+                                          ) : (
+                                            <TooltipProvider delayDuration={200}>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <span className="inline-block">
+                                                    <Checkbox checked={false} disabled />
+                                                  </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="right">
+                                                  <p className="text-xs">Aguardando pagamento do boleto. Nao e possivel marcar como repassado ainda.</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
+                                          )
                                         )}
                                       </TableCell>
                                     )}
@@ -1669,22 +1798,48 @@ export default function RepassesPage() {
                                       {formatDate(entry.dueDate)}
                                     </TableCell>
                                     <TableCell>
-                                      <Badge
-                                        variant="outline"
-                                        className={cn(
-                                          "text-[10px] h-5 border",
-                                          entry.status === "PAGO"
-                                            ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                            : "bg-yellow-100 text-yellow-700 border-yellow-200"
-                                        )}
-                                      >
-                                        {entry.status === "PAGO" ? "Pago" : "Pendente"}
-                                      </Badge>
-                                      {entry.paidAt && (
-                                        <span className="ml-2 text-[11px] text-muted-foreground">
-                                          {formatDate(entry.paidAt)}
-                                        </span>
-                                      )}
+                                      <div className="flex flex-col gap-1 items-start">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <Badge
+                                            variant="outline"
+                                            className={cn(
+                                              "text-[10px] h-5 border",
+                                              entry.status === "PAGO"
+                                                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                                : "bg-yellow-100 text-yellow-700 border-yellow-200"
+                                            )}
+                                          >
+                                            {entry.status === "PAGO" ? "Pago" : "Pendente"}
+                                          </Badge>
+                                          {entry.paidAt && (
+                                            <span className="text-[11px] text-muted-foreground">
+                                              {formatDate(entry.paidAt)}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {(() => {
+                                          const b = getBoletoStatusBadge(entry);
+                                          if (!b) return null;
+                                          return (
+                                            <TooltipProvider delayDuration={200}>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <Badge
+                                                    variant="outline"
+                                                    className={cn("text-[10px] h-5 border gap-1 cursor-help", b.className)}
+                                                  >
+                                                    <AlertCircle className="h-2.5 w-2.5" />
+                                                    {b.label}
+                                                  </Badge>
+                                                </TooltipTrigger>
+                                                <TooltipContent side="bottom" className="max-w-xs">
+                                                  <p className="text-xs">{b.tooltip}</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
+                                          );
+                                        })()}
+                                      </div>
                                     </TableCell>
                                     <TableCell className="text-right text-xs font-semibold">
                                       {formatCurrency(entry.value)}

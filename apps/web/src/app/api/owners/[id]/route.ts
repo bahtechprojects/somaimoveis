@@ -21,6 +21,7 @@ export async function GET(
             tenant: true,
           },
         },
+        payoutBeneficiaries: { orderBy: { order: "asc" } },
       },
     });
     if (!owner) {
@@ -83,9 +84,67 @@ export async function PUT(
     };
     // Remove undefined keys
     Object.keys(data).forEach(k => { if (data[k] === undefined) delete data[k]; });
-    const owner = await prisma.owner.update({
-      where: { id },
-      data,
+
+    // Beneficiarios secundarios de repasse — substituicao completa quando enviado
+    let beneficiariesPayload:
+      | { name: string; pixKey: string; pixKeyType: string; percentage: number; order: number }[]
+      | undefined;
+    if (Array.isArray(body.payoutBeneficiaries)) {
+      const list = body.payoutBeneficiaries as any[];
+      if (list.length > 3) {
+        return NextResponse.json(
+          { error: "Maximo de 3 beneficiarios de repasse" },
+          { status: 400 }
+        );
+      }
+      let sum = 0;
+      beneficiariesPayload = [];
+      for (let i = 0; i < list.length; i++) {
+        const b = list[i];
+        const pct = Number(b.percentage);
+        if (!Number.isFinite(pct) || pct <= 0 || pct > 100) {
+          return NextResponse.json(
+            { error: `Beneficiario ${i + 1}: percentual deve estar entre 0 (exclusivo) e 100` },
+            { status: 400 }
+          );
+        }
+        if (!b.name || !b.pixKey || !b.pixKeyType) {
+          return NextResponse.json(
+            { error: `Beneficiario ${i + 1}: nome, chave PIX e tipo de chave sao obrigatorios` },
+            { status: 400 }
+          );
+        }
+        sum += pct;
+        beneficiariesPayload.push({
+          name: String(b.name).trim(),
+          pixKey: String(b.pixKey).trim(),
+          pixKeyType: String(b.pixKeyType).trim().toUpperCase(),
+          percentage: Math.round(pct * 100) / 100,
+          order: i,
+        });
+      }
+      if (sum > 100.0001) {
+        return NextResponse.json(
+          { error: `Soma dos percentuais (${sum.toFixed(2)}%) excede 100%. O proprietario recebe o restante automaticamente.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    const owner = await prisma.$transaction(async (tx) => {
+      const updated = await tx.owner.update({ where: { id }, data });
+      if (beneficiariesPayload !== undefined) {
+        await tx.ownerPayoutBeneficiary.deleteMany({ where: { ownerId: id } });
+        if (beneficiariesPayload.length > 0) {
+          await tx.ownerPayoutBeneficiary.createMany({
+            data: beneficiariesPayload.map((b) => ({ ...b, ownerId: id })),
+          });
+        }
+      }
+      return tx.owner.findUnique({
+        where: { id },
+        include: { payoutBeneficiaries: { orderBy: { order: "asc" } } },
+      });
     });
     return NextResponse.json(owner);
   } catch (error: any) {

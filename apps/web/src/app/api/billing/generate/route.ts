@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
-import { calculateIRRFRental } from "@/lib/fiscal";
+import { consolidateIRRFByOwnerMonth } from "@/lib/fiscal-consolidate";
 import { nextBusinessDay } from "@/lib/business-days";
 
 export async function POST(request: NextRequest) {
@@ -361,24 +361,17 @@ export async function POST(request: NextRequest) {
         const splitAdminValue = Math.round((adminFeeBase + intermediationInstallmentValue) * 100) / 100;
         const splitOwnerValue = Math.round((prorataRentalValue - splitAdminValue) * 100) / 100;
 
-        // Calculate IRRF on owner's gross income (rental - admin fee).
-        // IRRF is calculated ONLY on the rental value (aluguel) minus admin fee.
-        // Condominio, IPTU and other fees are NOT included in the IRRF base,
-        // since grossToOwner = rentalValue - adminFee (does not include condoFee or iptuMonthly).
+        // grossToOwner = aluguel - taxa de administracao (nao inclui condominio, IPTU, etc.)
+        // IRRF NAO eh calculado aqui — fica para a consolidacao mensal por CPF
+        // (consolidateIRRFByOwnerMonth) que agrupa todos os Payments do mesmo CPF
+        // de proprietario antes de aplicar a tabela. Isso evita reter sobre boletos
+        // que isolados parecem acima do piso mas que na soma do CPF ficam isentos
+        // (ou vice-versa). A consolidacao pode ser disparada manualmente ou ao
+        // final do generate (ver Fase 2.5 do plano).
         const grossToOwner = splitOwnerValue;
-        // IRRF SO se aplica quando locador=PF e locatario=PJ.
-        // E desde 01/01/2026 (Lei 15.270/2025) so se aluguel > R$ 5.000.
-        // Passamos dueDate como refDate pra o calculator escolher a regra certa
-        // (boletos vencendo em 2025 usam piso 2.259,20; em 2026+ piso 5.000).
-        const irrf = calculateIRRFRental({
-          grossToOwner,
-          ownerType: (contract as any).owner?.personType || "PF",
-          tenantType: (contract as any).tenant?.personType || "PF",
-          refDate: dueDate,
-        });
-        const irrfValue = irrf.irrfValue;
-        const irrfRate = irrf.rate;
-        const netToOwner = Math.round((grossToOwner - irrfValue) * 100) / 100;
+        const irrfValue = 0;
+        const irrfRate = 0;
+        const netToOwner = grossToOwner;
 
         const code = `PAG-${String(nextNumber).padStart(3, "0")}`;
         nextNumber++;
@@ -757,6 +750,21 @@ export async function POST(request: NextRequest) {
 
     const monthLabel = `${String(targetMonth + 1).padStart(2, "0")}/${targetYear}`;
 
+    // Consolida IRRF por CPF/mes apos a geracao. Agrupa todos os Payments do
+    // mesmo CPF de proprietario PF (com locatario PJ) e aplica a tabela
+    // progressiva sobre a soma — distribuindo o IRRF total proporcionalmente
+    // entre os boletos do grupo. Ver Fase 2 do plano IRRF.
+    let irrfReport: Awaited<ReturnType<typeof consolidateIRRFByOwnerMonth>> | null = null;
+    if (generated > 0) {
+      try {
+        irrfReport = await consolidateIRRFByOwnerMonth(prisma, {
+          refMonth: new Date(targetYear, targetMonth, 1),
+        });
+      } catch (err) {
+        console.error("[Billing/generate] Erro ao consolidar IRRF:", err);
+      }
+    }
+
     return NextResponse.json({
       generated,
       skipped,
@@ -767,6 +775,13 @@ export async function POST(request: NextRequest) {
       message: generated > 0
         ? `${generated} cobranca(s) gerada(s) para ${monthLabel}.${skipped > 0 ? ` ${skipped} ja existiam.` : ""}`
         : `Nenhuma cobranca gerada. ${skipped} ja existiam para ${monthLabel}.`,
+      irrf: irrfReport
+        ? {
+            grupos: irrfReport.totalGroups,
+            pagamentos: irrfReport.totalPayments,
+            irrfTotal: irrfReport.totalIrrf,
+          }
+        : null,
     });
   } catch (error) {
     console.error("Erro ao gerar cobrancas:", error);

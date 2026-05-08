@@ -545,6 +545,63 @@ function FinanceiroContent() {
   const [generateOpen, setGenerateOpen] = useState(false);
   const [boletoLoading, setBoletoLoading] = useState<Record<string, boolean>>({});
   const [notifyLoading, setNotifyLoading] = useState<Record<string, boolean>>({});
+  const [consolidateLoading, setConsolidateLoading] = useState(false);
+
+  async function handleConsolidateIRRF() {
+    const now = new Date();
+    const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const month = window.prompt(
+      "Reconsolidar IRRF de qual mês? (formato YYYY-MM)\n\nO sistema vai agrupar todos os boletos do mesmo CPF de proprietário no mês e aplicar a tabela progressiva sobre a soma — em vez de calcular boleto a boleto.",
+      defaultMonth
+    );
+    if (!month) return;
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      toast.error("Formato inválido. Use YYYY-MM (ex: 2026-04).");
+      return;
+    }
+
+    setConsolidateLoading(true);
+    try {
+      // Primeiro: dryRun para mostrar preview
+      const previewRes = await fetch("/api/billing/consolidate-irrf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refMonth: month, dryRun: true }),
+      });
+      const preview = await previewRes.json();
+      if (!previewRes.ok) {
+        throw new Error(preview.error || "Erro ao consultar preview");
+      }
+      const ok = window.confirm(
+        `Consolidação IRRF — ${month}\n\n` +
+        `Grupos (CPFs distintos): ${preview.totalGroups}\n` +
+        `Boletos afetados: ${preview.totalPayments}\n` +
+        `IRRF total a reter: R$ ${(preview.totalIrrf || 0).toFixed(2)}\n\n` +
+        `Aplicar agora?`
+      );
+      if (!ok) {
+        toast.info("Consolidação cancelada.");
+        return;
+      }
+      const applyRes = await fetch("/api/billing/consolidate-irrf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refMonth: month, dryRun: false }),
+      });
+      const applied = await applyRes.json();
+      if (!applyRes.ok) {
+        throw new Error(applied.error || "Erro ao aplicar consolidação");
+      }
+      toast.success(
+        `IRRF consolidado para ${month}: ${applied.totalGroups} CPF(s), ` +
+        `${applied.totalPayments} boleto(s), R$ ${(applied.totalIrrf || 0).toFixed(2)} retido.`
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao consolidar IRRF");
+    } finally {
+      setConsolidateLoading(false);
+    }
+  }
 
   function buildQueryParams() {
     const params = new URLSearchParams();
@@ -950,6 +1007,22 @@ function FinanceiroContent() {
                   <span className="hidden sm:inline">Gerar Cobrancas</span>
                   <span className="sm:hidden">Gerar</span>
                 </Button>
+                {canAdmin && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 h-10 sm:h-8 text-xs"
+                    onClick={handleConsolidateIRRF}
+                    disabled={consolidateLoading}
+                    title="Recalcula o IRRF agregando os aluguéis pelo CPF do proprietário no mês"
+                  >
+                    <Receipt className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">
+                      {consolidateLoading ? "Consolidando..." : "Reconsolidar IRRF"}
+                    </span>
+                    <span className="sm:hidden">IRRF</span>
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" className="gap-1.5 h-10 sm:h-8 text-xs" onClick={handleEmitBoletosBatch}>
                   <Receipt className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Emitir Boletos</span>

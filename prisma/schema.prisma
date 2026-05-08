@@ -204,11 +204,40 @@ model Owner {
   payments        Payment[]
   entries         OwnerEntry[]
   invoices        Invoice[]
+  payoutBeneficiaries OwnerPayoutBeneficiary[]
 
   @@index([active])
   @@index([createdById])
   @@index([nameNormalized])
   @@map("owners")
+}
+
+// Beneficiarios secundarios de repasse — quando o proprietario quer dividir o
+// liquido mensal entre 2 ou mais destinos PIX (ex: irma, conjuge, etc).
+//
+// IMPORTANTE: nao tem efeito fiscal. O proprietario (Owner) continua sendo o
+// unico contribuinte: IRRF, recibo, DIRF e contrato saem todos no CPF dele.
+// Esses registros so dividem o LIQUIDO final na hora do PIX. O Owner recebe
+// implicitamente o restante (100% - soma dos beneficiarios).
+//
+// Limites validados em endpoint:
+//   - max 3 beneficiarios por Owner
+//   - cada percentage entre 0 (exclusivo) e 100
+//   - soma dos percentages do Owner <= 100
+model OwnerPayoutBeneficiary {
+  id           String   @id @default(cuid())
+  ownerId      String
+  owner        Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name         String
+  pixKey       String
+  pixKeyType   String   // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
+  percentage   Float    // 0 < x <= 100
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([ownerId])
+  @@map("owner_payout_beneficiaries")
 }
 
 // ==========================================
