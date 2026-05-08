@@ -107,14 +107,43 @@ export async function POST(request: NextRequest) {
       resultados.push(resultado);
     }
 
-    // Batch update: marcar como PAGO
+    // Batch update: marcar repasses como PAGO
     let totalMarcados = 0;
+    let totalDebitosMarcados = 0;
     if (entryIdsToMarkPago.length > 0) {
       const updated = await prisma.ownerEntry.updateMany({
         where: { id: { in: entryIdsToMarkPago } },
         data: { status: "PAGO", paidAt: new Date() },
       });
       totalMarcados = updated.count;
+
+      // Marca tambem os DEBITOS PENDENTES do mesmo (owner, mes) como PAGO.
+      // Mesma logica do PATCH /api/repasses — quando o repasse e
+      // confirmado pelo banco, os debitos descontados foram processados
+      // junto. Lei do Leo: "se foi descontado, ja foi pago".
+      const markedEntries = await prisma.ownerEntry.findMany({
+        where: { id: { in: entryIdsToMarkPago } },
+        select: { ownerId: true, dueDate: true },
+      });
+      const seen = new Set<string>();
+      for (const e of markedEntries) {
+        if (!e.dueDate) continue;
+        const monthStart = new Date(e.dueDate.getFullYear(), e.dueDate.getMonth(), 1);
+        const monthEnd = new Date(e.dueDate.getFullYear(), e.dueDate.getMonth() + 1, 1);
+        const key = `${e.ownerId}_${monthStart.toISOString()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const debUpdate = await prisma.ownerEntry.updateMany({
+          where: {
+            ownerId: e.ownerId,
+            type: "DEBITO",
+            status: "PENDENTE",
+            dueDate: { gte: monthStart, lt: monthEnd },
+          },
+          data: { status: "PAGO", paidAt: new Date() },
+        });
+        totalDebitosMarcados += debUpdate.count;
+      }
     }
 
     return NextResponse.json({
@@ -136,6 +165,7 @@ export async function POST(request: NextRequest) {
         semMatch: resultados.filter(r => !r.entryIds || r.entryIds.length === 0).length,
         marcadosPago: totalMarcados,
         entriesMarcadas: resultados.reduce((s, r) => s + (r.entriesMarcadas || 0), 0),
+        debitosMarcados: totalDebitosMarcados,
       },
       resultados,
     });

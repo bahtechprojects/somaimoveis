@@ -429,7 +429,12 @@ export default function RepassesPage() {
       setRetornoDialogOpen(true);
 
       if (data.resumo.marcadosPago > 0) {
-        toast.success(`${data.resumo.marcadosPago} repasse(s) marcado(s) como PAGO automaticamente`);
+        const debitosTxt = data.resumo.debitosMarcados > 0
+          ? ` + ${data.resumo.debitosMarcados} debito(s) do mes`
+          : "";
+        toast.success(
+          `${data.resumo.marcadosPago} repasse(s) marcado(s) como PAGO automaticamente${debitosTxt}`
+        );
         fetchRepasses();
       }
     } catch (err: any) {
