@@ -107,6 +107,7 @@ export async function POST(request: NextRequest) {
     invoiceId?: string;
     numero?: string;
     error?: string;
+    dpsXml?: string; // ajuda diagnostico quando a Receita rejeita
   }> = [];
 
   const ibge = getIbgeCode(settings.city || "", settings.state || "RS");
@@ -211,6 +212,7 @@ export async function POST(request: NextRequest) {
           municipioPrestacao: ibge || "4316808",
         },
         numeroDps: nextNumeroDps,
+        competencia: competencia || undefined,
       });
 
       if (!result.sucesso) {
@@ -219,6 +221,7 @@ export async function POST(request: NextRequest) {
           ownerName: entry.owner.name,
           success: false,
           error: `${result.rejeicaoCodigo || "?"}: ${result.rejeicaoMotivo || "rejeitada"}`,
+          dpsXml: result.dpsXml, // ajuda diagnostico de erros do gov
         });
         continue;
       }

@@ -77,6 +77,9 @@ export interface EmitirNFSeParams {
   };
   numeroSerie?: string;  // default "00001"
   numeroDps: number;     // sequencial — DEVE ser incremental e unico
+  /** Competencia da nota no formato YYYY-MM (mes/ano de referencia do servico).
+   *  Padrao: mes corrente em America/Sao_Paulo. */
+  competencia?: string;
 }
 
 export interface EmitirNFSeResult {
@@ -184,12 +187,33 @@ export async function emitirNFSe(params: EmitirNFSeParams): Promise<EmitirNFSeRe
     issRetido: params.servico.issRetido,
   };
 
+  // Competencia: aceita YYYY-MM (do emit) ou usa primeiro dia do mes atual em BR.
+  // dCompet no Padrao Nacional eh AAAA-MM-DD com dia=01 (primeiro dia do mes).
+  let competenciaIso: string;
+  if (params.competencia && /^\d{4}-\d{2}$/.test(params.competencia)) {
+    competenciaIso = `${params.competencia}-01`;
+  } else if (params.competencia && /^\d{4}-\d{2}-\d{2}$/.test(params.competencia)) {
+    // forca dia=01
+    competenciaIso = `${params.competencia.slice(0, 7)}-01`;
+  } else {
+    const now = new Date();
+    const fmt = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+    });
+    const parts = fmt.formatToParts(now);
+    const y = parts.find((p) => p.type === "year")?.value || String(now.getFullYear());
+    const m = parts.find((p) => p.type === "month")?.value || String(now.getMonth() + 1).padStart(2, "0");
+    competenciaIso = `${y}-${m}-01`;
+  }
+
   const { xml: dpsXml, idDps } = buildDpsXml({
     ambiente: params.ambiente,
     numeroSerie,
     numeroDps: params.numeroDps,
     dhEmissao: new Date(),
-    competencia: new Date().toISOString().split("T")[0],
+    competencia: competenciaIso,
     codigoMunicipioEmissao: ibgePrestador,
     prestador,
     tomador,
