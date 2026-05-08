@@ -492,6 +492,16 @@ export function PaymentForm({ open, onOpenChange, payment, onSuccess }: PaymentF
         splitOwnerValue: data.splitOwnerValue || null,
         splitAdminValue: data.splitAdminValue || null,
         notes: data.notes || null,
+        // Lei do Leo: ao criar boleto manual, replica o que o
+        // billing/generate automatico faz — cria OwnerEntry REPASSE +
+        // OwnerEntries reflexas dos lancamentos selecionados.
+        // So envia em modo de criacao (nao em edicao).
+        ...(isEditing
+          ? {}
+          : {
+              autoSyncEntries: true,
+              tenantEntryIds: Array.from(selectedEntryIds),
+            }),
       };
 
       const response = await fetch(url, {

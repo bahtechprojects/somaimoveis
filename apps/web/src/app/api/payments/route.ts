@@ -221,7 +221,134 @@ export async function POST(request: NextRequest) {
         owner: { select: { id: true, name: true } },
       },
     });
-    return NextResponse.json(payment, { status: 201 });
+    // Auto-sync de OwnerEntries reflexas — Lei do Leo: ao criar boleto
+    // manual, replicar o que o billing/generate automatico faz:
+    //   - cria 1 OwnerEntry REPASSE com splitOwnerValue
+    //   - cria 1 OwnerEntry CREDITO/DEBITO pra cada TenantEntry vinculada
+    //     (idempotente via tenantEntryId em notes)
+    let autoSyncResult: { repasseCriado?: boolean; entriesPropagadas?: number } | undefined;
+    if (body.autoSyncEntries === true && payment.contractId && payment.dueDate) {
+      try {
+        const contract = await prisma.contract.findUnique({
+          where: { id: payment.contractId },
+          select: {
+            code: true,
+            ownerId: true,
+            rentalValue: true,
+            adminFeePercent: true,
+            propertyId: true,
+          },
+        });
+        if (contract) {
+          const dueDate = payment.dueDate;
+          const mLabel = `${String(dueDate.getMonth() + 1).padStart(2, "0")}/${dueDate.getFullYear()}`;
+          let repasseCriado = false;
+          let entriesPropagadas = 0;
+
+          // 1) Cria OwnerEntry REPASSE se ainda nao existe pra (contractId, dueDate)
+          const existingRepasse = await prisma.ownerEntry.findFirst({
+            where: {
+              contractId: payment.contractId,
+              dueDate: payment.dueDate,
+              category: "REPASSE",
+            },
+          });
+          if (!existingRepasse) {
+            const splitOwnerValue = payment.splitOwnerValue ?? (() => {
+              const adminPct = contract.adminFeePercent || 10;
+              const adminFee = Math.round(contract.rentalValue * (adminPct / 100) * 100) / 100;
+              return Math.round((contract.rentalValue - adminFee) * 100) / 100;
+            })();
+            const adminFeeValue = Math.round(
+              contract.rentalValue * ((contract.adminFeePercent || 10) / 100) * 100
+            ) / 100;
+            await prisma.ownerEntry.create({
+              data: {
+                type: "CREDITO",
+                category: "REPASSE",
+                description: `Repasse aluguel ${mLabel} - ${contract.code || payment.contractId}`,
+                value: splitOwnerValue,
+                dueDate: payment.dueDate,
+                status: "PENDENTE",
+                ownerId: contract.ownerId,
+                contractId: payment.contractId,
+                propertyId: contract.propertyId || null,
+                notes: JSON.stringify({
+                  aluguelBruto: contract.rentalValue,
+                  adminFeePercent: contract.adminFeePercent || 10,
+                  adminFeeValue,
+                  netToOwner: splitOwnerValue,
+                  autoCreated: true,
+                  syncedFromPayment: payment.code,
+                }),
+              },
+            });
+            repasseCriado = true;
+          }
+
+          // 2) Propaga TenantEntries informadas em body.tenantEntryIds
+          //    (admin selecionou no form). Idempotente via tenantEntryId em notes.
+          const tenantEntryIds: string[] = Array.isArray(body.tenantEntryIds)
+            ? body.tenantEntryIds.filter((s: unknown) => typeof s === "string")
+            : [];
+          if (tenantEntryIds.length > 0) {
+            const tenantEntries = await prisma.tenantEntry.findMany({
+              where: { id: { in: tenantEntryIds } },
+            });
+            const alreadyPropagated = await prisma.ownerEntry.findMany({
+              where: { OR: tenantEntryIds.map((id) => ({ notes: { contains: id } })) },
+              select: { notes: true },
+            });
+            const propagatedSet = new Set<string>();
+            for (const oe of alreadyPropagated) {
+              if (!oe.notes) continue;
+              try {
+                const n = JSON.parse(oe.notes);
+                if (n.tenantEntryId) propagatedSet.add(n.tenantEntryId);
+              } catch {}
+            }
+            const categoryMap: Record<string, string> = {
+              IPTU: "IPTU", AGUA: "AGUA", LUZ: "LUZ", GAS: "GAS",
+              CONDOMINIO: "CONDOMINIO",
+            };
+            for (const te of tenantEntries) {
+              if (propagatedSet.has(te.id)) continue;
+              const ownerType = te.type === "DEBITO" ? "CREDITO" : "DEBITO";
+              const ownerCategory = categoryMap[te.category] || te.category || "OUTROS";
+              const installmentLabel = te.installmentNumber && te.installmentTotal
+                ? ` ${te.installmentNumber}/${te.installmentTotal}`
+                : "";
+              await prisma.ownerEntry.create({
+                data: {
+                  type: ownerType,
+                  category: ownerCategory,
+                  description: `${te.description || te.category}${installmentLabel} ${mLabel} - ${contract.code || payment.contractId}`,
+                  value: te.value,
+                  dueDate: payment.dueDate,
+                  status: "PENDENTE",
+                  ownerId: contract.ownerId,
+                  contractId: payment.contractId,
+                  propertyId: contract.propertyId || null,
+                  notes: JSON.stringify({
+                    tenantEntryId: te.id,
+                    originalDescription: te.description,
+                    autoCreated: true,
+                    syncedFromPayment: payment.code,
+                  }),
+                },
+              });
+              entriesPropagadas++;
+            }
+          }
+          autoSyncResult = { repasseCriado, entriesPropagadas };
+        }
+      } catch (err) {
+        console.error("[Payments POST] auto-sync de OwnerEntries falhou:", err);
+        // nao bloqueia a criacao do payment
+      }
+    }
+
+    return NextResponse.json({ ...payment, autoSync: autoSyncResult }, { status: 201 });
   } catch (error: any) {
     console.error("[Payments POST] Erro:", error);
     // Handle unique constraint violation on code
