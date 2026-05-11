@@ -57,9 +57,14 @@ export async function POST(request: NextRequest) {
       ownerName?: string;
       marcadoPago?: boolean;
       entriesMarcadas?: number;
+      revertido?: boolean;
+      entriesRevertidas?: number;
     }[] = [];
 
     const entryIdsToMarkPago: string[] = [];
+    // IDs de entries que estavam marcadas PAGO mas o retorno indicou ERRO.
+    // Voltam pra PENDENTE pra entrar na proxima geracao de CNAB.
+    const entryIdsToRevert: string[] = [];
 
     for (const pgto of retorno.pagamentos) {
       const docEmpresa = pgto.documentoEmpresa.trim();
@@ -104,7 +109,62 @@ export async function POST(request: NextRequest) {
         resultado.entriesMarcadas = pendentes.length;
       }
 
+      // Se ERRO no retorno, reverter PAGO -> PENDENTE pra repassar.
+      // Quando o admin clicou OK no confirm do CNAB ele marcou tudo PAGO,
+      // mas o Sicredi rejeitou — entao precisa voltar pra fila.
+      // Esse comportamento e SEMPRE aplicado (independente de autoConfirm)
+      // porque deixar PAGO algo que nao foi processado e pior que reverter.
+      if (!pgto.sucesso) {
+        const pagosErrados = matchedEntries.filter(e => e.status === "PAGO");
+        if (pagosErrados.length > 0) {
+          for (const entry of pagosErrados) {
+            entryIdsToRevert.push(entry.id);
+          }
+          resultado.revertido = true;
+          resultado.entriesRevertidas = pagosErrados.length;
+        }
+      }
+
       resultados.push(resultado);
+    }
+
+    // Batch update: reverter entries marcadas PAGO que o Sicredi
+    // rejeitou (status=ERRO no retorno) pra PENDENTE. Tambem reverte
+    // os DEBITOs do mesmo (owner, mes) que foram auto-marcados PAGO
+    // junto — eles voltam pra ficar disponiveis no proximo CNAB.
+    let totalRevertidos = 0;
+    let totalDebitosRevertidos = 0;
+    if (entryIdsToRevert.length > 0) {
+      const updated = await prisma.ownerEntry.updateMany({
+        where: { id: { in: entryIdsToRevert } },
+        data: { status: "PENDENTE", paidAt: null },
+      });
+      totalRevertidos = updated.count;
+
+      // Reverter DEBITOs do mesmo (owner, mes) que foram auto-marcados PAGO
+      const revertedEntries = await prisma.ownerEntry.findMany({
+        where: { id: { in: entryIdsToRevert } },
+        select: { ownerId: true, dueDate: true },
+      });
+      const seenRev = new Set<string>();
+      for (const e of revertedEntries) {
+        if (!e.dueDate) continue;
+        const monthStart = new Date(e.dueDate.getFullYear(), e.dueDate.getMonth(), 1);
+        const monthEnd = new Date(e.dueDate.getFullYear(), e.dueDate.getMonth() + 1, 1);
+        const key = `${e.ownerId}_${monthStart.toISOString()}`;
+        if (seenRev.has(key)) continue;
+        seenRev.add(key);
+        const debRev = await prisma.ownerEntry.updateMany({
+          where: {
+            ownerId: e.ownerId,
+            type: "DEBITO",
+            status: "PAGO",
+            dueDate: { gte: monthStart, lt: monthEnd },
+          },
+          data: { status: "PENDENTE", paidAt: null },
+        });
+        totalDebitosRevertidos += debRev.count;
+      }
     }
 
     // Batch update: marcar repasses como PAGO
@@ -166,6 +226,9 @@ export async function POST(request: NextRequest) {
         marcadosPago: totalMarcados,
         entriesMarcadas: resultados.reduce((s, r) => s + (r.entriesMarcadas || 0), 0),
         debitosMarcados: totalDebitosMarcados,
+        revertidos: totalRevertidos,
+        entriesRevertidas: resultados.reduce((s, r) => s + (r.entriesRevertidas || 0), 0),
+        debitosRevertidos: totalDebitosRevertidos,
       },
       resultados,
     });
