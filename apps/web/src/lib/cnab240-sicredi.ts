@@ -180,8 +180,17 @@ export function normalizePixKey(chave: string | undefined, tipo: string | undefi
     if (!digits.startsWith("55") && (digits.length === 10 || digits.length === 11)) {
       digits = "55" + digits;
     }
+    // PIX por telefone EXIGE celular (com 9 na frente apos DDD).
+    // Telefone fixo (10 digitos sem o 9) nao tem PIX. Se for fixo,
+    // retorna vazio pra o endpoint pular com erro descritivo.
+    // Formato esperado: 55 + 2 DDD + 9 + 8 digitos = 13 chars total.
+    if (digits.length === 12) {
+      // 55 + DDD + 8 digitos = fixo (sem o 9)
+      return ""; // invalido — telefone fixo nao tem PIX
+    }
+    if (digits.length !== 13) return ""; // qualquer outro tamanho e invalido
     // Resultado final: + na frente
-    return digits ? "+" + digits : "";
+    return "+" + digits;
   }
 
   if (t === "CPF" || t === "CNPJ") {
@@ -458,37 +467,57 @@ export function generateCnab240(
     throw new Error("Nenhum pagamento para gerar");
   }
 
-  const forma = config.formaPagamento || "PIX";
+  const formaSelecionada = config.formaPagamento || "PIX";
   const linhas: string[] = [];
 
   // 1. Header de arquivo
   linhas.push(headerArquivo(config));
 
-  // 2. Header de lote
-  const loteNum = 1;
-  linhas.push(headerLote(loteNum, forma));
-
-  // 3. Segmentos A + B para cada pagamento
-  let seqReg = 0;
-  let valorTotal = 0;
-
-  for (const pgto of pagamentos) {
-    seqReg++;
-    linhas.push(segmentoA(loteNum, seqReg, pgto, forma));
-    seqReg++;
-    linhas.push(segmentoB(loteNum, seqReg, pgto, forma));
-    valorTotal += pgto.valor;
+  // Auto-roteamento de TED:
+  // Sicredi REJEITA TED para favorecidos no proprio Sicredi (banco 748)
+  // — pra mesma instituicao, deve usar Credito em Conta (CC).
+  // Quando admin escolhe TED, separamos em 2 lotes: TED entre bancos
+  // diferentes (~41) + CC interno (~01).
+  let lotesPlanejados: Array<{ forma: "PIX" | "TED" | "CC"; pagamentos: CnabPagamento[] }>;
+  if (formaSelecionada === "TED") {
+    const internos = pagamentos.filter((p) => p.favorecido.banco === BANCO_CODIGO);
+    const externos = pagamentos.filter((p) => p.favorecido.banco !== BANCO_CODIGO);
+    lotesPlanejados = [];
+    if (externos.length > 0) lotesPlanejados.push({ forma: "TED", pagamentos: externos });
+    if (internos.length > 0) lotesPlanejados.push({ forma: "CC", pagamentos: internos });
+  } else {
+    lotesPlanejados = [{ forma: formaSelecionada, pagamentos }];
   }
 
-  // 4. Trailer de lote
-  // qtd registros no lote = header lote + segmentos + trailer lote
-  const qtdRegistrosLote = 1 + pagamentos.length * 2 + 1;
-  linhas.push(trailerLote(loteNum, qtdRegistrosLote, valorTotal));
+  let qtdRegistrosLoteTotal = 0;
+  let valorTotal = 0;
+  let loteNum = 0;
+
+  for (const lote of lotesPlanejados) {
+    loteNum++;
+    linhas.push(headerLote(loteNum, lote.forma));
+
+    let seqReg = 0;
+    let valorLote = 0;
+    for (const pgto of lote.pagamentos) {
+      seqReg++;
+      linhas.push(segmentoA(loteNum, seqReg, pgto, lote.forma));
+      seqReg++;
+      linhas.push(segmentoB(loteNum, seqReg, pgto, lote.forma));
+      valorLote += pgto.valor;
+    }
+    valorTotal += valorLote;
+
+    // qtd registros no lote = header lote + segmentos + trailer lote
+    const qtdRegistrosLote = 1 + lote.pagamentos.length * 2 + 1;
+    qtdRegistrosLoteTotal += qtdRegistrosLote;
+    linhas.push(trailerLote(loteNum, qtdRegistrosLote, valorLote));
+  }
 
   // 5. Trailer de arquivo
-  // qtd total = header arquivo + registros do lote + trailer arquivo
-  const qtdTotalRegistros = 1 + qtdRegistrosLote + 1;
-  linhas.push(trailerArquivo(1, qtdTotalRegistros));
+  // qtd total = header arquivo + total registros dos lotes + trailer arquivo
+  const qtdTotalRegistros = 1 + qtdRegistrosLoteTotal + 1;
+  linhas.push(trailerArquivo(loteNum, qtdTotalRegistros));
 
   // Validar que cada linha tem exatamente 240 caracteres
   for (let i = 0; i < linhas.length; i++) {

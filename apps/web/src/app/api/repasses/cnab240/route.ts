@@ -4,6 +4,7 @@ import { requireAuth, isAuthError } from "@/lib/api-auth";
 import {
   generateCnab240,
   isCnab240Configured,
+  normalizePixKey,
   type CnabPagamento,
   type CnabFavorecido,
 } from "@/lib/cnab240-sicredi";
@@ -170,25 +171,48 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
+      // Validacao da chave PIX antes de enviar pro Sicredi:
+      // Se a chave nao normalizar (ex: telefone fixo, telefone incompleto,
+      // CPF malformado), rejeita aqui com mensagem clara em vez de gerar
+      // CNAB que sera rejeitado pelo banco.
+      if (forma === "PIX" && chavePix) {
+        const pixType = useThirdParty ? o.thirdPartyPixKeyType : o.bankPixType;
+        const chaveNorm = normalizePixKey(chavePix, pixType || undefined);
+        if (!chaveNorm) {
+          const t = (pixType || "").toUpperCase();
+          let motivo = "Chave PIX invalida: " + chavePix;
+          if (t === "TELEFONE") {
+            motivo = `Telefone PIX invalido "${chavePix}" — precisa ser celular com 9 (ex: 51999999999). Telefone fixo nao tem PIX.`;
+          }
+          erros.push({ proprietario: o.name, motivo });
+          continue;
+        }
+      }
+
       // Extrair DV da agencia e conta (ultimo caractere se tiver separador)
       const agenciaClean = (agencia || "").replace(/\D/g, "");
       const contaClean = (conta || "").replace(/\D/g, "");
 
-      // Separar DV: assumir ultimo digito como DV se formato "1234-5"
+      // Separar DV: ultimo segmento e DV, resto e numero. Suporta
+      // multiplos hifens como em "1234-5-6" (raro mas existe).
       let agenciaNum = agenciaClean;
       let agenciaDv = " ";
       if ((agencia || "").includes("-")) {
         const parts = (agencia || "").split("-");
-        agenciaNum = parts[0].replace(/\D/g, "");
-        agenciaDv = parts[1]?.replace(/\D/g, "") || " ";
+        const lastIdx = parts.length - 1;
+        agenciaDv = parts[lastIdx]?.replace(/\D/g, "") || " ";
+        agenciaNum = parts.slice(0, lastIdx).join("").replace(/\D/g, "");
       }
 
       let contaNum = contaClean;
       let contaDv = " ";
       if ((conta || "").includes("-")) {
+        // Suporta multiplos hifens: "35198560-0-4" → contaNum="351985600", dv="4"
+        // Pega ULTIMO segmento como DV, junta o resto sem espacos.
         const parts = (conta || "").split("-");
-        contaNum = parts[0].replace(/\D/g, "");
-        contaDv = parts[1]?.replace(/\D/g, "") || " ";
+        const lastIdx = parts.length - 1;
+        contaDv = parts[lastIdx]?.replace(/\D/g, "") || " ";
+        contaNum = parts.slice(0, lastIdx).join("").replace(/\D/g, "");
       }
 
       // Resolve o codigo COMPE do banco. Admin cadastra texto livre
