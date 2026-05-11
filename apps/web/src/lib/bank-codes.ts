@@ -12,7 +12,7 @@ const BANK_NAME_TO_CODE: Array<{ patterns: string[]; code: string }> = [
   { patterns: ["santander", "santander brasil", "033"], code: "033" },
   { patterns: ["bradesco", "237"], code: "237" },
   { patterns: ["itau", "itaú", "itau unibanco", "341"], code: "341" },
-  { patterns: ["banrisul", "041"], code: "041" },
+  { patterns: ["banrisul", "banco do estado do rio grande do sul", "banco do estado do rs", "041"], code: "041" },
   { patterns: ["brb", "070"], code: "070" },
   { patterns: ["safra", "422"], code: "422" },
   { patterns: ["citibank", "citi", "745"], code: "745" },
