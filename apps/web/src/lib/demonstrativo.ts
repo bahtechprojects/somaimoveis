@@ -58,16 +58,28 @@ export async function buildDemonstrativo(
     return { ok: false, status: 404, error: "Proprietario nao encontrado" };
   }
 
-  // Buscar TODAS as entries do proprietário no mês
+  // Buscar TODAS as entries do proprietário no mês.
+  // Para DEBITOs PENDENTES (carry-forward), inclui tambem os com dueDate
+  // ANTERIOR ao mes — eles aparecem na aba /repasses descontando o
+  // liquido do mes. Sem isso, o demonstrativo divergia da aba (caso
+  // Julio Cesar: DARF de abril PENDENTE nao aparecia no demo de maio).
   const entries = await prisma.ownerEntry.findMany({
     where: {
       ownerId,
+      status: { not: "CANCELADO" },
       OR: [
         { dueDate: { gte: monthStart, lte: monthEnd } },
         { AND: [{ dueDate: null }, { paidAt: { gte: monthStart, lte: monthEnd } }] },
         { paidAt: { gte: monthStart, lte: monthEnd } },
+        // DEBITO PENDENTE de mes anterior (carry-forward)
+        {
+          AND: [
+            { type: "DEBITO" },
+            { status: "PENDENTE" },
+            { OR: [{ dueDate: { lt: monthStart } }, { dueDate: null }] },
+          ],
+        },
       ],
-      status: { not: "CANCELADO" },
     },
     orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
   });
@@ -336,6 +348,14 @@ export async function buildDemonstrativo(
       });
       if (isCredit) g.totalEntradas += value;
       else g.totalSaidas += value;
+      // Tracking pra dedupe: registra valores de DEBITOs nao-desconto do owner.
+      // Sao usados depois pra evitar duplicar com outrosCreditosLocatario
+      // (caso o admin tenha propagado a cobranca do locatario pro owner).
+      if (!isCredit) {
+        const gAny = g as any;
+        if (!gAny._outrosDebitosOwner) gAny._outrosDebitosOwner = [];
+        gAny._outrosDebitosOwner.push({ value, desc: e.description });
+      }
     }
   }
 
@@ -382,11 +402,24 @@ export async function buildDemonstrativo(
     });
     const descontoLocatarioTotal = descontosLocatario.reduce((s, l) => s + (l.valor || 0), 0);
 
+    // Outros creditos do locatario (IPTU, condominio, agua, luz, taxas)
+    // que viraram cobranca repassada ao owner. Mas se o admin ja propagou
+    // como OwnerEntry DEBITO (caso comum: "Chamada Extra Academia" cobrada
+    // do locatario E criada como DEBITO no owner), nao duplicar.
+    const outrosDebitosOwner = ((g as any)._outrosDebitosOwner || []) as Array<{ value: number; desc: string }>;
+    const usedDebitoIdx = new Set<number>();
     const outrosCreditosLocatario = lancsLocatario.filter((l) => {
       if (l.tipo !== "CREDITO" || !l.valor || l.valor <= 0) return false;
       const cat = (l.categoria || "").toUpperCase();
       const desc = (l.descricao || "").toUpperCase();
-      return !(cat === "DESCONTO" || cat === "ACORDO" || desc.includes("DESCONTO"));
+      if (cat === "DESCONTO" || cat === "ACORDO" || desc.includes("DESCONTO")) return false;
+      // Dedupe: se ha OwnerEntry DEBITO nao-desconto com mesmo valor, pula.
+      const v = l.valor || 0;
+      const idx = outrosDebitosOwner.findIndex(
+        (od, i) => !usedDebitoIdx.has(i) && Math.abs(od.value - v) < 0.01
+      );
+      if (idx >= 0) { usedDebitoIdx.add(idx); return false; }
+      return true;
     });
 
     // Flag pra evitar duplicacao quando ha mais de um repasse no mesmo
@@ -572,6 +605,7 @@ export async function buildDemonstrativo(
 
     delete (g as any)._pendingRepasses;
     delete (g as any)._pendingDescontos;
+    delete (g as any)._outrosDebitosOwner;
   }
 
   const round2 = (n: number) => Math.round(n * 100) / 100;
