@@ -717,8 +717,13 @@ export default function RepassesPage() {
   async function handleGenerateCnab(forma: "PIX" | "TED") {
     setCnabLoading(true);
     try {
-      // Use owners visible in current tab (already filtered by payment type)
-      let cnabGroups = filteredGroups;
+      // SEMPRE filtra owners pela forma do CNAB que esta sendo gerado.
+      // Na aba "PIX"/"TED" filteredGroups ja vem filtrado, mas em
+      // "Aguardando"/"Todos" pode misturar — entao reforcamos aqui
+      // pra garantir que CNAB PIX nunca toque em owner TED e vice-versa.
+      let cnabGroups = filteredGroups.filter((g) =>
+        getOwnerPaymentTypes(g.owner).includes(forma)
+      );
       if (selectedEntries.size > 0) {
         cnabGroups = cnabGroups.filter((g) => g.entries.some((e) => selectedEntries.has(e.id)));
       }
