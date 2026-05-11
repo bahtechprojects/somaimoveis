@@ -791,7 +791,9 @@ export default function RepassesPage() {
       if (entryIdsNoCnab.length > 0) {
         const confirmou = window.confirm(
           `CNAB gerado. Marcar os ${entryIdsNoCnab.length} repasse(s) incluidos como PAGOS agora?\n\n` +
-          `Use isso depois que enviar o arquivo pro Sicredi. Os debitos do mes desses proprietarios tambem serao marcados como pagos automaticamente.`
+          `⚠️ ATENÇÃO: confira PRIMEIRO se o sequencial do CNAB está correto antes de aceitar.\n\n` +
+          `Use isso apenas DEPOIS de confirmar o envio do arquivo pro Sicredi. Os débitos do mês desses proprietários também serão marcados como pagos.\n\n` +
+          `Se errar, dá pra reverter com /api/admin/revert-batch-pago (últimos 60 min).`
         );
         if (confirmou) {
           try {
