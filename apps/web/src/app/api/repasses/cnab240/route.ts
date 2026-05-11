@@ -7,6 +7,7 @@ import {
   type CnabPagamento,
   type CnabFavorecido,
 } from "@/lib/cnab240-sicredi";
+import { resolveBankCode } from "@/lib/bank-codes";
 
 export async function POST(request: NextRequest) {
   const auth = await requireAuth();
@@ -190,6 +191,21 @@ export async function POST(request: NextRequest) {
         contaDv = parts[1]?.replace(/\D/g, "") || " ";
       }
 
+      // Resolve o codigo COMPE do banco. Admin cadastra texto livre
+      // ("Sicredi", "Banco do Brasil") — Sicredi exige 3 digitos no CNAB.
+      // Se nao conseguir resolver, pula com erro descritivo.
+      const bancoRaw = useThirdParty ? o.thirdPartyBank : o.bankName;
+      const bancoCodigo = resolveBankCode(bancoRaw);
+      // Para TED/CC, banco e OBRIGATORIO. Para PIX com chave (que nao seja dados
+      // bancarios), o banco e ignorado pelo Sicredi e usamos 748 como filler.
+      if ((forma === "TED" || forma === "CC") && !bancoCodigo) {
+        erros.push({
+          proprietario: o.name,
+          motivo: `Banco "${bancoRaw}" nao reconhecido. Cadastre o codigo COMPE (ex: 001, 748, 237) ou o nome exato.`,
+        });
+        continue;
+      }
+
       const favorecido: CnabFavorecido = {
         nome: useThirdParty ? o.thirdPartyName! : o.name,
         documento: (
@@ -197,7 +213,7 @@ export async function POST(request: NextRequest) {
             ? o.thirdPartyDocument || o.cpfCnpj
             : o.cpfCnpj
         ).replace(/\D/g, ""),
-        banco: (useThirdParty ? o.thirdPartyBank : o.bankName) || "748",
+        banco: bancoCodigo || "748",
         agencia: agenciaNum,
         agenciaDv,
         conta: contaNum,
@@ -237,7 +253,7 @@ export async function POST(request: NextRequest) {
                 ? b.pixKey
                 : o.cpfCnpj
               ).replace(/\D/g, ""),
-              banco: o.bankName || "748",
+              banco: bancoCodigo || "748",
               agencia: " ",
               agenciaDv: " ",
               conta: " ",
