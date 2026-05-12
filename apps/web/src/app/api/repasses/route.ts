@@ -336,10 +336,10 @@ export async function PATCH(request: NextRequest) {
   });
 
   // Quando o admin marca repasse como PAGO, marca tambem todos os debitos
-  // PENDENTES do mesmo (owner, mes) — eles foram processados junto. Lei do
-  // Leo: "no momento que o lancamento foi descontado do cliente, ele tem
-  // que entender que ja foi pago — nao vejo necessidade do status nos
-  // lancamentos, eles devem se alinhar automaticamente".
+  // PENDENTES do owner com dueDate <= monthEnd (incluindo carry-forward
+  // de meses anteriores). O CNAB ja desconta esses debitos antigos do
+  // repasse — entao precisam virar PAGO juntos pra nao serem cobrados
+  // de novo no mes seguinte. Lei do Leo.
   let debitsAutoMarked = 0;
   if (status === "PAGO") {
     const markedForDebits = await prisma.ownerEntry.findMany({
@@ -347,15 +347,15 @@ export async function PATCH(request: NextRequest) {
       select: { ownerId: true, dueDate: true },
     });
     const ownerMonths = new Set<string>();
-    const ownerMonthList: { ownerId: string; monthStart: Date; monthEnd: Date }[] = [];
+    const ownerMonthList: { ownerId: string; monthEnd: Date }[] = [];
     for (const e of markedForDebits) {
       if (!e.dueDate) continue;
-      const monthStart = new Date(e.dueDate.getFullYear(), e.dueDate.getMonth(), 1);
+      // monthEnd = primeiro dia do MES SEGUINTE ao dueDate da REPASSE
       const monthEnd = new Date(e.dueDate.getFullYear(), e.dueDate.getMonth() + 1, 1);
-      const key = `${e.ownerId}_${monthStart.toISOString()}`;
+      const key = `${e.ownerId}_${monthEnd.toISOString()}`;
       if (ownerMonths.has(key)) continue;
       ownerMonths.add(key);
-      ownerMonthList.push({ ownerId: e.ownerId, monthStart, monthEnd });
+      ownerMonthList.push({ ownerId: e.ownerId, monthEnd });
     }
     for (const om of ownerMonthList) {
       const debitUpdate = await prisma.ownerEntry.updateMany({
@@ -363,7 +363,12 @@ export async function PATCH(request: NextRequest) {
           ownerId: om.ownerId,
           type: "DEBITO",
           status: "PENDENTE",
-          dueDate: { gte: om.monthStart, lt: om.monthEnd },
+          // Inclui debitos do mes atual E meses anteriores (carry-forward)
+          // que o CNAB ja descontou. Inclui tambem sem dueDate (avulsos).
+          OR: [
+            { dueDate: { lt: om.monthEnd } },
+            { dueDate: null },
+          ],
         },
         data: { status: "PAGO", paidAt: new Date() },
       });

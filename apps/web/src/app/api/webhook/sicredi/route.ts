@@ -28,6 +28,21 @@ export async function POST(request: NextRequest) {
     // Log completo do payload para debug
     console.log("[Sicredi Webhook]", JSON.stringify(body));
 
+    // Idempotencia: se ja processamos esse idEventoWebhook, retorna 200 sem
+    // re-aplicar. Sem isso, retries da Sicredi (a cada falha de rede)
+    // marcariam o mesmo Payment como PAGO 2x e poderiam recriar OwnerEntries.
+    const idEvento = body.idEventoWebhook;
+    if (idEvento && typeof idEvento === "string") {
+      const ja = await prisma.processedWebhookEvent.findUnique({
+        where: { eventId: idEvento },
+        select: { id: true },
+      });
+      if (ja) {
+        console.log(`[Sicredi Webhook] idEvento ${idEvento} ja processado — skip idempotente`);
+        return NextResponse.json({ status: "ok", duplicated: true });
+      }
+    }
+
     // Payload do Sicredi Webhook conforme manual v3.9:
     // {
     //   "agencia": "9999", "posto": "99", "beneficiario": "12345",
@@ -184,6 +199,24 @@ export async function POST(request: NextRequest) {
     // NÃO marcar repasses como PAGO automaticamente.
     // O repasse só deve ser marcado como PAGO quando o dinheiro for
     // efetivamente transferido ao proprietário (via CNAB240 ou manualmente).
+
+    // Idempotencia: grava o idEventoWebhook como processado pra que retries
+    // futuros nao reprocessem o mesmo evento.
+    if (idEvento && typeof idEvento === "string") {
+      try {
+        await prisma.processedWebhookEvent.create({
+          data: {
+            eventId: idEvento,
+            provider: "sicredi",
+            movimento,
+            payload: rawBody.slice(0, 5000), // trim defensivo
+          },
+        });
+      } catch (err) {
+        // unique constraint violation = race com outra request idempotente. OK.
+        console.warn(`[Sicredi Webhook] processedWebhookEvent create falhou:`, err);
+      }
+    }
 
     return NextResponse.json({
       success: true,

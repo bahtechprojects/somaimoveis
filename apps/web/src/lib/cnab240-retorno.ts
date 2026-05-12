@@ -201,7 +201,21 @@ export function parseCnab240Retorno(content: string): RetornoArquivo {
     if (tipo === "3" && line.substring(13, 14) === "A") {
       const ocorrenciasCampo = line.substring(230, 240);
       const ocorrencias = parseOcorrencias(ocorrenciasCampo);
-      const sucesso = ocorrencias.length > 0 && ocorrencias.every(o => o.sucesso);
+      const valorEfetivado = parseValor(line.substring(162, 177));
+      const dataEfetivacao = parseDate(line.substring(154, 162));
+
+      // Determina sucesso:
+      //  1. Se ha ocorrencias, todas devem ser de sucesso (BD/00)
+      //  2. Se NAO ha ocorrencias mas valorEfetivado > 0 OU dataEfetivacao != null,
+      //     consideramos sucesso (alguns bancos omitem ocorrencias em pagamentos
+      //     limpos). Antes assumia FALHA por padrao — causava reverter PAGO de
+      //     entries efetivamente confirmadas e gerar duplo pagamento no proximo CNAB.
+      let sucesso: boolean;
+      if (ocorrencias.length > 0) {
+        sucesso = ocorrencias.every(o => o.sucesso);
+      } else {
+        sucesso = valorEfetivado > 0 || !!dataEfetivacao;
+      }
 
       currentSegA = {
         segmento: "A",
@@ -215,8 +229,8 @@ export function parseCnab240Retorno(content: string): RetornoArquivo {
         documentoEmpresa: line.substring(73, 93).trim(),
         dataPagamento: parseDate(line.substring(93, 101)),
         valorPagamento: parseValor(line.substring(119, 134)),
-        dataEfetivacao: parseDate(line.substring(154, 162)),
-        valorEfetivado: parseValor(line.substring(162, 177)),
+        dataEfetivacao,
+        valorEfetivado,
         informacoes: line.substring(177, 217).trim(),
         ocorrencias,
         sucesso,

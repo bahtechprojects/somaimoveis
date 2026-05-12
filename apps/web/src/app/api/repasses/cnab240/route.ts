@@ -277,6 +277,17 @@ export async function POST(request: NextRequest) {
       const totalLiquido = Math.round(group.valor * 100) / 100;
 
       if (benefs && benefs.length > 0 && (forma === "PIX")) {
+        // VALIDA soma de percentages — owner recebe o restante (100 - soma).
+        // Se soma > 100, owner ficaria negativo. Rejeita antes de gerar pra
+        // nao silenciar o problema (caso Roberta: cadastrar 110% por engano).
+        const somaBenefs = benefs.reduce((s, b) => s + (b.percentage || 0), 0);
+        if (somaBenefs > 100.01) {
+          erros.push({
+            proprietario: o.name,
+            motivo: `Beneficiarios PIX somam ${somaBenefs.toFixed(2)}% (maximo 100%). Corrija o cadastro.`,
+          });
+          continue;
+        }
         // Calcula partes de beneficiarios
         let acumuladoBenef = 0;
         const benefPagamentos: CnabPagamento[] = [];
@@ -304,9 +315,19 @@ export async function POST(request: NextRequest) {
             informacoes: `REPASSE BENEF ${b.name.slice(0, 20)}${month ? ` ${month}` : ""}`,
           });
         }
-        // Owner recebe o resto (drift absorvido aqui)
+        // Owner recebe o resto (drift absorvido aqui).
+        // Se valorOwner ficar negativo por arredondamento ou somaBenefs=100,
+        // dropa silenciosamente — owner nao recebe nada nesse caso. Rejeita
+        // se somaBenefs >= 100 sem necessidade do owner receber.
         const valorOwner = Math.round((totalLiquido - acumuladoBenef) * 100) / 100;
-        if (valorOwner > 0) {
+        if (valorOwner < -0.01) {
+          erros.push({
+            proprietario: o.name,
+            motivo: `Soma de beneficiarios PIX (${somaBenefs.toFixed(2)}%) gera valor negativo pro owner (R$ ${valorOwner.toFixed(2)}). Ajuste percentages.`,
+          });
+          continue;
+        }
+        if (valorOwner > 0.005) {
           pagamentos.push({
             favorecido,
             valor: valorOwner,

@@ -17,7 +17,7 @@ model User {
   name        String
   password    String
   role        String   @default("CORRETOR") // ADMIN, CORRETOR, FINANCEIRO (pode ter multiplos separados por virgula)
-  permissions String?  // JSON array de keys de paginas permitidas (customiza permissao granular)
+  permissions String? // JSON array de keys de paginas permitidas (customiza permissao granular)
   phone       String?
   avatarUrl   String?
   active      Boolean  @default(true)
@@ -25,15 +25,15 @@ model User {
   updatedAt   DateTime @updatedAt
 
   // Rastreabilidade — registros criados por este user
-  contractsCreated    Contract[]    @relation("ContractCreatedBy")
-  ownersCreated       Owner[]       @relation("OwnerCreatedBy")
-  tenantsCreated      Tenant[]      @relation("TenantCreatedBy")
-  propertiesCreated   Property[]    @relation("PropertyCreatedBy")
-  paymentsCreated     Payment[]     @relation("PaymentCreatedBy")
-  ownerEntriesCreated OwnerEntry[]  @relation("OwnerEntryCreatedBy")
+  contractsCreated     Contract[]    @relation("ContractCreatedBy")
+  ownersCreated        Owner[]       @relation("OwnerCreatedBy")
+  tenantsCreated       Tenant[]      @relation("TenantCreatedBy")
+  propertiesCreated    Property[]    @relation("PropertyCreatedBy")
+  paymentsCreated      Payment[]     @relation("PaymentCreatedBy")
+  ownerEntriesCreated  OwnerEntry[]  @relation("OwnerEntryCreatedBy")
   tenantEntriesCreated TenantEntry[] @relation("TenantEntryCreatedBy")
-  invoicesCreated     Invoice[]     @relation("InvoiceCreatedBy")
-  auditLogs           AuditLog[]
+  invoicesCreated      Invoice[]     @relation("InvoiceCreatedBy")
+  auditLogs            AuditLog[]
 
   @@index([role])
   @@map("users")
@@ -47,13 +47,13 @@ model AuditLog {
   id         String   @id @default(cuid())
   userId     String?
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  action     String   // CREATE | UPDATE | DELETE
-  entity     String   // Contract | Owner | Tenant | Property | Payment | OwnerEntry | TenantEntry | User
-  entityId   String   // ID do registro afetado
-  entityCode String?  // Codigo amigavel (ex: CTR-123, PAG-001)
-  entityName String?  // Nome amigavel (ex: nome do owner, titulo do imovel)
-  changes    String?  // JSON com diff de campos {field: {old, new}}
-  metadata   String?  // JSON livre (ex: motivo, contexto)
+  action     String // CREATE | UPDATE | DELETE
+  entity     String // Contract | Owner | Tenant | Property | Payment | OwnerEntry | TenantEntry | User
+  entityId   String // ID do registro afetado
+  entityCode String? // Codigo amigavel (ex: CTR-123, PAG-001)
+  entityName String? // Nome amigavel (ex: nome do owner, titulo do imovel)
+  changes    String? // JSON com diff de campos {field: {old, new}}
+  metadata   String? // JSON livre (ex: motivo, contexto)
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime @default(now())
@@ -71,26 +71,26 @@ model AuditLog {
 // ==========================================
 
 model BillingSettings {
-  id                       String   @id @default(cuid())
+  id                         String   @id @default(cuid())
   // Multa apos vencimento
-  multaTipo                String   @default("PERCENTUAL") // PERCENTUAL | VALOR
-  multaValor               Float    @default(2.0)         // 2% ou R$ 2,00
-  multaAposVenc            Boolean  @default(true)
+  multaTipo                  String   @default("PERCENTUAL") // PERCENTUAL | VALOR
+  multaValor                 Float    @default(2.0) // 2% ou R$ 2,00
+  multaAposVenc              Boolean  @default(true)
   // Juros apos vencimento
-  jurosTipo                String   @default("PERCENTUAL_MES") // PERCENTUAL_MES | PERCENTUAL_DIA | VALOR_DIA | ISENTO
-  jurosValor               Float    @default(1.0)              // 1% ao mes (~0.033%/dia)
+  jurosTipo                  String   @default("PERCENTUAL_MES") // PERCENTUAL_MES | PERCENTUAL_DIA | VALOR_DIA | ISENTO
+  jurosValor                 Float    @default(1.0) // 1% ao mes (~0.033%/dia)
   // PIX cobv: dias em que o PIX continua valido apos vencer
-  validadeAposVencimentoDias Int    @default(30)
+  validadeAposVencimentoDias Int      @default(30)
   // Dia limite (do mes) ate o qual juros/multa ficam com a imobiliaria.
   // Inquilino paga ATE esse dia → juros/multa retido (cobre o atraso curto antes do repasse).
   // Inquilino paga DEPOIS → juros/multa repassado ao proprietario.
   // Excecao: se contrato.aluguelGarantido = true, sempre fica com a imobiliaria.
-  diaCorteJurosMulta       Int      @default(10)
+  diaCorteJurosMulta         Int      @default(10)
   // Mensagens padrao
-  mensagemPadrao           String?
-  notes                    String?
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
+  mensagemPadrao             String?
+  notes                      String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
   @@map("billing_settings")
 }
@@ -101,45 +101,45 @@ model BillingSettings {
 // ==========================================
 
 model FiscalSettings {
-  id                   String   @id @default(cuid())
+  id                     String    @id @default(cuid())
   // Dados da empresa
-  razaoSocial          String?
-  cnpj                 String?
-  inscricaoMunicipal   String?
-  inscricaoEstadual    String?
+  razaoSocial            String?
+  cnpj                   String?
+  inscricaoMunicipal     String?
+  inscricaoEstadual      String?
   // Endereco fiscal
-  street               String?
-  number               String?
-  complement           String?
-  neighborhood         String?
-  city                 String?
-  state                String?
-  zipCode              String?
+  street                 String?
+  number                 String?
+  complement             String?
+  neighborhood           String?
+  city                   String?
+  state                  String?
+  zipCode                String?
   // Tributos
-  cnae                 String?  // Codigo CNAE principal (ex: 6822-6/00)
-  codigoServicoMunicipal String?  // LC 116/2003 (ex: 17.13)
-  aliquotaIss          Float?   // % do ISS (ex: 5)
+  cnae                   String? // Codigo CNAE principal (ex: 6822-6/00)
+  codigoServicoMunicipal String? // LC 116/2003 (ex: 17.13)
+  aliquotaIss            Float? // % do ISS (ex: 5)
   // Aliquota efetiva do Simples Nacional do mes corrente (varia conforme
   // RBT12). Obrigatoria no XML do Padrao Nacional NFS-e quando
   // opSimpNac=1. Admin atualiza mensalmente conforme a contadora informa.
-  simplesAliquota      Float?   // % do Simples (ex: 6 = 6%)
-  regimeTributario     String?  // SIMPLES_NACIONAL | LUCRO_PRESUMIDO | LUCRO_REAL | MEI
-  optanteSimples       Boolean  @default(false)
-  incentivadorCultural Boolean  @default(false)
-  retemIss             Boolean  @default(false)
+  simplesAliquota        Float? // % do Simples (ex: 6 = 6%)
+  regimeTributario       String? // SIMPLES_NACIONAL | LUCRO_PRESUMIDO | LUCRO_REAL | MEI
+  optanteSimples         Boolean   @default(false)
+  incentivadorCultural   Boolean   @default(false)
+  retemIss               Boolean   @default(false)
   // Certificado digital A1
-  certificadoNome      String?  // nome do arquivo (referencia)
-  certificadoExpiraEm  DateTime?
-  certificadoPfx       Bytes?   // arquivo .pfx em si (raw bytes)
-  certificadoPassword  String?  // senha do .pfx, criptografada com AES-256-GCM
+  certificadoNome        String? // nome do arquivo (referencia)
+  certificadoExpiraEm    DateTime?
+  certificadoPfx         Bytes? // arquivo .pfx em si (raw bytes)
+  certificadoPassword    String? // senha do .pfx, criptografada com AES-256-GCM
   // Integracao
-  provedor             String?  // NFSE_NACIONAL | NFE_IO | PLUG_NOTAS | GISSONLINE | MANUAL
-  apiToken             String?  // criptografado
-  ambiente             String   @default("HOMOLOGACAO") // HOMOLOGACAO | PRODUCAO
+  provedor               String? // NFSE_NACIONAL | NFE_IO | PLUG_NOTAS | GISSONLINE | MANUAL
+  apiToken               String? // criptografado
+  ambiente               String    @default("HOMOLOGACAO") // HOMOLOGACAO | PRODUCAO
   // Meta
-  notes                String?
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  notes                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   @@map("fiscal_settings")
 }
@@ -149,65 +149,65 @@ model FiscalSettings {
 // ==========================================
 
 model Owner {
-  id           String   @id @default(cuid())
-  name         String
+  id                   String    @id @default(cuid())
+  name                 String
   // Versao normalizada do nome (lowercase + sem acentos) para busca
   // case-insensitive e accent-insensitive em SQLite. Atualizada
   // automaticamente nos POST/PUT.
-  nameNormalized String?
-  email        String?
-  phone        String?
-  phone2       String?
-  email2       String?
-  cpfCnpj      String   @unique
-  personType   String   @default("PF") // PF ou PJ
-  stateRegistration String? // Inscricao Estadual (PJ)
-  birthDate    DateTime? // Data de nascimento (PF)
-  rgIssuer     String?   // Orgao expedidor do RG
+  nameNormalized       String?
+  email                String?
+  phone                String?
+  phone2               String?
+  email2               String?
+  cpfCnpj              String    @unique
+  personType           String    @default("PF") // PF ou PJ
+  stateRegistration    String? // Inscricao Estadual (PJ)
+  birthDate            DateTime? // Data de nascimento (PF)
+  rgIssuer             String? // Orgao expedidor do RG
   // Endereco
-  street       String?
-  number       String?
-  complement   String?
-  neighborhood String?
-  city         String?
-  state        String?
-  zipCode      String?
+  street               String?
+  number               String?
+  complement           String?
+  neighborhood         String?
+  city                 String?
+  state                String?
+  zipCode              String?
   // Dados bancarios
-  bankName     String?
-  bankAgency   String?
-  bankAccount  String?
-  bankPix      String?
-  bankPixType  String?   // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
+  bankName             String?
+  bankAgency           String?
+  bankAccount          String?
+  bankPix              String?
+  bankPixType          String? // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
   // Terceiro Recebedor (quando o repasse vai para outra pessoa)
-  thirdPartyName     String?  // Nome do terceiro recebedor
-  thirdPartyDocument String?  // CPF/CNPJ do terceiro
-  thirdPartyBank     String?  // Banco
-  thirdPartyAgency   String?  // Agencia
-  thirdPartyAccount  String?  // Conta
+  thirdPartyName       String? // Nome do terceiro recebedor
+  thirdPartyDocument   String? // CPF/CNPJ do terceiro
+  thirdPartyBank       String? // Banco
+  thirdPartyAgency     String? // Agencia
+  thirdPartyAccount    String? // Conta
   thirdPartyPixKeyType String? // Tipo chave PIX (CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA)
-  thirdPartyPix      String?  // Chave PIX
+  thirdPartyPix        String? // Chave PIX
   // Pagamento
-  paymentDay   Int      @default(10) // Dia do pagamento ao proprietario
+  paymentDay           Int       @default(10) // Dia do pagamento ao proprietario
   // Portal de acesso
-  portalToken    String?  @unique  // token inicial (fornecido pela imobiliaria)
-  portalPassword String?           // hash da senha definida pelo proprietario apos 1o acesso
-  portalActive   Boolean  @default(false)
+  portalToken          String?   @unique // token inicial (fornecido pela imobiliaria)
+  portalPassword       String? // hash da senha definida pelo proprietario apos 1o acesso
+  portalActive         Boolean   @default(false)
   // Meta
-  notes        String?
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  notes                String?
+  active               Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   // Rastreabilidade
-  createdById  String?
-  createdBy    User?    @relation("OwnerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation("OwnerCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  properties      Property[]
-  propertyShares  PropertyOwner[]
-  contracts       Contract[]
-  payments        Payment[]
-  entries         OwnerEntry[]
-  invoices        Invoice[]
+  properties          Property[]
+  propertyShares      PropertyOwner[]
+  contracts           Contract[]
+  payments            Payment[]
+  entries             OwnerEntry[]
+  invoices            Invoice[]
   payoutBeneficiaries OwnerPayoutBeneficiary[]
 
   @@index([active])
@@ -229,16 +229,16 @@ model Owner {
 //   - cada percentage entre 0 (exclusivo) e 100
 //   - soma dos percentages do Owner <= 100
 model OwnerPayoutBeneficiary {
-  id           String   @id @default(cuid())
-  ownerId      String
-  owner        Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  name         String
-  pixKey       String
-  pixKeyType   String   // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
-  percentage   Float    // 0 < x <= 100
-  order        Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id         String   @id @default(cuid())
+  ownerId    String
+  owner      Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name       String
+  pixKey     String
+  pixKeyType String // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
+  percentage Float // 0 < x <= 100
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([ownerId])
   @@map("owner_payout_beneficiaries")
@@ -249,48 +249,48 @@ model OwnerPayoutBeneficiary {
 // ==========================================
 
 model Tenant {
-  id           String   @id @default(cuid())
-  name         String
+  id                String    @id @default(cuid())
+  name              String
   // Versao normalizada do nome para busca case/accent-insensitive
-  nameNormalized String?
-  email        String?
-  phone        String?
-  phone2       String?
-  email2       String?
-  cpfCnpj      String   @unique
-  personType   String   @default("PF") // PF ou PJ
+  nameNormalized    String?
+  email             String?
+  phone             String?
+  phone2            String?
+  email2            String?
+  cpfCnpj           String    @unique
+  personType        String    @default("PF") // PF ou PJ
   stateRegistration String? // Inscricao Estadual (PJ)
-  birthDate    DateTime? // Data de nascimento (PF)
-  rgIssuer     String?   // Orgao expedidor do RG
+  birthDate         DateTime? // Data de nascimento (PF)
+  rgIssuer          String? // Orgao expedidor do RG
   // Endereco (anterior)
-  street       String?
-  number       String?
-  complement   String?
-  neighborhood String?
-  city         String?
-  state        String?
-  zipCode      String?
+  street            String?
+  number            String?
+  complement        String?
+  neighborhood      String?
+  city              String?
+  state             String?
+  zipCode           String?
   // Documentos
-  rgNumber     String?
+  rgNumber          String?
   // Profissional
-  occupation   String?
-  monthlyIncome Float?
+  occupation        String?
+  monthlyIncome     Float?
   // Pagamento
-  paymentDay   Int      @default(5) // Dia do vencimento do boleto (1-31)
+  paymentDay        Int       @default(5) // Dia do vencimento do boleto (1-31)
   // Meta
-  notes        String?
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  notes             String?
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Rastreabilidade
-  createdById  String?
-  createdBy    User?    @relation("TenantCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation("TenantCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
-  contracts          Contract[] @relation("ContractTenant")
-  contractsAsTenant2 Contract[] @relation("ContractTenant2")
-  payments  Payment[]
-  entries   TenantEntry[]
+  contracts          Contract[]    @relation("ContractTenant")
+  contractsAsTenant2 Contract[]    @relation("ContractTenant2")
+  payments           Payment[]
+  entries            TenantEntry[]
 
   @@index([active])
   @@index([createdById])
@@ -303,27 +303,27 @@ model Tenant {
 // ==========================================
 
 model Property {
-  id            String   @id @default(cuid())
-  title         String
+  id                 String   @id @default(cuid())
+  title              String
   // Versao normalizada do titulo para busca case/accent-insensitive
-  titleNormalized String?
-  description   String?
-  type          String // CASA, APARTAMENTO, COMERCIAL, TERRENO, SALA, PAVILHAO
-  status        String   @default("DISPONIVEL") // DISPONIVEL, ALUGADO, MANUTENCAO, INATIVO
+  titleNormalized    String?
+  description        String?
+  type               String // CASA, APARTAMENTO, COMERCIAL, TERRENO, SALA, PAVILHAO
+  status             String   @default("DISPONIVEL") // DISPONIVEL, ALUGADO, MANUTENCAO, INATIVO
   // Endereco
-  street        String
-  number        String
-  complement    String?
-  neighborhood  String
-  city          String
-  state         String
-  zipCode       String
+  street             String
+  number             String
+  complement         String?
+  neighborhood       String
+  city               String
+  state              String
+  zipCode            String
   // Detalhes
-  area          Float?
-  bedrooms      Int      @default(0)
-  bathrooms     Int      @default(0)
-  parkingSpaces Int      @default(0)
-  furnished     Boolean  @default(false)
+  area               Float?
+  bedrooms           Int      @default(0)
+  bathrooms          Int      @default(0)
+  parkingSpaces      Int      @default(0)
+  furnished          Boolean  @default(false)
   // Codigos / Registros
   registrationNumber String? // Matricula
   iptuNumber         String? // N do IPTU
@@ -332,22 +332,22 @@ model Property {
   gasMeter           String? // N medidor gas
   condoAdmin         String? // Administradora de Condominio
   // Valores
-  rentalValue   Float?
-  saleValue     Float?
-  condoFee      Float?
-  iptuValue     Float?
+  rentalValue        Float?
+  saleValue          Float?
+  condoFee           Float?
+  iptuValue          Float?
   // Proprietario
-  ownerId       String
-  owner         Owner    @relation(fields: [ownerId], references: [id])
+  ownerId            String
+  owner              Owner    @relation(fields: [ownerId], references: [id])
   // Meta
-  notes         String?
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  notes              String?
+  active             Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   // Rastreabilidade
-  createdById  String?
-  createdBy    User?    @relation("PropertyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation("PropertyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   photos             PropertyPhoto[]
   ownerShares        PropertyOwner[]
@@ -380,7 +380,7 @@ model PropertyOwner {
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   ownerId    String
   owner      Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  percentage Float    // Ex: 25.0 = 25%
+  percentage Float // Ex: 25.0 = 25%
   createdAt  DateTime @default(now())
 
   @@unique([propertyId, ownerId])
@@ -394,60 +394,60 @@ model PropertyOwner {
 // ==========================================
 
 model Contract {
-  id             String   @id @default(cuid())
-  code           String   @unique // CTR-001, CTR-002...
-  type           String   @default("LOCACAO") // LOCACAO, ADMINISTRACAO, VISTORIA, PROCURACAO, ADITIVO, INTERMEDIACAO
-  status         String   @default("ATIVO") // ATIVO, ENCERRADO, PENDENTE_RENOVACAO, CANCELADO
+  id                         String              @id @default(cuid())
+  code                       String              @unique // CTR-001, CTR-002...
+  type                       String              @default("LOCACAO") // LOCACAO, ADMINISTRACAO, VISTORIA, PROCURACAO, ADITIVO, INTERMEDIACAO
+  status                     String              @default("ATIVO") // ATIVO, ENCERRADO, PENDENTE_RENOVACAO, CANCELADO
   // Partes
-  propertyId     String?
-  property       Property? @relation(fields: [propertyId], references: [id], onDelete: Restrict)
-  ownerId        String
-  owner          Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  tenantId       String?
-  tenant         Tenant?  @relation("ContractTenant", fields: [tenantId], references: [id], onDelete: Restrict)
-  tenant2Id      String?
-  tenant2        Tenant?  @relation("ContractTenant2", fields: [tenant2Id], references: [id], onDelete: Restrict)
+  propertyId                 String?
+  property                   Property?           @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  ownerId                    String
+  owner                      Owner               @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  tenantId                   String?
+  tenant                     Tenant?             @relation("ContractTenant", fields: [tenantId], references: [id], onDelete: Restrict)
+  tenant2Id                  String?
+  tenant2                    Tenant?             @relation("ContractTenant2", fields: [tenant2Id], references: [id], onDelete: Restrict)
   // Valores
-  rentalValue    Float    @default(0)
-  adminFeePercent Float   @default(10) // Taxa de administracao %
-  bankFee         Float   @default(3.90) // Taxa bancaria cobrada do inquilino
-  insuranceFee    Float?  // Seguro fianca mensal cobrado do inquilino
+  rentalValue                Float               @default(0)
+  adminFeePercent            Float               @default(10) // Taxa de administracao %
+  bankFee                    Float               @default(3.90) // Taxa bancaria cobrada do inquilino
+  insuranceFee               Float? // Seguro fianca mensal cobrado do inquilino
   // Datas
-  startDate      DateTime @default(now())
-  endDate        DateTime @default(now())
-  paymentDay     Int      @default(5) // Dia do vencimento do boleto do inquilino
+  startDate                  DateTime            @default(now())
+  endDate                    DateTime            @default(now())
+  paymentDay                 Int                 @default(5) // Dia do vencimento do boleto do inquilino
   // Taxa de intermediacao
-  intermediationFee Float? // % taxa de intermediacao
-  intermediationInstallments Int? @default(1) // Numero de parcelas da intermediacao
-  intermediacaoSaldoPendente Float @default(0) // Saldo nao descontado em mes anterior (acumula pra proximo billing)
+  intermediationFee          Float? // % taxa de intermediacao
+  intermediationInstallments Int?                @default(1) // Numero de parcelas da intermediacao
+  intermediacaoSaldoPendente Float               @default(0) // Saldo nao descontado em mes anterior (acumula pra proximo billing)
   // Garantia
-  guaranteeType  String?  // FIADOR, CAUCAO, SEGURO_FIANCA, TITULO_CAPITALIZACAO, SEM_GARANTIA
-  guaranteeValue Float?
-  guaranteeNotes String?
+  guaranteeType              String? // FIADOR, CAUCAO, SEGURO_FIANCA, TITULO_CAPITALIZACAO, SEM_GARANTIA
+  guaranteeValue             Float?
+  guaranteeNotes             String?
   // Aluguel garantido pela imobiliaria — quando true, juros/multa por atraso
   // do inquilino SEMPRE ficam com a imobiliaria (cobre o adiantamento ja feito
   // ao proprietario). Default false = regra padrao (depende da data de pagamento).
-  aluguelGarantido Boolean @default(false)
+  aluguelGarantido           Boolean             @default(false)
   // Fiadores (many-to-many via join table)
-  guarantors     ContractGuarantor[]
+  guarantors                 ContractGuarantor[]
   // Renovacao
-  renewalMonths  Int?     @default(12)  // Periodo padrao de renovacao em meses
-  penaltyPercent Float?   @default(3)   // Multa por rescisao antecipada (em meses de aluguel)
+  renewalMonths              Int?                @default(12) // Periodo padrao de renovacao em meses
+  penaltyPercent             Float?              @default(3) // Multa por rescisao antecipada (em meses de aluguel)
   // Reajuste
-  adjustmentIndex String? @default("IGPM") // IGPM, IPCA, INPC
-  adjustmentMonth Int?    // Mes do reajuste
-  lastAdjustmentDate    DateTime? // Ultima data de reajuste aplicado
-  lastAdjustmentPercent Float?    // Ultimo % de reajuste aplicado
+  adjustmentIndex            String?             @default("IGPM") // IGPM, IPCA, INPC
+  adjustmentMonth            Int? // Mes do reajuste
+  lastAdjustmentDate         DateTime? // Ultima data de reajuste aplicado
+  lastAdjustmentPercent      Float? // Ultimo % de reajuste aplicado
   // Documento
-  documentUrl    String?  // PDF do contrato
+  documentUrl                String? // PDF do contrato
   // Meta
-  notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  notes                      String?
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
 
   // Rastreabilidade
-  createdById    String?
-  createdBy      User?    @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation("ContractCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   payments Payment[]
   invoices Invoice[]
@@ -466,40 +466,40 @@ model Contract {
 // ==========================================
 
 model Payment {
-  id            String    @id @default(cuid())
-  code          String    @unique // PAG-001...
+  id                        String    @id @default(cuid())
+  code                      String    @unique // PAG-001...
   // Vinculacao
-  contractId    String
-  contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  tenantId      String
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  ownerId       String
-  owner         Owner     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  contractId                String
+  contract                  Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  tenantId                  String
+  tenant                    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  ownerId                   String
+  owner                     Owner     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   // Valores
-  value         Float
-  paidValue     Float?
-  fineValue     Float?    // Multa
-  interestValue Float?    // Juros
-  lateFee       Float?    // Multa por atraso (2% do valor)
-  totalDue      Float?    // Total devido (valor + multa + juros)
-  discountValue Float?    // Desconto
-  intermediationFee Float? // Valor de intermediacao
+  value                     Float
+  paidValue                 Float?
+  fineValue                 Float? // Multa
+  interestValue             Float? // Juros
+  lateFee                   Float? // Multa por atraso (2% do valor)
+  totalDue                  Float? // Total devido (valor + multa + juros)
+  discountValue             Float? // Desconto
+  intermediationFee         Float? // Valor de intermediacao
   // Datas
-  dueDate       DateTime
-  paidAt        DateTime?
+  dueDate                   DateTime
+  paidAt                    DateTime?
   // Detalhes
-  status        String    @default("PENDENTE") // PENDENTE, PAGO, ATRASADO, CANCELADO, PARCIAL
-  paymentMethod String?   // BOLETO, PIX, CARTAO, TRANSFERENCIA, DINHEIRO
-  description   String?
+  status                    String    @default("PENDENTE") // PENDENTE, PAGO, ATRASADO, CANCELADO, PARCIAL
+  paymentMethod             String? // BOLETO, PIX, CARTAO, TRANSFERENCIA, DINHEIRO
+  description               String?
   // Split
-  splitOwnerValue     Float?
-  splitAdminValue     Float?
-  externalPaymentId   String?
+  splitOwnerValue           Float?
+  splitAdminValue           Float?
+  externalPaymentId         String?
   // IRRF (retencao de imposto de renda)
-  irrfValue           Float?    // Valor do IRRF retido
-  irrfRate            Float?    // Aliquota do IRRF aplicada
-  grossToOwner        Float?    // Valor bruto ao proprietario (aluguel - taxa adm)
-  netToOwner          Float?    // Valor liquido ao proprietario (grossToOwner - IRRF)
+  irrfValue                 Float? // Valor do IRRF retido
+  irrfRate                  Float? // Aliquota do IRRF aplicada
+  grossToOwner              Float? // Valor bruto ao proprietario (aluguel - taxa adm)
+  netToOwner                Float? // Valor liquido ao proprietario (grossToOwner - IRRF)
   // Destino dos juros/multa quando o boleto eh pago com atraso.
   // null = nao calculado ainda (boleto ainda nao foi pago ou nao tem juros/multa)
   // true = retido pela imobiliaria (cobre o atraso curto ou aluguel garantido)
@@ -509,26 +509,26 @@ model Payment {
   // Snapshot das regras enviadas ao Sicredi no registro do boleto.
   // Usado pra calcular estimativa de juros/multa que BATA com o que o
   // Sicredi vai cobrar (caso BillingSettings mude depois do registro).
-  multaTipoBoleto    String?  // VALOR | PERCENTUAL
-  multaValorBoleto   Float?
-  jurosTipoBoleto    String?  // VALOR_DIA | PERCENTUAL_DIA | PERCENTUAL_MES | ISENTO
-  jurosValorBoleto   Float?
+  multaTipoBoleto           String? // VALOR | PERCENTUAL
+  multaValorBoleto          Float?
+  jurosTipoBoleto           String? // VALOR_DIA | PERCENTUAL_DIA | PERCENTUAL_MES | ISENTO
+  jurosValorBoleto          Float?
   // Boleto Sicredi
-  nossoNumero       String?   // ID unico do boleto no Sicredi
-  linhaDigitavel    String?   // Linha digitavel para pagamento
-  codigoBarras      String?   // Codigo de barras
-  pixCopiaECola     String?   // PIX copia e cola (EMV) para pagamento hibrido
-  boletoStatus      String?   // EMITIDO, LIQUIDADO, BAIXADO, VENCIDO
-  boletoEmitidoEm   DateTime? // Data de emissao
-  boletoLiquidadoEm DateTime? // Data de liquidacao (webhook)
+  nossoNumero               String? // ID unico do boleto no Sicredi
+  linhaDigitavel            String? // Linha digitavel para pagamento
+  codigoBarras              String? // Codigo de barras
+  pixCopiaECola             String? // PIX copia e cola (EMV) para pagamento hibrido
+  boletoStatus              String? // EMITIDO, LIQUIDADO, BAIXADO, VENCIDO
+  boletoEmitidoEm           DateTime? // Data de emissao
+  boletoLiquidadoEm         DateTime? // Data de liquidacao (webhook)
   // Meta
-  notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  notes                     String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   // Rastreabilidade
-  createdById   String?
-  createdBy     User?     @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?   @relation("PaymentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([dueDate])
@@ -545,37 +545,37 @@ model Payment {
 // ==========================================
 
 model Guarantor {
-  id           String   @id @default(cuid())
-  name         String
-  cpfCnpj      String   @unique
-  personType   String   @default("PF") // PF ou PJ
-  stateRegistration String? // Inscricao Estadual (PJ)
-  email        String?
-  phone        String?
-  phone2       String?
-  email2       String?
-  rgNumber     String?
-  rgIssuer     String?  // Orgao expedidor
-  birthDate    DateTime?
-  maritalStatus String? // Estado civil: SOLTEIRO, CASADO, DIVORCIADO, VIUVO, UNIAO_ESTAVEL
-  profession   String?  // Profissao
+  id                   String    @id @default(cuid())
+  name                 String
+  cpfCnpj              String    @unique
+  personType           String    @default("PF") // PF ou PJ
+  stateRegistration    String? // Inscricao Estadual (PJ)
+  email                String?
+  phone                String?
+  phone2               String?
+  email2               String?
+  rgNumber             String?
+  rgIssuer             String? // Orgao expedidor
+  birthDate            DateTime?
+  maritalStatus        String? // Estado civil: SOLTEIRO, CASADO, DIVORCIADO, VIUVO, UNIAO_ESTAVEL
+  profession           String? // Profissao
   // Endereco
-  street       String?
-  number       String?
-  complement   String?
-  neighborhood String?
-  city         String?
-  state        String?
-  zipCode      String?
+  street               String?
+  number               String?
+  complement           String?
+  neighborhood         String?
+  city                 String?
+  state                String?
+  zipCode              String?
   // Imovel
   propertyRegistration String? // Numero da matricula do imovel
   // Profissional
-  occupation   String?
-  monthlyIncome Float?
+  occupation           String?
+  monthlyIncome        Float?
   // Meta
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   contracts ContractGuarantor[]
 
@@ -583,12 +583,12 @@ model Guarantor {
 }
 
 model ContractGuarantor {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   contractId  String
   guarantorId String
-  contract    Contract   @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  guarantor   Guarantor  @relation(fields: [guarantorId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
+  contract    Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  guarantor   Guarantor @relation(fields: [guarantorId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
 
   @@unique([contractId, guarantorId])
   @@index([contractId])
@@ -601,36 +601,36 @@ model ContractGuarantor {
 // ==========================================
 
 model TenantEntry {
-  id          String   @id @default(cuid())
-  type        String   // DEBITO, CREDITO
-  category    String   // ALUGUEL, CONDOMINIO, IPTU, AGUA, LUZ, GAS, MULTA, REPARO, DESCONTO, ACORDO, OUTROS
-  description String
-  value       Float
-  dueDate     DateTime?
-  paidAt      DateTime?
-  status      String   @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
+  id                String    @id @default(cuid())
+  type              String // DEBITO, CREDITO
+  category          String // ALUGUEL, CONDOMINIO, IPTU, AGUA, LUZ, GAS, MULTA, REPARO, DESCONTO, ACORDO, OUTROS
+  description       String
+  value             Float
+  dueDate           DateTime?
+  paidAt            DateTime?
+  status            String    @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
   // Parcelamento
-  installmentNumber Int?  // Parcela X de Y
-  installmentTotal  Int?  // Total de parcelas
+  installmentNumber Int? // Parcela X de Y
+  installmentTotal  Int? // Total de parcelas
   parentEntryId     String? // ID do lancamento original (para parcelas)
   // Recorrente
-  isRecurring       Boolean @default(false)
-  recurringDay      Int?    // Dia do mes para recorrencia
+  isRecurring       Boolean   @default(false)
+  recurringDay      Int? // Dia do mes para recorrencia
   // Destino do debito
-  destination   String?  // IMOBILIARIA, PROPRIETARIO, TERCEIRO (null = IMOBILIARIA)
+  destination       String? // IMOBILIARIA, PROPRIETARIO, TERCEIRO (null = IMOBILIARIA)
   // Vinculacao
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  contractId  String?
-  propertyId  String?
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  contractId        String?
+  propertyId        String?
   // Meta
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Rastreabilidade
   createdById String?
-  createdBy   User?    @relation("TenantEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?   @relation("TenantEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
   @@index([type])
@@ -646,38 +646,38 @@ model TenantEntry {
 // ==========================================
 
 model OwnerEntry {
-  id          String   @id @default(cuid())
-  type        String   // DEBITO, CREDITO
-  category    String   // REPASSE, REPARO, TAXA_BANCARIA, IPTU, CONDOMINIO, INTERMEDIACAO, DESCONTO, ACORDO, OUTROS
-  description String
-  value       Float
-  dueDate     DateTime?
-  paidAt      DateTime?
-  status      String   @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
+  id                String    @id @default(cuid())
+  type              String // DEBITO, CREDITO
+  category          String // REPASSE, REPARO, TAXA_BANCARIA, IPTU, CONDOMINIO, INTERMEDIACAO, DESCONTO, ACORDO, OUTROS
+  description       String
+  value             Float
+  dueDate           DateTime?
+  paidAt            DateTime?
+  status            String    @default("PENDENTE") // PENDENTE, PAGO, CANCELADO
   // Parcelamento
   installmentNumber Int?
   installmentTotal  Int?
   parentEntryId     String?
   // Recorrente
-  isRecurring       Boolean @default(false)
+  isRecurring       Boolean   @default(false)
   recurringDay      Int?
   // Vinculacao
-  ownerId     String
-  owner       Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  contractId  String?
-  propertyId  String?
-  destination String?  // IMOBILIARIA, PROPRIETARIO, INQUILINO, TERCEIRO (null = IMOBILIARIA)
+  ownerId           String
+  owner             Owner     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  contractId        String?
+  propertyId        String?
+  destination       String? // IMOBILIARIA, PROPRIETARIO, INQUILINO, TERCEIRO (null = IMOBILIARIA)
   // Meta
-  notes       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Rastreabilidade
   createdById String?
-  createdBy   User?    @relation("OwnerEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?   @relation("OwnerEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   // NF emitida (1-1 — cada repasse pode ter uma NF)
-  invoice     Invoice?
+  invoice Invoice?
 
   @@index([ownerId])
   @@index([type])
@@ -696,7 +696,7 @@ model MaintenanceRecord {
   id          String    @id @default(cuid())
   propertyId  String
   property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  type        String    // MANUTENCAO, VISTORIA_ENTRADA, VISTORIA_SAIDA, REPARO
+  type        String // MANUTENCAO, VISTORIA_ENTRADA, VISTORIA_SAIDA, REPARO
   title       String
   description String?
   cost        Float?
@@ -716,12 +716,12 @@ model MaintenanceRecord {
 
 model Notification {
   id             String    @id @default(cuid())
-  type           String    // WHATSAPP, EMAIL, SMS
-  channel        String    // whatsapp, email, sms
+  type           String // WHATSAPP, EMAIL, SMS
+  channel        String // whatsapp, email, sms
   recipientName  String
   recipientPhone String?
   recipientEmail String?
-  templateKey    String    // payment_reminder, payment_overdue, payment_received, contract_expiring, etc.
+  templateKey    String // payment_reminder, payment_overdue, payment_received, contract_expiring, etc.
   subject        String?
   message        String
   status         String    @default("PENDENTE") // PENDENTE, ENVIADO, FALHA, CANCELADO
@@ -750,16 +750,16 @@ model Notification {
 // ==========================================
 
 model Document {
-  id          String   @id @default(cuid())
-  name        String
-  url         String
-  mimeType    String?
-  size        Int?     // bytes
-  category    String?  // CONTRATO, COMPROVANTE, VISTORIA, DOCUMENTO_PESSOAL
-  entityType  String?  // PROPERTY, CONTRACT, OWNER, TENANT
-  entityId    String?
-  uploadedBy  String?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  name       String
+  url        String
+  mimeType   String?
+  size       Int? // bytes
+  category   String? // CONTRATO, COMPROVANTE, VISTORIA, DOCUMENTO_PESSOAL
+  entityType String? // PROPERTY, CONTRACT, OWNER, TENANT
+  entityId   String?
+  uploadedBy String?
+  createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
   @@map("documents")
@@ -788,11 +788,26 @@ model PasswordResetToken {
 model AppSetting {
   id        String   @id @default(cuid())
   key       String   @unique
-  value     String   // JSON string
+  value     String // JSON string
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("app_settings")
+}
+
+// Tracking de eventos de webhook ja processados — garante idempotencia
+// contra retries do Sicredi (e outros provedores). Sem isso, retries
+// marcariam o mesmo Payment como PAGO 2x.
+model ProcessedWebhookEvent {
+  id        String   @id @default(cuid())
+  eventId   String   @unique // ex: idEventoWebhook do Sicredi
+  provider  String // "sicredi", "asaas", etc
+  movimento String? // tipo de evento (LIQUIDACAO_PIX, etc)
+  payload   String // JSON do payload completo (auditoria)
+  createdAt DateTime @default(now())
+
+  @@index([provider, createdAt])
+  @@map("processed_webhook_events")
 }
 
 // ==========================================
@@ -802,59 +817,59 @@ model AppSetting {
 // Linkado opcionalmente a um OwnerEntry de REPASSE — fonte do valor cobrado.
 
 model Invoice {
-  id               String   @id @default(cuid())
+  id                 String      @id @default(cuid())
   // Numero atribuido pelo municipio (apos autorizacao)
-  numero           String?  // numero da NFS-e
-  serie            String?  // serie (ex: '1' ou 'A')
-  codigoVerificacao String? // codigo de verificacao (alfanumerico)
-  chaveAcesso     String?   @unique // chave nacional NFS-e (50 digitos)
+  numero             String? // numero da NFS-e
+  serie              String? // serie (ex: '1' ou 'A')
+  codigoVerificacao  String? // codigo de verificacao (alfanumerico)
+  chaveAcesso        String?     @unique // chave nacional NFS-e (50 digitos)
   // Status
-  status           String   @default("PENDENTE") // PENDENTE | PROCESSANDO | AUTORIZADA | REJEITADA | CANCELADA
+  status             String      @default("PENDENTE") // PENDENTE | PROCESSANDO | AUTORIZADA | REJEITADA | CANCELADA
   // Dados do servico
-  dataEmissao      DateTime?
-  dataCancelamento DateTime?
+  dataEmissao        DateTime?
+  dataCancelamento   DateTime?
   cancelamentoMotivo String?
   // Prestador (Somma) — replicados pra historicidade
-  prestadorCnpj    String
-  prestadorIm      String?
-  prestadorNome    String
+  prestadorCnpj      String
+  prestadorIm        String?
+  prestadorNome      String
   // Tomador (proprietario que recebe o repasse)
-  tomadorTipo      String   // PF | PJ
-  tomadorDoc       String   // CPF ou CNPJ
-  tomadorNome      String
-  tomadorEmail     String?
-  tomadorEndereco  String?
+  tomadorTipo        String // PF | PJ
+  tomadorDoc         String // CPF ou CNPJ
+  tomadorNome        String
+  tomadorEmail       String?
+  tomadorEndereco    String?
   // Servico
-  codigoServico    String   // ex: '10.05'
-  discriminacao    String   // descricao detalhada do servico
-  valorServicos    Float    // valor bruto da NF
-  aliquotaIss      Float?   // % de ISS (informativa pra Simples)
-  valorIss         Float    @default(0) // ISS efetivamente cobrado
-  issRetido        Boolean  @default(false)
-  regimeTributario String?  // SIMPLES_NACIONAL etc
+  codigoServico      String // ex: '10.05'
+  discriminacao      String // descricao detalhada do servico
+  valorServicos      Float // valor bruto da NF
+  aliquotaIss        Float? // % de ISS (informativa pra Simples)
+  valorIss           Float       @default(0) // ISS efetivamente cobrado
+  issRetido          Boolean     @default(false)
+  regimeTributario   String? // SIMPLES_NACIONAL etc
   // XMLs (gerados/recebidos)
-  dpsXml           String?  // XML da Declaracao de Prestacao de Servicos enviado
-  respostaXml      String?  // XML retornado pela SEFIN
-  pdfUrl           String?  // URL do DANFSE (se gerado)
+  dpsXml             String? // XML da Declaracao de Prestacao de Servicos enviado
+  respostaXml        String? // XML retornado pela SEFIN
+  pdfUrl             String? // URL do DANFSE (se gerado)
   // Erros (se rejeitada)
-  rejeicaoCodigo   String?
-  rejeicaoMotivo   String?
+  rejeicaoCodigo     String?
+  rejeicaoMotivo     String?
   // Linkagens
-  ownerId          String
-  owner            Owner    @relation(fields: [ownerId], references: [id], onDelete: Restrict)
-  contractId       String?
-  contract         Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
-  ownerEntryId     String?   @unique  // 1 NF por OwnerEntry (REPASSE)
-  ownerEntry       OwnerEntry? @relation(fields: [ownerEntryId], references: [id], onDelete: SetNull)
+  ownerId            String
+  owner              Owner       @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  contractId         String?
+  contract           Contract?   @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  ownerEntryId       String?     @unique // 1 NF por OwnerEntry (REPASSE)
+  ownerEntry         OwnerEntry? @relation(fields: [ownerEntryId], references: [id], onDelete: SetNull)
   // Mes de referencia (ex: '2026-04' = NF do repasse de abril)
-  competencia      String?
+  competencia        String?
   // Ambiente
-  ambiente         String   @default("HOMOLOGACAO") // HOMOLOGACAO | PRODUCAO
+  ambiente           String      @default("HOMOLOGACAO") // HOMOLOGACAO | PRODUCAO
   // Tracking
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  createdById      String?
-  createdBy        User?    @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  createdById        String?
+  createdBy          User?       @relation("InvoiceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([ownerId])
   @@index([contractId])

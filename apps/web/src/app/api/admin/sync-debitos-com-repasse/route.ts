@@ -53,13 +53,19 @@ export async function POST(request: NextRequest) {
     // Pega ownerIds com REPASSE PAGO no mes
     const ownerIdsComRepassePago = [...new Set(repassesPagos.map((r) => r.ownerId))];
 
-    // Pega DEBITOs PENDENTES desses owners com dueDate no mes
+    // Pega DEBITOs PENDENTES desses owners com dueDate < monthEnd (mes atual
+    // + carry-forward de meses anteriores). Tambem sem dueDate (avulsos).
+    // O CNAB ja desconta esses debitos do repasse — entao precisam ficar PAGO
+    // juntos pra nao serem cobrados de novo no mes seguinte.
     const debitosPendentes = await prisma.ownerEntry.findMany({
       where: {
         type: "DEBITO",
         status: "PENDENTE",
         ownerId: { in: ownerIdsComRepassePago },
-        dueDate: { gte: monthStart, lt: monthEnd },
+        OR: [
+          { dueDate: { lt: monthEnd } },
+          { dueDate: null },
+        ],
       },
       select: {
         id: true,
