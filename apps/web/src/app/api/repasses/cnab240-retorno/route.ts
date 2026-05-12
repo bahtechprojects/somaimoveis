@@ -178,30 +178,13 @@ export async function POST(request: NextRequest) {
         resultado.entriesMarcadas = pendentes.length;
       }
 
-      // Se divergente NEGATIVO (Sicredi mandou menos que o esperado),
-      // marca complemento pra criar OwnerEntry CREDITO PENDENTE com a
-      // diferenca — vai no proximo CNAB pra restituir.
-      // Idempotente: skip se ja existe complemento gerado por esse mesmo
-      // retorno (notes.refDocEmpresa).
-      if (valorDivergente && diff < 0 && ownerIdMatched) {
-        const jaExiste = await prisma.ownerEntry.findFirst({
-          where: {
-            ownerId: ownerIdMatched,
-            category: "REPASSE",
-            status: { not: "CANCELADO" },
-            notes: { contains: `"refDocEmpresa":"${docEmpresa}"` },
-          },
-          select: { id: true },
-        });
-        if (!jaExiste) {
-          complementosACriar.push({
-            ownerId: ownerIdMatched,
-            ownerName: matchedEntries[0].owner.name,
-            valor: Math.abs(diff),
-            refDocEmpresa: docEmpresa,
-          });
-        }
-      }
+      // Detecta divergencia mas NAO cria complemento automaticamente.
+      // O calculo de valorEsperado pode incluir IPTUs/creditos ja pagos
+      // em CNABs anteriores, gerando complementos falsos (caso CTR-19
+      // Adriana — somou IPTU 04/2026 ja confirmado banco no mes anterior,
+      // gerou complemento R$ 97,21 que era incorreto).
+      // Admin agora ve a flag valorDivergente=true no resultado e decide
+      // se precisa criar complemento manual via /api/admin/criar-complemento-repasse.
 
       // Confirmacao pelo Sicredi: marca em notes que o pagamento foi
       // efetivado pelo banco. SO MARCA se valor bateu — se divergente,
