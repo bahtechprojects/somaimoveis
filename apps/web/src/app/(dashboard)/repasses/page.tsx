@@ -869,17 +869,26 @@ export default function RepassesPage() {
   }
 
   async function handleDeleteEntry(entryId: string, description: string) {
-    if (!confirm(`Excluir lançamento "${description}"?\n\nEsta ação não pode ser desfeita.`)) return;
+    // Em vez de DELETE (que apaga permanentemente e some do historico de
+    // meses anteriores), usa CANCELAR — preserva o registro mas remove do
+    // calculo de totais. Caso reportado: ao apagar uma entry exibida na aba
+    // do mes corrente que tinha dueDate em mes anterior, sumia tambem da
+    // aba do mes passado.
+    if (!confirm(`Cancelar lançamento "${description}"?\n\nA entry sera marcada como CANCELADA (preserva historico). Para excluir permanentemente, use a tela de Lançamentos.`)) return;
     try {
-      const res = await fetch(`/api/owner-entries/${entryId}`, { method: "DELETE" });
+      const res = await fetch(`/api/owner-entries/${entryId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELADO" }),
+      });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Erro ao excluir");
+        throw new Error(data.error || "Erro ao cancelar");
       }
-      toast.success("Lançamento excluído");
+      toast.success("Lançamento cancelado");
       fetchRepasses();
     } catch (err: any) {
-      toast.error(err.message || "Erro ao excluir lançamento");
+      toast.error(err.message || "Erro ao cancelar lançamento");
     }
   }
 
