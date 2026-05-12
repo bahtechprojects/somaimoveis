@@ -202,6 +202,13 @@ export default function OwnerDetailPage() {
   const [portalStatus, setPortalStatus] = useState<{ active: boolean; token: string | null } | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
+  const [demonstrativo, setDemonstrativo] = useState<{
+    totalEntradas: number;
+    totalSaidas: number;
+    totalPago: number;
+    adminFee: number;
+    irrf: number;
+  } | null>(null);
 
   async function fetchOwner() {
     setLoading(true);
@@ -222,8 +229,35 @@ export default function OwnerDetailPage() {
     }
   }
 
+  async function fetchDemonstrativo() {
+    try {
+      const now = new Date();
+      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const res = await fetch(`/api/repasses/demonstrativo?ownerId=${id}&month=${month}`);
+      if (res.ok) {
+        const data = await res.json();
+        const adminFee = (data.contratos || []).reduce((s: number, c: any) => s + (c.adminFee || 0), 0);
+        const irrf = (data.contratos || []).reduce((s: number, c: any) => s + (c.irrf || 0), 0);
+        setDemonstrativo({
+          totalEntradas: data.totais?.entradas ?? 0,
+          totalSaidas: data.totais?.saidas ?? 0,
+          totalPago: data.totais?.totalPago ?? 0,
+          adminFee,
+          irrf,
+        });
+      }
+    } catch {
+      // silently fail — stats cards fallback to contract rentalValue
+    }
+  }
+
   useEffect(() => {
     if (id) fetchOwner();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  useEffect(() => {
+    if (id) fetchDemonstrativo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -478,7 +512,7 @@ export default function OwnerDetailPage() {
         </div>
 
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
@@ -503,12 +537,36 @@ export default function OwnerDetailPage() {
           </Card>
           <Card className="border-0 shadow-sm">
             <CardContent className="p-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100">
+                <DollarSign className="h-5 w-5 text-sky-600" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Aluguel Bruto</p>
+                <p className="text-xl font-bold">
+                  {formatCurrency(demonstrativo?.totalEntradas ?? totalMonthlyRevenue)}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-4 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100">
                 <DollarSign className="h-5 w-5 text-amber-600" />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Receita Mensal</p>
-                <p className="text-xl font-bold">{formatCurrency(totalMonthlyRevenue)}</p>
+                <p className="text-xs text-muted-foreground">Repasse Liquido</p>
+                <p className="text-xl font-bold">
+                  {demonstrativo
+                    ? formatCurrency(demonstrativo.totalPago)
+                    : formatCurrency(totalMonthlyRevenue)}
+                </p>
+                {demonstrativo && (demonstrativo.adminFee > 0 || demonstrativo.irrf > 0) && (
+                  <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">
+                    {demonstrativo.adminFee > 0 && `Adm: ${formatCurrency(demonstrativo.adminFee)}`}
+                    {demonstrativo.adminFee > 0 && demonstrativo.irrf > 0 && " | "}
+                    {demonstrativo.irrf > 0 && `IRRF: ${formatCurrency(demonstrativo.irrf)}`}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -23,9 +23,7 @@ import {
 import {
   Receipt,
   Calendar,
-  DollarSign,
   TrendingUp,
-  Minus,
   ChevronDown,
   ChevronUp,
   Printer,
@@ -283,7 +281,7 @@ export default function PortalStatementPage() {
                       <div className="hidden sm:flex items-center gap-4 text-right">
                         <div>
                           <p className="text-[10px] text-muted-foreground uppercase">
-                            Total
+                            Valor Bruto
                           </p>
                           <p className="text-sm font-semibold">
                             {formatCurrency(month.totals.totalValue)}
@@ -291,18 +289,10 @@ export default function PortalStatementPage() {
                         </div>
                         <div>
                           <p className="text-[10px] text-muted-foreground uppercase">
-                            Sua Parte
+                            Repasse
                           </p>
                           <p className="text-sm font-semibold text-emerald-700">
                             {formatCurrency(month.totals.totalOwner)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-muted-foreground uppercase">
-                            Taxa Admin.
-                          </p>
-                          <p className="text-sm font-medium text-muted-foreground">
-                            {formatCurrency(month.totals.totalAdmin)}
                           </p>
                         </div>
                       </div>
@@ -318,21 +308,15 @@ export default function PortalStatementPage() {
                   {/* Mobile Stats (visible when collapsed on small screens) */}
                   <div className="sm:hidden px-4 pb-3 flex items-center gap-4">
                     <div>
-                      <p className="text-[10px] text-muted-foreground">Total</p>
+                      <p className="text-[10px] text-muted-foreground">Valor Bruto</p>
                       <p className="text-xs font-semibold">
                         {formatCurrency(month.totals.totalValue)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-muted-foreground">Sua Parte</p>
+                      <p className="text-[10px] text-muted-foreground">Repasse</p>
                       <p className="text-xs font-semibold text-emerald-700">
                         {formatCurrency(month.totals.totalOwner)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">Taxa</p>
-                      <p className="text-xs font-medium text-muted-foreground">
-                        {formatCurrency(month.totals.totalAdmin)}
                       </p>
                     </div>
                   </div>
@@ -355,10 +339,7 @@ export default function PortalStatementPage() {
                               Valor
                             </TableHead>
                             <TableHead className="text-xs text-right">
-                              Sua Parte
-                            </TableHead>
-                            <TableHead className="text-xs text-right">
-                              Taxa Admin.
+                              Repasse
                             </TableHead>
                             <TableHead className="text-xs">Status</TableHead>
                           </TableRow>
@@ -392,11 +373,6 @@ export default function PortalStatementPage() {
                                 <TableCell className="text-xs font-semibold text-right text-emerald-700">
                                   {payment.splitOwnerValue != null
                                     ? formatCurrency(payment.splitOwnerValue)
-                                    : "-"}
-                                </TableCell>
-                                <TableCell className="text-xs text-right text-muted-foreground">
-                                  {payment.splitAdminValue != null
-                                    ? formatCurrency(payment.splitAdminValue)
                                     : "-"}
                                 </TableCell>
                                 <TableCell>
@@ -438,27 +414,19 @@ export default function PortalStatementPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-6 text-right">
+                <div className="grid grid-cols-2 gap-6 text-right">
                   <div>
                     <p className="text-xs text-muted-foreground">
-                      Valor Total
+                      Valor Bruto Total
                     </p>
                     <p className="text-lg font-bold">
                       {formatCurrency(data.grandTotals.totalValue)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Sua Parte</p>
+                    <p className="text-xs text-muted-foreground">Total Repassado</p>
                     <p className="text-lg font-bold text-emerald-700">
                       {formatCurrency(data.grandTotals.totalOwner)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">
-                      Taxa Admin.
-                    </p>
-                    <p className="text-lg font-bold text-muted-foreground">
-                      {formatCurrency(data.grandTotals.totalAdmin)}
                     </p>
                   </div>
                 </div>

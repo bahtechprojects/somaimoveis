@@ -24,23 +24,9 @@ export async function GET(request: NextRequest) {
     const [y, m] = month.split("-").map(Number);
     const monthStart = new Date(y, m - 1, 1);
     const monthEnd = new Date(y, m, 1);
-    // Janela de 90 dias antes do monthStart pra capturar entries cuja
-    // dueDate caiu no mes anterior mas o paidAt foi no mes selecionado
-    // (caso comum apos dedupe: entry mantida tem dueDate antiga, mas o
-    // pagamento foi recente).
-    const dueDateMin = new Date(monthStart);
-    dueDateMin.setDate(dueDateMin.getDate() - 90);
-    creditWhere.OR = [
-      // Entries com dueDate dentro do mes
-      { dueDate: { gte: monthStart, lt: monthEnd } },
-      // Entries com paidAt no mes E dueDate em ate 90 dias antes
-      {
-        AND: [
-          { paidAt: { gte: monthStart, lt: monthEnd } },
-          { dueDate: { gte: dueDateMin, lt: monthStart } },
-        ],
-      },
-    ];
+    // Cada lançamento pertence ao mês do seu vencimento (dueDate).
+    // Um boleto/repasse por mês — lançamentos extras acompanham.
+    creditWhere.dueDate = { gte: monthStart, lt: monthEnd };
   }
 
   const ownerSelect = {
