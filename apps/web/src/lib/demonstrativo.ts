@@ -470,10 +470,13 @@ export async function buildDemonstrativo(
       const cat = (l.categoria || "").toUpperCase();
       const desc = (l.descricao || "").toUpperCase();
       if (cat === "DESCONTO" || cat === "ACORDO" || desc.includes("DESCONTO")) return false;
-      // Dedupe: se ha OwnerEntry DEBITO nao-desconto com mesmo valor, pula.
-      const v = l.valor || 0;
+      // Dedupe: se ha OwnerEntry DEBITO nao-desconto com mesmo valor PROPORCIONAL, pula.
+      // outrosDebitosOwner.value: ja proporcional (R$ 250 para 25%).
+      // l.valor: cheio do contrato (R$ 1.000). Multiplicar pra comparar
+      // na mesma escala (mesmo bug do dedupe de descontosLocatario).
+      const valorProporcional = (l.valor || 0) * dedupeShareRatio;
       const idx = outrosDebitosOwner.findIndex(
-        (od, i) => !usedDebitoIdx.has(i) && Math.abs(od.value - v) < 0.01
+        (od, i) => !usedDebitoIdx.has(i) && Math.abs(od.value - valorProporcional) < 0.01
       );
       if (idx >= 0) { usedDebitoIdx.add(idx); return false; }
       return true;
