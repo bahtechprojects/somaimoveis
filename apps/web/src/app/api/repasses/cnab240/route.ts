@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
             thirdPartyPix: true,
             payoutBeneficiaries: {
               orderBy: { order: "asc" },
-              select: { name: true, pixKey: true, pixKeyType: true, percentage: true },
+              select: { name: true, documento: true, pixKey: true, pixKeyType: true, percentage: true },
             },
           },
         },
@@ -297,9 +297,14 @@ export async function POST(request: NextRequest) {
           benefPagamentos.push({
             favorecido: {
               nome: b.name,
-              documento: (b.pixKeyType === "CPF" || b.pixKeyType === "CNPJ"
-                ? b.pixKey
-                : o.cpfCnpj
+              // Fix Bug 9: usa documento do beneficiario quando disponivel.
+              // Antes, quando pixKeyType era EMAIL/TELEFONE/ALEATORIA, usava
+              // o CPF do OWNER — Sicredi rejeitava PF/PG (CPF nao bate com
+              // titular do PIX no DICT).
+              documento: (
+                b.pixKeyType === "CPF" || b.pixKeyType === "CNPJ"
+                  ? b.pixKey
+                  : ((b as any).documento || o.cpfCnpj)
               ).replace(/\D/g, ""),
               banco: bancoCodigo || "748",
               agencia: " ",
@@ -359,21 +364,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ler e incrementar sequencial automaticamente
-    const seqSetting = await prisma.appSetting.findUnique({ where: { key: "cnab_sequencial" } });
-    const nextSeq = seqSetting ? (JSON.parse(seqSetting.value) as number) + 1 : 1;
+    // Fix Bug 10: atomic increment do sequencial pra evitar race condition.
+    // Antes, read+increment+save em chamadas separadas — dois admins clicando
+    // simultaneamente liam o mesmo numero e geravam arquivos com sequencial
+    // identico (Sicredi rejeitava duplicata, ou pior, processava 2x).
+    // Agora: transaction com SELECT-FOR-UPDATE semantica via upsert atomico.
+    const nextSeq = await prisma.$transaction(async (tx) => {
+      const current = await tx.appSetting.findUnique({
+        where: { key: "cnab_sequencial" },
+      });
+      const cur = current ? (JSON.parse(current.value) as number) : 0;
+      const next = cur + 1;
+      if (next > 999999) {
+        throw new Error("Sequencial CNAB excedeu 999999. Resete manualmente em /api/repasses/cnab240 (PATCH).");
+      }
+      await tx.appSetting.upsert({
+        where: { key: "cnab_sequencial" },
+        update: { value: JSON.stringify(next) },
+        create: { key: "cnab_sequencial", value: JSON.stringify(next) },
+      });
+      return next;
+    });
 
     // Gerar arquivo CNAB 240
     const result = generateCnab240(pagamentos, {
       formaPagamento: formaPagamento || "PIX",
       sequencialArquivo: nextSeq,
-    });
-
-    // Salvar sequencial usado
-    await prisma.appSetting.upsert({
-      where: { key: "cnab_sequencial" },
-      update: { value: JSON.stringify(nextSeq) },
-      create: { key: "cnab_sequencial", value: JSON.stringify(nextSeq) },
     });
 
     return new NextResponse(result.content, {

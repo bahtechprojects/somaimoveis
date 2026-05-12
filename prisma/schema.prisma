@@ -240,6 +240,13 @@ model OwnerPayoutBeneficiary {
   ownerId    String
   owner      Owner    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   name       String
+  // CPF ou CNPJ do BENEFICIARIO (titular da chave PIX). Obrigatorio
+  // pra Sicredi validar o segmentoB do CNAB — quando a chave nao e
+  // CPF/CNPJ (ex: telefone, email), o banco compara este documento
+  // com o titular registrado no DICT pra evitar fraude.
+  // Antes, o codigo usava o CPF do OWNER quando pixKeyType != CPF/CNPJ,
+  // o que causava rejeicao PF/PG no Sicredi.
+  documento  String?
   pixKey     String
   pixKeyType String // CPF, CNPJ, EMAIL, TELEFONE, ALEATORIA
   percentage Float // 0 < x <= 100

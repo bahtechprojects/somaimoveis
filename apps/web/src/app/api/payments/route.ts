@@ -273,42 +273,102 @@ export async function POST(request: NextRequest) {
             ? Math.round(dailyRate * prorataDays * 100) / 100
             : contract.rentalValue;
 
-          // 1) Cria OwnerEntry REPASSE se ainda nao existe pra (contractId, dueDate)
-          const existingRepasse = await prisma.ownerEntry.findFirst({
+          // 1) Cria OwnerEntries REPASSE se ainda nao existem pra (contractId, dueDate).
+          // Fix Bug 8: respeita coproprietarios (PropertyOwner.percentage) e
+          // intermediacao (contract.intermediationFee). Antes criava 1 unica
+          // entry com valor cheio no contract.ownerId, ignorando rateio.
+          const existingRepasses = await prisma.ownerEntry.findMany({
             where: {
               contractId: payment.contractId,
               dueDate: payment.dueDate,
               category: "REPASSE",
             },
           });
-          if (!existingRepasse) {
+          if (existingRepasses.length === 0) {
             const adminPct = contract.adminFeePercent || 10;
             const adminFeeValue = Math.round(prorataRentalValue * (adminPct / 100) * 100) / 100;
             const splitOwnerValue = payment.splitOwnerValue ?? Math.round((prorataRentalValue - adminFeeValue) * 100) / 100;
-            await prisma.ownerEntry.create({
-              data: {
-                type: "CREDITO",
-                category: "REPASSE",
-                description: `Repasse aluguel ${mLabel} - ${contract.code || payment.contractId}`,
-                value: splitOwnerValue,
-                dueDate: payment.dueDate,
-                status: "PENDENTE",
-                ownerId: contract.ownerId,
-                contractId: payment.contractId,
-                propertyId: contract.propertyId || null,
-                notes: JSON.stringify({
-                  aluguelBruto: prorataRentalValue,
-                  aluguelOriginal: isProrata ? contract.rentalValue : undefined,
-                  isProrata,
-                  prorataDias: isProrata ? prorataDays : undefined,
-                  adminFeePercent: adminPct,
-                  adminFeeValue,
-                  netToOwner: splitOwnerValue,
-                  autoCreated: true,
-                  syncedFromPayment: payment.code,
-                }),
-              },
-            });
+
+            // Buscar coproprietarios do imovel
+            const ownerShares = contract.propertyId
+              ? await prisma.propertyOwner.findMany({
+                  where: { propertyId: contract.propertyId },
+                  select: { ownerId: true, percentage: true },
+                })
+              : [];
+            const totalSharePercent = ownerShares.reduce((s, sh) => s + sh.percentage, 0);
+
+            const buildAutoNotes = (sharePercent: number) => {
+              const shareRatio = sharePercent / 100;
+              return JSON.stringify({
+                aluguelBruto: prorataRentalValue,
+                aluguelOriginal: isProrata ? contract.rentalValue : undefined,
+                isProrata,
+                prorataDias: isProrata ? prorataDays : undefined,
+                adminFeePercent: adminPct,
+                adminFeeValue: Math.round(adminFeeValue * shareRatio * 100) / 100,
+                sharePercent: sharePercent < 100 ? sharePercent : undefined,
+                netToOwner: Math.round(splitOwnerValue * shareRatio * 100) / 100,
+                autoCreated: true,
+                syncedFromPayment: payment.code,
+              });
+            };
+
+            if (ownerShares.length > 0) {
+              // Cria 1 entry por coproprietario
+              for (const share of ownerShares) {
+                const ownerPortion = Math.round(splitOwnerValue * (share.percentage / 100) * 100) / 100;
+                await prisma.ownerEntry.create({
+                  data: {
+                    type: "CREDITO",
+                    category: "REPASSE",
+                    description: `Repasse aluguel ${mLabel} - ${contract.code || payment.contractId} (${share.percentage}%)`,
+                    value: ownerPortion,
+                    dueDate: payment.dueDate,
+                    status: "PENDENTE",
+                    ownerId: share.ownerId,
+                    contractId: payment.contractId,
+                    propertyId: contract.propertyId || null,
+                    notes: buildAutoNotes(share.percentage),
+                  },
+                });
+              }
+              // Restante (se soma < 100) vai pro owner principal
+              if (totalSharePercent < 100) {
+                const remainingPercent = Math.round((100 - totalSharePercent) * 100) / 100;
+                const remainingValue = Math.round(splitOwnerValue * (remainingPercent / 100) * 100) / 100;
+                await prisma.ownerEntry.create({
+                  data: {
+                    type: "CREDITO",
+                    category: "REPASSE",
+                    description: `Repasse aluguel ${mLabel} - ${contract.code || payment.contractId} (${remainingPercent}% restante)`,
+                    value: remainingValue,
+                    dueDate: payment.dueDate,
+                    status: "PENDENTE",
+                    ownerId: contract.ownerId,
+                    contractId: payment.contractId,
+                    propertyId: contract.propertyId || null,
+                    notes: buildAutoNotes(remainingPercent),
+                  },
+                });
+              }
+            } else {
+              // Sem coproprietarios — cria 1 entry no owner principal
+              await prisma.ownerEntry.create({
+                data: {
+                  type: "CREDITO",
+                  category: "REPASSE",
+                  description: `Repasse aluguel ${mLabel} - ${contract.code || payment.contractId}`,
+                  value: splitOwnerValue,
+                  dueDate: payment.dueDate,
+                  status: "PENDENTE",
+                  ownerId: contract.ownerId,
+                  contractId: payment.contractId,
+                  propertyId: contract.propertyId || null,
+                  notes: buildAutoNotes(100),
+                },
+              });
+            }
             repasseCriado = true;
           }
 
