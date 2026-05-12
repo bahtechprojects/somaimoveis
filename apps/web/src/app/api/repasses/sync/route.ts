@@ -113,9 +113,12 @@ export async function POST(request: NextRequest) {
         const csY = contract.startDate.getFullYear();
         const csM = contract.startDate.getMonth();
         const csDay = contract.startDate.getDate();
-        const ceY = contract.endDate.getFullYear();
-        const ceM = contract.endDate.getMonth();
-        const ceDay = contract.endDate.getDate();
+        // Fix Bug 5: contract.endDate pode ser null no schema. Antes
+        // crashava com TypeError. Agora guard explicito.
+        const ceDate = contract.endDate ? new Date(contract.endDate) : null;
+        const ceY = ceDate?.getFullYear() ?? null;
+        const ceM = ceDate?.getMonth() ?? null;
+        const ceDay = ceDate?.getDate() ?? null;
         const dueY = p.dueDate.getFullYear();
         const dueM = p.dueDate.getMonth();
         // Tenta com targetMonth/Year (param da request) e tambem com
@@ -131,10 +134,14 @@ export async function POST(request: NextRequest) {
             isProrata = true;
             prorataDays = 30 - csDay + 1;
             break;
-          } else if (ceY === cy && ceM === cm && ceDay < 30) {
-            isProrata = true;
-            prorataDays = ceDay;
-            break;
+          } else if (ceDate && ceY === cy && ceM === cm) {
+            // Fix Bug 6: dias reais do mes em vez de comparar com 30
+            const daysInMonth = new Date(cy, cm + 1, 0).getDate();
+            if (ceDay !== null && ceDay < daysInMonth) {
+              isProrata = true;
+              prorataDays = ceDay;
+              break;
+            }
           }
         }
         if (isProrata) {
@@ -157,13 +164,21 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const existing = await prisma.ownerEntry.findFirst({
+      // Fix Bug 7: usar findMany pra capturar TODAS as entries do contrato
+      // no dueDate. Se houver coproprietarios, ha N entries (uma por dono).
+      // findFirst antigo pegava arbitrariamente uma e podia ser de coproprietario,
+      // entrando no branch isCoOwner e pulando sem verificar o REPASSE do
+      // owner principal.
+      const existingAll = await prisma.ownerEntry.findMany({
         where: {
           contractId: p.contractId,
           dueDate: p.dueDate,
           category: "REPASSE",
         },
       });
+      // Prefere a entry do contract.ownerId (owner principal); fallback pra
+      // primeira da lista.
+      const existing = existingAll.find((e) => e.ownerId === contract.ownerId) || existingAll[0] || null;
 
       // Se ja existe, verifica se pode ser corrigido. Regras:
       //  - Status PENDENTE (PAGO nao mexe — repasse ja efetivado)

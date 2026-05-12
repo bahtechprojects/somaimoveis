@@ -234,7 +234,14 @@ export async function POST(request: NextRequest) {
         const discountEntries = tenantEntries.filter(e => e.type === "CREDITO");
         const chargeEntries = tenantEntries.filter(e => e.type === "DEBITO");
         const totalCredits = discountEntries.reduce((sum, e) => sum + e.value, 0);
-        const totalDebits = chargeEntries.reduce((sum, e) => sum + e.value, 0);
+        // Fix Bug 2: se ja temos iptuMonthly (calculado de property.iptuValue/12),
+        // ignoramos TenantEntry IPTU pra nao cobrar 2x. Idem condomínio.
+        const dedupCategorias = new Set<string>();
+        if (iptuMonthly > 0) dedupCategorias.add("IPTU");
+        if (condoFee > 0) dedupCategorias.add("CONDOMINIO");
+        const totalDebits = chargeEntries
+          .filter(e => !dedupCategorias.has((e.category || "").toUpperCase()))
+          .reduce((sum, e) => sum + e.value, 0);
 
         // Total = aluguel (proporcional se pro-rata) + condominio + IPTU + seguro + taxa bancaria + debitos - creditos
         const bankFee = contract.bankFee || 0;
@@ -491,16 +498,25 @@ export async function POST(request: NextRequest) {
           : Math.round(prorataRentalValue * (adminFee / 100) * 100) / 100;
 
         const buildOwnerNotes = (sharePercent: number) => {
+          // Fix Bug 4: intermediacao e netToOwner sao guardados PROPORCIONAIS
+          // por sharePercent. Antes guardavam valor cheio em todas as entries
+          // de coproprietarios — ferramentas downstream (repair-missing-intermediacao,
+          // demonstrativos) liam o valor cheio e somavam N vezes.
+          const shareRatio = sharePercent / 100;
           return JSON.stringify({
             aluguelBruto: baseAluguel,
             adminFeePercent: adminFee,
-            adminFeeValue: totalAdminFeeValue,
+            adminFeeValue: Math.round(totalAdminFeeValue * shareRatio * 100) / 100,
             sharePercent: sharePercent < 100 ? sharePercent : undefined,
-            intermediacao: intermediationInstallmentValue > 0 ? intermediationInstallmentValue : undefined,
+            intermediacao: intermediationInstallmentValue > 0
+              ? Math.round(intermediationInstallmentValue * shareRatio * 100) / 100
+              : undefined,
             intermediacaoNota: intermediationNote || undefined,
-            irrfValue: irrfValue > 0 ? irrfValue : undefined,
+            irrfValue: irrfValue > 0
+              ? Math.round(irrfValue * shareRatio * 100) / 100
+              : undefined,
             irrfRate: irrfValue > 0 ? irrfRate : undefined,
-            netToOwner,
+            netToOwner: Math.round(netToOwner * shareRatio * 100) / 100,
           });
         };
 
@@ -530,16 +546,19 @@ export async function POST(request: NextRequest) {
               });
             }
 
-            // Se a soma das porcentagens não dá 100%, o proprietário do contrato recebe o restante
-            const contractOwnerInShares = ownerShares.some(s => s.ownerId === contract.ownerId);
-            if (totalSharePercent < 100 && !contractOwnerInShares) {
+            // Fix Bug 1: se a soma das porcentagens nao da 100%, o proprietario
+            // do contrato recebe o restante — INDEPENDENTE de ja estar em
+            // ownerShares. Antes, se o contract.ownerId estava em ownerShares
+            // (com qualquer percentage), o restante NAO era criado e o owner
+            // perdia metade do repasse silenciosamente.
+            if (totalSharePercent < 100) {
               const remainingPercent = Math.round((100 - totalSharePercent) * 100) / 100;
               const remainingValue = Math.round(splitOwnerValue * (remainingPercent / 100) * 100) / 100;
               await prisma.ownerEntry.create({
                 data: {
                   type: "CREDITO",
                   category: "REPASSE",
-                  description: `Repasse aluguel ${mLabel} - ${contract.code} (${remainingPercent}%)`,
+                  description: `Repasse aluguel ${mLabel} - ${contract.code} (${remainingPercent}% restante)`,
                   value: remainingValue,
                   dueDate,
                   status: "PENDENTE",
