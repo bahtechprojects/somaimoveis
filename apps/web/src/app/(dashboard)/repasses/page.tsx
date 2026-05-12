@@ -635,6 +635,32 @@ export default function RepassesPage() {
     setConfirmDialogOpen(true);
   }
 
+  // Marca entries selecionadas como "Confirmado pelo Banco" manualmente.
+  // Usado quando o admin sabe que o banco efetivou mas nao tem o .RET
+  // pra importar (ou quer mover manual da aba Nao Confirmados pra Confirmados).
+  async function handleConfirmBankManual() {
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/repasses/confirm-bank-manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entryIds: Array.from(selectedEntries) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Erro ao confirmar pelo banco");
+        return;
+      }
+      toast.success(data.message || `${data.total} confirmado(s)`);
+      setSelectedEntries(new Set());
+      fetchRepasses();
+    } catch {
+      toast.error("Erro ao confirmar pelo banco");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
   async function handleBatchUpdate() {
     setActionLoading(true);
     try {
@@ -1149,15 +1175,28 @@ export default function RepassesPage() {
                     </Button>
                   </div>
                   {isPagos ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="gap-1.5 h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
-                      onClick={() => openConfirmDialog("PENDENTE")}
-                    >
-                      <Clock className="h-3.5 w-3.5" />
-                      Reverter para Pendente
-                    </Button>
+                    <>
+                      {activeTab === "pagos" && (
+                        <Button
+                          size="sm"
+                          className="gap-1.5 h-8 text-xs bg-emerald-600 hover:bg-emerald-700"
+                          onClick={handleConfirmBankManual}
+                          disabled={actionLoading}
+                          title="Marca os selecionados como confirmados pelo banco (move pra aba 'Confirmados Banco')"
+                        >
+                          ✅ Marcar Confirmado Banco
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5 h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                        onClick={() => openConfirmDialog("PENDENTE")}
+                      >
+                        <Clock className="h-3.5 w-3.5" />
+                        Reverter para Pendente
+                      </Button>
+                    </>
                   ) : (
                     <Button
                       size="sm"
