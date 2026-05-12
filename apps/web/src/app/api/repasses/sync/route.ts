@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
           rentalValue: true,
           adminFeePercent: true,
           propertyId: true,
+          ownerId: true,
           startDate: true,
           endDate: true,
         },
