@@ -133,15 +133,9 @@ export async function POST(request: NextRequest) {
           })
         : [];
 
-      // Deduplicar: se vários entries idênticos (mesmo valor+desc) → considerar como 1 só
-      const descontosUnicos = new Map<string, number>();
-      for (const d of descontosContrato) {
-        const key = `${d.value}|${(d.description || "").trim()}`;
-        if (!descontosUnicos.has(key)) {
-          descontosUnicos.set(key, d.value);
-        }
-      }
-      const totalDesconto = Array.from(descontosUnicos.values()).reduce((s, v) => s + v, 0);
+      // Somar todos os descontos do mes 5 (cada parcela e legitima - parcelas
+      // futuras ficam em outros meses e nao entram nessa query)
+      const totalDesconto = descontosContrato.reduce((s, d) => s + d.value, 0);
 
       const temIntermediacao = intermed && intermed.value > 0;
       const temDesconto = totalDesconto > 0;
