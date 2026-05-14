@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, isAuthError } from "@/lib/api-auth";
 
+// Forca a rota a ser dinamica - sem cache. Garante que mudancas no banco
+// aparecam imediatamente para todos os usuarios (Leo, Paulo, etc) sem
+// stale data por cache do Next.js.
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(request: NextRequest) {
   const auth = await requireAuth();
   if (isAuthError(auth)) return auth;
@@ -446,7 +452,13 @@ export async function GET(request: NextRequest) {
     })
     .sort((a, b) => a.owner.name.localeCompare(b.owner.name, "pt-BR"));
 
-  return NextResponse.json(result);
+  return NextResponse.json(result, {
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    },
+  });
   } catch (error) {
     console.error("[Repasses GET] Erro:", error);
     return NextResponse.json(
