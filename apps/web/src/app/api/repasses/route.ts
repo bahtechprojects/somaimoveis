@@ -335,6 +335,11 @@ export async function GET(request: NextRequest) {
         ],
       },
     };
+    // NOTA Paulo 14/05: NAO filtrar TenantEntries por status da query.
+    // Filtro foi removido apos quebrar abas Confirmados/Nao Confirmados:
+    // TenantEntries PENDENTE precisam aparecer virtualizadas em PAGO da aba
+    // 'Nao Confirmados' tambem (caso boleto pago no banco mas TenantEntry
+    // ainda como PENDENTE). Manter comportamento original.
     if (month && /^\d{4}-\d{2}$/.test(month)) {
       const [y, m] = month.split("-").map(Number);
       const monthStart = new Date(y, m - 1, 1);
