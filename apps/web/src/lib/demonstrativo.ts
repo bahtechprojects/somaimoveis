@@ -530,7 +530,11 @@ export async function buildDemonstrativo(
       const descontoLocatarioProprio = Math.round(descontoLocatarioTotal * shareRatio * 100) / 100;
       const descontoProprio = descontoOwnerEntries + descontoLocatarioProprio;
       const brutoLiquido = Math.max(0, bruto - descontoProprio);
-      const adminFeeRecalc = Math.round((brutoLiquido * adminFeePercent / 100) * 100) / 100;
+      // Fix Leo 13/05: respeitar adminWaived das notes do REPASSE.
+      // Quando contrato tem intermediacao no mes, admin = 0 (regra Leo).
+      // Demonstrativo precisa bater EXATO com o repasse.
+      const adminWaived = noteData?.adminWaived === true || noteData?.adminFeeValue === 0;
+      const adminFeeRecalc = adminWaived ? 0 : Math.round((brutoLiquido * adminFeePercent / 100) * 100) / 100;
 
       let irrfRecalc = 0;
       const irrfOriginal = noteData?.irrfValue || 0;
