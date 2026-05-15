@@ -471,26 +471,11 @@ export default function RepassesPage() {
     }
   }
 
-  // Auto-sync silencioso quando o admin abre /repasses ou troca de mes:
-  // garante que todo Payment do mes (PAGO, PENDENTE, ATRASADO) tenha
-  // OwnerEntry REPASSE correspondente. Cobre o caso de contratos cujo
-  // billing/generate falhou ou Payments criados manualmente.
+  // Fix Paulo 14/05/2026: auto-sync DESABILITADO. O sync recalculava
+  // repasses PENDENTE com formula simples (aluguel - admin), sobrescrevendo
+  // correcoes manuais (intermediacao, descontos, resquicios). Agora o sync
+  // so roda quando o admin clica no botao "Sincronizar" explicitamente.
   async function autoSyncAndFetch() {
-    if (canAdmin && month) {
-      try {
-        const res = await fetch(`/api/repasses/sync?month=${month}`, { method: "POST" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.repassesCriados > 0) {
-            toast.info(
-              `${data.repassesCriados} repasse(s) sincronizado(s) automaticamente — boletos atrasados/pendentes agora aparecem na lista.`
-            );
-          }
-        }
-      } catch {
-        // sync silencioso falhou — segue pro fetch normal
-      }
-    }
     await fetchRepasses();
   }
 
