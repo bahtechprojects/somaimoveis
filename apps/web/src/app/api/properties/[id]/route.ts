@@ -54,11 +54,24 @@ export async function PUT(
     if (body.state !== undefined) data.state = body.state;
     if (body.zipCode !== undefined) data.zipCode = body.zipCode;
     if (body.notes !== undefined) data.notes = body.notes;
-    if (body.registrationNumber !== undefined) data.registrationNumber = body.registrationNumber || null;
-    if (body.iptuNumber !== undefined) data.iptuNumber = body.iptuNumber || null;
-    if (body.energyMeter !== undefined) data.energyMeter = body.energyMeter || null;
-    if (body.waterMeter !== undefined) data.waterMeter = body.waterMeter || null;
-    if (body.gasMeter !== undefined) data.gasMeter = body.gasMeter || null;
+    // Fix Paulo 18/05/2026: codigos de registro (IPTU, medidores, matricula)
+    // estavam sumindo. O formulario SEMPRE envia esses campos; se a tela
+    // carregasse vazio (timing/versao antiga), o '|| null' apagava o codigo
+    // existente. Agora so atualiza se vier COM valor — campo vazio preserva
+    // o codigo. Para limpar de proposito, use ?clearCodes=true.
+    const clearCodes = new URL(request.url).searchParams.get("clearCodes") === "true";
+    const setCodeField = (field: string, value: unknown) => {
+      if (value === undefined) return; // campo nao enviado: nao mexe
+      const str = value ? String(value).trim() : "";
+      if (str) data[field] = str;            // tem valor: atualiza
+      else if (clearCodes) data[field] = null; // vazio + flag explicita: limpa
+      // vazio sem flag: preserva o codigo existente (nao mexe)
+    };
+    setCodeField("registrationNumber", body.registrationNumber);
+    setCodeField("iptuNumber", body.iptuNumber);
+    setCodeField("energyMeter", body.energyMeter);
+    setCodeField("waterMeter", body.waterMeter);
+    setCodeField("gasMeter", body.gasMeter);
     if (body.condoAdmin !== undefined) data.condoAdmin = body.condoAdmin || null;
     // Numeric fields (parseFloat)
     if (body.area !== undefined) data.area = body.area ? parseFloat(body.area) : null;

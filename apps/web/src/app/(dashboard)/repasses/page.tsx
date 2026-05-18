@@ -471,26 +471,11 @@ export default function RepassesPage() {
     }
   }
 
-  // Auto-sync silencioso quando o admin abre /repasses ou troca de mes:
-  // garante que todo Payment do mes (PAGO, PENDENTE, ATRASADO) tenha
-  // OwnerEntry REPASSE correspondente. Cobre o caso de contratos cujo
-  // billing/generate falhou ou Payments criados manualmente.
+  // Fix Paulo 14/05/2026: auto-sync DESABILITADO. O sync recalculava
+  // repasses PENDENTE com formula simples (aluguel - admin), sobrescrevendo
+  // correcoes manuais (intermediacao, descontos, resquicios). Agora o sync
+  // so roda quando o admin clica no botao "Sincronizar" explicitamente.
   async function autoSyncAndFetch() {
-    if (canAdmin && month) {
-      try {
-        const res = await fetch(`/api/repasses/sync?month=${month}`, { method: "POST" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.repassesCriados > 0) {
-            toast.info(
-              `${data.repassesCriados} repasse(s) sincronizado(s) automaticamente — boletos atrasados/pendentes agora aparecem na lista.`
-            );
-          }
-        }
-      } catch {
-        // sync silencioso falhou — segue pro fetch normal
-      }
-    }
     await fetchRepasses();
   }
 
@@ -1942,7 +1927,7 @@ export default function RepassesPage() {
                                   )}
                                   {totalAdminFee > 0.01 && (
                                     <span className="text-orange-600 font-medium">
-                                      Taxa adm: {adminFeePercent}%
+                                      Taxa adm: -{formatCurrency(Math.round(totalAdminFee * 100) / 100)}
                                     </span>
                                   )}
                                   {totalIntermediacao > 0 && (
@@ -2051,7 +2036,7 @@ export default function RepassesPage() {
                                                     <p className="font-medium border-b pb-1 mb-1 text-xs">Composição do Repasse</p>
                                                     <p className="text-xs">Aluguel bruto: {formatCurrency(n.aluguelBruto)}</p>
                                                     {adminCobrada ? (
-                                                      <p className="text-xs text-red-600">- Taxa adm: {n.adminFeePercent}%</p>
+                                                      <p className="text-xs text-red-600">- Taxa adm ({n.adminFeePercent}%): {formatCurrency(n.adminFeeValue ?? 0)}</p>
                                                     ) : (
                                                       <p className="text-xs text-emerald-700">Taxa adm: isenta (intermediacao no mes)</p>
                                                     )}
@@ -2061,7 +2046,7 @@ export default function RepassesPage() {
                                                     {n.irrfValue > 0 && (
                                                       <p className="text-xs text-red-600">- IRRF ({(n.irrfRate * 100).toFixed(1)}%): {formatCurrency(n.irrfValue)}</p>
                                                     )}
-                                                    <p className="text-xs font-semibold border-t pt-1 mt-1">= Líquido: {formatCurrency(n.netToOwner)}</p>
+                                                    <p className="text-xs font-semibold border-t pt-1 mt-1">= Líquido: {formatCurrency(entry.value)}</p>
                                                   </TooltipContent>
                                                 </Tooltip>
                                               </TooltipProvider>
