@@ -99,33 +99,56 @@ export async function buildDemonstrativo(
   // Fix Leo 13/05: TenantEntry destination=PROPRIETARIO afeta o demonstrativo
   // do owner. Inverte tipo (DEBITO inquilino -> CREDITO owner, e vice-versa).
   // Sem isso, IPTU pago pelo inquilino nao aparecia no demonstrativo do owner.
-  const tenantEntriesForOwner = await prisma.tenantEntry.findMany({
+  //
+  // Fix Paulo 19/05/2026 (v3): incluir coproprietarios secundarios.
+  // Antes filtrava por Contract.ownerId, perdendo coproprietarios cadastrados
+  // via propertyOwners (Martin Eidt 50% CTR-19 onde principal e' Adriana, etc).
+  // Agora busca contratos via:
+  //   1. Contract.ownerId (principal) OU
+  //   2. Property.ownerShares (coproprietario formal via PropertyOwner)
+  const propShares = await prisma.propertyOwner.findMany({
+    where: { ownerId },
+    select: { propertyId: true },
+  });
+  const propertyIdsDoOwner = propShares.map(p => p.propertyId);
+  const contratosDoOwner = await prisma.contract.findMany({
     where: {
-      destination: "PROPRIETARIO",
-      status: { not: "CANCELADO" },
+      status: "ATIVO",
       OR: [
-        { dueDate: { gte: monthStart, lte: monthEnd } },
-        { AND: [{ dueDate: null }, { paidAt: { gte: monthStart, lte: monthEnd } }] },
+        { ownerId },
+        ...(propertyIdsDoOwner.length > 0 ? [{ propertyId: { in: propertyIdsDoOwner } }] : []),
       ],
-      tenant: {
-        contracts: {
-          some: { ownerId, status: "ATIVO" },
-        },
-      },
     },
-    include: {
-      tenant: {
-        select: {
-          id: true, name: true,
-          contracts: {
-            where: { ownerId, status: "ATIVO" },
-            select: { id: true, ownerId: true },
-            take: 1,
+    select: { id: true, ownerId: true, tenantId: true },
+  });
+  const tenantIdsDoOwner = [...new Set(contratosDoOwner.map(c => c.tenantId))];
+  const contractIdsDoOwner = contratosDoOwner.map(c => c.id);
+
+  const tenantEntriesForOwner = tenantIdsDoOwner.length > 0
+    ? await prisma.tenantEntry.findMany({
+        where: {
+          destination: "PROPRIETARIO",
+          status: { not: "CANCELADO" },
+          tenantId: { in: tenantIdsDoOwner },
+          OR: [
+            { dueDate: { gte: monthStart, lte: monthEnd } },
+            { AND: [{ dueDate: null }, { paidAt: { gte: monthStart, lte: monthEnd } }] },
+          ],
+        },
+        include: {
+          tenant: {
+            select: {
+              id: true, name: true,
+              contracts: {
+                where: { id: { in: contractIdsDoOwner }, status: "ATIVO" },
+                select: { id: true, ownerId: true },
+                take: 1,
+              },
+            },
           },
         },
-      },
-    },
-  });
+      })
+    : [];
 
   // Converter TenantEntries em pseudo-OwnerEntries (com inversão de tipo)
   // Dedup mais robusto: se o owner ja tem OwnerEntries da mesma categoria,
