@@ -358,12 +358,21 @@ export async function POST(request: NextRequest) {
         // Schema: <30 chars do entry.id>-<5 chars timestamp base36>. Total <=36.
         const integrationId = `${entry.id.slice(0, 30)}-${Date.now().toString(36).slice(-5)}`;
 
+        // effectiveDate alimenta TANTO dhEmi (emissao) QUANTO dCompet
+        // (competencia) no XML do Padrao Nacional. A Spedy nao tem campo
+        // separado pra cada um. Como queremos a competencia certa (mes do
+        // entry.dueDate, ex: abril/2026), usamos o ultimo dia do mes da
+        // dueDate. Se a entry nao tem dueDate, fallback pra agora.
+        const competenciaDate = entry.dueDate
+          ? new Date(entry.dueDate.getFullYear(), entry.dueDate.getMonth() + 1, 0, 12, 0, 0)
+          : new Date();
+
         try {
           const created = await emitirNFSeSpedy({
             ambiente: ambiente as SpedyAmbiente,
             apiKey: spedyApiKey,
             body: {
-              effectiveDate: new Date().toISOString().slice(0, 19),
+              effectiveDate: competenciaDate.toISOString().slice(0, 19),
               sendEmailToCustomer: !!entry.owner.email,
               description: discriminacao,
               federalServiceCode: settings.codigoServicoMunicipal || "1.05",
