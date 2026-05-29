@@ -37,6 +37,9 @@ import {
   Loader2,
   RefreshCw,
   EyeOff,
+  ShieldCheck,
+  XCircle,
+  Info,
 } from "lucide-react";
 
 interface NotaFiscal {
@@ -102,6 +105,66 @@ function formatMonthLabel(month: string): string {
   return `${months[parseInt(m) - 1]} ${y}`;
 }
 
+// ====== Tipos do relatório de pré-validação (audit dry-run) ======
+type AuditSeverity = "BLOQUEANTE" | "AVISO" | "INFO";
+
+interface AuditValidation {
+  severity: AuditSeverity;
+  code: string;
+  message: string;
+}
+
+interface AuditItem {
+  contractId: string | null;
+  ano: number;
+  mes: number;
+  ownerId: string;
+  ownerName: string;
+  ownerCpfCnpj: string;
+  ownerCpfCnpjValido: boolean;
+  ownerEmail: string | null;
+  naoDeclaraImob: boolean;
+  contractCode: string | null;
+  contractStatus: string | null;
+  propertyAddress: string | null;
+  propertyEnderecoCompleto: boolean;
+  valorNF: number;
+  valorOrigem: "REPASSE_NOTES" | "REPASSE_CALC" | "INTERMEDIACAO_ENTRY" | "MISSING";
+  aliquotaIss: number;
+  aliquotaIssOrigem: "MENSAL" | "ANTERIOR" | "GLOBAL" | "DEFAULT";
+  aliquotaCompetenciaUsada: string | null;
+  invoiceExistente: {
+    id: string;
+    numero: string | null;
+    status: string;
+  } | null;
+  validations: AuditValidation[];
+  canEmit: boolean;
+  hasWarnings: boolean;
+}
+
+interface AuditReport {
+  summary: {
+    month: string;
+    totalItens: number;
+    totalCanEmit: number;
+    totalBloqueados: number;
+    totalComAvisos: number;
+    totalSuprimidos: number;
+    totalReEmissao: number;
+    valorTotalAEmitir: number;
+    valorTotalBloqueado: number;
+    porOwner: Array<{
+      ownerId: string;
+      ownerName: string;
+      qtdNotas: number;
+      valorTotal: number;
+      qtdBloqueados: number;
+    }>;
+  };
+  items: AuditItem[];
+}
+
 export default function NotasFiscaisPage() {
   const [data, setData] = useState<NotasResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -113,6 +176,10 @@ export default function NotasFiscaisPage() {
   const [checkingStatus, setCheckingStatus] = useState<Set<string>>(new Set());
   // Modal de erros de emissao — mostra TODAS as falhas (sem corte)
   const [emissionErrors, setEmissionErrors] = useState<EmissionError[] | null>(null);
+  // Modal de pre-validacao (audit dry-run)
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditReport, setAuditReport] = useState<AuditReport | null>(null);
+  const [auditFilter, setAuditFilter] = useState<"todos" | "bloqueados" | "avisos" | "ok">("todos");
 
   async function fetchNotas() {
     setLoading(true);
@@ -372,6 +439,26 @@ export default function NotasFiscaisPage() {
     window.open(url, "_blank");
   }
 
+  async function preValidarNotas() {
+    setAuditLoading(true);
+    setAuditFilter("todos");
+    try {
+      const res = await fetch(`/api/invoices/preview-audit?month=${month}`, {
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "Erro ao pre-validar");
+        return;
+      }
+      setAuditReport(data);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro");
+    } finally {
+      setAuditLoading(false);
+    }
+  }
+
   async function cancelarNF(invoiceId: string, ownerName: string) {
     const justification = window.prompt(
       `Cancelar a NF de ${ownerName} na prefeitura?\n\nInforme a justificativa do cancelamento (obrigatório):`
@@ -583,6 +670,17 @@ export default function NotasFiscaisPage() {
                 <Button size="sm" variant="outline" className="gap-1.5 h-9 text-xs" onClick={exportCSV}>
                   <Download className="h-3.5 w-3.5" />
                   CSV
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 h-9 text-xs border-amber-400 text-amber-700 hover:bg-amber-50"
+                  onClick={preValidarNotas}
+                  disabled={auditLoading}
+                  title="Pre-valida tudo antes de emitir — checa CPF/CNPJ, valor, imovel, aliquota etc."
+                >
+                  {auditLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                  Pré-validar Notas
                 </Button>
               </div>
               <div className="relative">
@@ -1119,6 +1217,192 @@ export default function NotasFiscaisPage() {
               </div>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Pre-validacao (audit dry-run). Mostra TUDO que vai sair
+          de NF antes de emitir — bloqueios, avisos, valor por owner. */}
+      <Dialog
+        open={auditReport !== null}
+        onOpenChange={(open) => { if (!open) setAuditReport(null); }}
+      >
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-amber-600" />
+              Pré-validação de Notas — {auditReport ? formatMonthLabel(auditReport.summary.month) : ""}
+            </DialogTitle>
+            <DialogDescription>
+              Relatório dry-run agrupado por (contrato, mês). Revise antes de emitir.
+            </DialogDescription>
+          </DialogHeader>
+
+          {auditReport && (
+            <>
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 shrink-0">
+                <div className="rounded-md border bg-emerald-50 border-emerald-200 p-2">
+                  <div className="text-[10px] text-emerald-700">Prontos pra emitir</div>
+                  <div className="text-lg font-semibold text-emerald-900">{auditReport.summary.totalCanEmit}</div>
+                  <div className="text-[10px] text-emerald-600">{formatCurrency(auditReport.summary.valorTotalAEmitir)}</div>
+                </div>
+                <div className="rounded-md border bg-red-50 border-red-200 p-2">
+                  <div className="text-[10px] text-red-700">Bloqueados</div>
+                  <div className="text-lg font-semibold text-red-900">{auditReport.summary.totalBloqueados}</div>
+                  <div className="text-[10px] text-red-600">{formatCurrency(auditReport.summary.valorTotalBloqueado)}</div>
+                </div>
+                <div className="rounded-md border bg-amber-50 border-amber-200 p-2">
+                  <div className="text-[10px] text-amber-700">Com avisos</div>
+                  <div className="text-lg font-semibold text-amber-900">{auditReport.summary.totalComAvisos}</div>
+                </div>
+                <div className="rounded-md border bg-gray-50 border-gray-200 p-2">
+                  <div className="text-[10px] text-gray-600">Suprimidos</div>
+                  <div className="text-lg font-semibold text-gray-900">{auditReport.summary.totalSuprimidos}</div>
+                  <div className="text-[10px] text-gray-500">naoDeclaraImob</div>
+                </div>
+                <div className="rounded-md border bg-blue-50 border-blue-200 p-2">
+                  <div className="text-[10px] text-blue-700">Re-emissões</div>
+                  <div className="text-lg font-semibold text-blue-900">{auditReport.summary.totalReEmissao}</div>
+                  <div className="text-[10px] text-blue-600">canceladas/rejeitadas</div>
+                </div>
+              </div>
+
+              {/* Top owners */}
+              {auditReport.summary.porOwner.length > 0 && (
+                <div className="border rounded-md p-2 bg-muted/30 shrink-0">
+                  <div className="text-xs font-medium text-muted-foreground mb-1.5">
+                    Por proprietário (top 5 por valor):
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-2 text-xs">
+                    {auditReport.summary.porOwner.slice(0, 5).map((o) => (
+                      <div key={o.ownerId} className="flex items-center justify-between gap-2 bg-background border rounded px-2 py-1">
+                        <span className="truncate">{o.ownerName}</span>
+                        <span className="text-muted-foreground tabular-nums whitespace-nowrap">
+                          {o.qtdNotas}× {formatCurrency(o.valorTotal)}
+                          {o.qtdBloqueados > 0 && <span className="text-red-600 ml-1">({o.qtdBloqueados}🚫)</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Filtros */}
+              <div className="flex gap-1 shrink-0">
+                {(["todos", "bloqueados", "avisos", "ok"] as const).map((f) => (
+                  <Button
+                    key={f}
+                    size="sm"
+                    variant={auditFilter === f ? "default" : "outline"}
+                    className="h-7 text-xs"
+                    onClick={() => setAuditFilter(f)}
+                  >
+                    {f === "todos" ? `Todos (${auditReport.items.length})`
+                      : f === "bloqueados" ? `🔴 Bloqueados (${auditReport.summary.totalBloqueados})`
+                      : f === "avisos" ? `🟡 Com avisos (${auditReport.summary.totalComAvisos})`
+                      : `✅ OK (${auditReport.summary.totalCanEmit - auditReport.summary.totalComAvisos})`}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Lista de itens */}
+              <div className="overflow-y-auto flex-1 space-y-2 pr-1">
+                {auditReport.items
+                  .filter((i) => {
+                    if (auditFilter === "todos") return true;
+                    if (auditFilter === "bloqueados") return !i.canEmit;
+                    if (auditFilter === "avisos") return i.canEmit && i.hasWarnings;
+                    if (auditFilter === "ok") return i.canEmit && !i.hasWarnings;
+                    return true;
+                  })
+                  .map((i) => {
+                    const borderColor = !i.canEmit
+                      ? "border-red-300 bg-red-50/50"
+                      : i.hasWarnings
+                      ? "border-amber-300 bg-amber-50/50"
+                      : "border-emerald-300 bg-emerald-50/50";
+                    const statusIcon = !i.canEmit
+                      ? <XCircle className="h-4 w-4 text-red-600" />
+                      : i.hasWarnings
+                      ? <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      : <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
+                    return (
+                      <div key={`${i.contractId}-${i.ano}-${i.mes}-${i.ownerId}`} className={`border rounded-md p-3 ${borderColor}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 text-sm font-medium">
+                              {statusIcon}
+                              <span className="truncate">{i.ownerName}</span>
+                              <span className="text-xs text-muted-foreground font-normal">
+                                · {i.contractCode || "(sem contrato)"}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1 grid grid-cols-1 md:grid-cols-2 gap-x-3">
+                              <div>
+                                <strong>CPF/CNPJ:</strong>{" "}
+                                {i.ownerCpfCnpjValido
+                                  ? i.ownerCpfCnpj
+                                  : <span className="text-red-600">{i.ownerCpfCnpj || "(vazio)"} ⚠️</span>}
+                              </div>
+                              <div>
+                                <strong>Alíquota:</strong> {i.aliquotaIss.toFixed(2)}%{" "}
+                                <span className="text-[10px]">
+                                  ({i.aliquotaIssOrigem}
+                                  {i.aliquotaCompetenciaUsada && i.aliquotaIssOrigem === "ANTERIOR" && ` ${i.aliquotaCompetenciaUsada}`})
+                                </span>
+                              </div>
+                              <div className="md:col-span-2 truncate">
+                                <strong>Imóvel:</strong>{" "}
+                                {i.propertyAddress || <span className="text-amber-600">(sem property — ibsCbs omitido)</span>}
+                              </div>
+                              <div>
+                                <strong>Origem valor:</strong>{" "}
+                                <span className="text-[10px]">{i.valorOrigem}</span>
+                              </div>
+                              {i.invoiceExistente && (
+                                <div>
+                                  <strong>NF anterior:</strong>{" "}
+                                  #{i.invoiceExistente.numero || "?"} ({i.invoiceExistente.status})
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-lg font-semibold tabular-nums">
+                              {formatCurrency(i.valorNF)}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">Valor NF</div>
+                          </div>
+                        </div>
+
+                        {/* Validações */}
+                        {i.validations.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {i.validations.map((v, idx) => (
+                              <div
+                                key={idx}
+                                className={`text-xs flex items-start gap-1.5 ${
+                                  v.severity === "BLOQUEANTE" ? "text-red-700"
+                                  : v.severity === "AVISO" ? "text-amber-700"
+                                  : "text-blue-700"
+                                }`}
+                              >
+                                {v.severity === "BLOQUEANTE" ? <XCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                                  : v.severity === "AVISO" ? <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                                  : <Info className="h-3 w-3 mt-0.5 shrink-0" />}
+                                <span className="break-words">
+                                  <span className="font-mono text-[10px] opacity-60">{v.code}</span> · {v.message}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
