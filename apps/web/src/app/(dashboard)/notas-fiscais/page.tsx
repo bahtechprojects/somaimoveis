@@ -164,6 +164,7 @@ interface AuditItem {
   validations: AuditValidation[];
   canEmit: boolean;
   hasWarnings: boolean;
+  jaEmitida?: boolean;
 }
 
 interface AuditReport {
@@ -171,11 +172,13 @@ interface AuditReport {
     month: string;
     totalItens: number;
     totalCanEmit: number;
+    totalJaEmitidas?: number;
     totalBloqueados: number;
     totalComAvisos: number;
     totalSuprimidos: number;
     totalReEmissao: number;
     valorTotalAEmitir: number;
+    valorTotalJaEmitidas?: number;
     valorTotalBloqueado: number;
     porOwner: Array<{
       ownerId: string;
@@ -202,7 +205,14 @@ export default function NotasFiscaisPage() {
   // Modal de pre-validacao (audit dry-run)
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditReport, setAuditReport] = useState<AuditReport | null>(null);
-  const [auditFilter, setAuditFilter] = useState<"todos" | "bloqueados" | "avisos" | "ok">("todos");
+  const [auditFilter, setAuditFilter] = useState<"todos" | "bloqueados" | "avisos" | "ok" | "emitidas">("todos");
+  // Resultado do ultimo auto-link (pra mostrar pulados/ambiguos)
+  const [autoLinkResult, setAutoLinkResult] = useState<{
+    vinculados: Array<{ entryId: string; ownerName: string; contractCode?: string; heuristic?: string }>;
+    ambiguos: Array<{ entryId: string; ownerName: string; reason?: string; candidates?: Array<{ id: string; code: string }> }>;
+    pulados: Array<{ entryId: string; ownerName: string; reason?: string }>;
+    summary: { total: number; vinculados: number; ambiguos: number; pulados: number };
+  } | null>(null);
   // Edicao de valor manual por item (groupKey -> string do input)
   const [valorEdits, setValorEdits] = useState<Record<string, string>>({});
   const [savingOverride, setSavingOverride] = useState<string | null>(null);
@@ -225,6 +235,7 @@ export default function NotasFiscaisPage() {
         return;
       }
       const s = data.summary;
+      setAutoLinkResult(data);
       toast.success(
         `Auto-link: ${s.vinculados} vinculados, ${s.ambiguos} ambíguos, ${s.pulados} pulados`,
         { duration: 6000 }
@@ -1349,7 +1360,7 @@ export default function NotasFiscaisPage() {
           de NF antes de emitir — bloqueios, avisos, valor por owner. */}
       <Dialog
         open={auditReport !== null}
-        onOpenChange={(open) => { if (!open) setAuditReport(null); }}
+        onOpenChange={(open) => { if (!open) { setAuditReport(null); setAutoLinkResult(null); } }}
       >
         <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
@@ -1365,11 +1376,16 @@ export default function NotasFiscaisPage() {
           {auditReport && (
             <>
               {/* Summary cards */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-2 shrink-0">
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-2 shrink-0">
                 <div className="rounded-md border bg-emerald-50 border-emerald-200 p-2">
                   <div className="text-[10px] text-emerald-700">Prontos pra emitir</div>
                   <div className="text-lg font-semibold text-emerald-900">{auditReport.summary.totalCanEmit}</div>
                   <div className="text-[10px] text-emerald-600">{formatCurrency(auditReport.summary.valorTotalAEmitir)}</div>
+                </div>
+                <div className="rounded-md border bg-blue-50 border-blue-200 p-2">
+                  <div className="text-[10px] text-blue-700">📄 Emitidas</div>
+                  <div className="text-lg font-semibold text-blue-900">{auditReport.summary.totalJaEmitidas || 0}</div>
+                  <div className="text-[10px] text-blue-600">{formatCurrency(auditReport.summary.valorTotalJaEmitidas || 0)}</div>
                 </div>
                 <div className="rounded-md border bg-red-50 border-red-200 p-2">
                   <div className="text-[10px] text-red-700">Bloqueados</div>
@@ -1385,10 +1401,10 @@ export default function NotasFiscaisPage() {
                   <div className="text-lg font-semibold text-gray-900">{auditReport.summary.totalSuprimidos}</div>
                   <div className="text-[10px] text-gray-500">naoDeclaraImob</div>
                 </div>
-                <div className="rounded-md border bg-blue-50 border-blue-200 p-2">
-                  <div className="text-[10px] text-blue-700">Re-emissões</div>
-                  <div className="text-lg font-semibold text-blue-900">{auditReport.summary.totalReEmissao}</div>
-                  <div className="text-[10px] text-blue-600">canceladas/rejeitadas</div>
+                <div className="rounded-md border bg-violet-50 border-violet-200 p-2">
+                  <div className="text-[10px] text-violet-700">Re-emissões</div>
+                  <div className="text-lg font-semibold text-violet-900">{auditReport.summary.totalReEmissao}</div>
+                  <div className="text-[10px] text-violet-600">canceladas/rejeitadas</div>
                 </div>
               </div>
 
@@ -1414,7 +1430,7 @@ export default function NotasFiscaisPage() {
 
               {/* Filtros + acoes em massa */}
               <div className="flex gap-1 shrink-0 flex-wrap items-center">
-                {(["todos", "bloqueados", "avisos", "ok"] as const).map((f) => (
+                {(["todos", "bloqueados", "avisos", "ok", "emitidas"] as const).map((f) => (
                   <Button
                     key={f}
                     size="sm"
@@ -1425,7 +1441,8 @@ export default function NotasFiscaisPage() {
                     {f === "todos" ? `Todos (${auditReport.items.length})`
                       : f === "bloqueados" ? `🔴 Bloqueados (${auditReport.summary.totalBloqueados})`
                       : f === "avisos" ? `🟡 Com avisos (${auditReport.summary.totalComAvisos})`
-                      : `✅ OK (${auditReport.summary.totalCanEmit - auditReport.summary.totalComAvisos})`}
+                      : f === "ok" ? `✅ OK (${auditReport.summary.totalCanEmit - auditReport.summary.totalComAvisos})`
+                      : `📄 Emitidas (${auditReport.summary.totalJaEmitidas || 0})`}
                   </Button>
                 ))}
                 <div className="ml-auto" />
@@ -1444,29 +1461,92 @@ export default function NotasFiscaisPage() {
                 </Button>
               </div>
 
+              {/* Painel: resultado do ultimo auto-link (vinculados, ambiguos, pulados) */}
+              {autoLinkResult && (
+                <details className="border rounded-md bg-muted/30 text-xs shrink-0" open>
+                  <summary className="cursor-pointer px-3 py-2 flex items-center gap-2">
+                    <span className="font-medium">📋 Último auto-link:</span>
+                    <span className="text-emerald-700">✅ {autoLinkResult.summary.vinculados} vinculados</span>
+                    {autoLinkResult.summary.ambiguos > 0 && (
+                      <span className="text-amber-700">⚠️ {autoLinkResult.summary.ambiguos} ambíguos</span>
+                    )}
+                    {autoLinkResult.summary.pulados > 0 && (
+                      <span className="text-red-700">⏭️ {autoLinkResult.summary.pulados} pulados</span>
+                    )}
+                    <button
+                      type="button"
+                      className="ml-auto text-muted-foreground hover:text-foreground text-[10px]"
+                      onClick={(e) => { e.preventDefault(); setAutoLinkResult(null); }}
+                    >
+                      Fechar
+                    </button>
+                  </summary>
+                  <div className="px-3 pb-2 space-y-2 max-h-[200px] overflow-y-auto">
+                    {autoLinkResult.summary.ambiguos > 0 && (
+                      <div>
+                        <div className="font-medium text-amber-700 mb-1">Ambíguos (vincule manualmente abaixo):</div>
+                        <ul className="space-y-0.5">
+                          {autoLinkResult.ambiguos.slice(0, 20).map((a, idx) => (
+                            <li key={idx} className="text-[11px]">
+                              <strong>{a.ownerName}</strong> — {a.reason}
+                              {a.candidates && a.candidates.length > 0 && (
+                                <span className="text-muted-foreground"> · {a.candidates.map((c) => c.code).join(", ")}</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {autoLinkResult.summary.pulados > 0 && (
+                      <div>
+                        <div className="font-medium text-red-700 mb-1">Pulados:</div>
+                        <ul className="space-y-0.5">
+                          {autoLinkResult.pulados.slice(0, 20).map((p, idx) => (
+                            <li key={idx} className="text-[11px]">
+                              <strong>{p.ownerName}</strong> — {p.reason}
+                            </li>
+                          ))}
+                          {autoLinkResult.pulados.length > 20 && (
+                            <li className="text-[11px] text-muted-foreground">
+                              ...e mais {autoLinkResult.pulados.length - 20}
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </details>
+              )}
+
               {/* Lista de itens */}
               <div className="overflow-y-auto flex-1 space-y-2 pr-1">
                 {auditReport.items
                   .filter((i) => {
                     if (auditFilter === "todos") return true;
-                    if (auditFilter === "bloqueados") return !i.canEmit;
+                    if (auditFilter === "emitidas") return i.jaEmitida === true;
+                    if (auditFilter === "bloqueados") return !i.canEmit && !i.jaEmitida && !i.naoDeclaraImob;
                     if (auditFilter === "avisos") return i.canEmit && i.hasWarnings;
                     if (auditFilter === "ok") return i.canEmit && !i.hasWarnings;
                     return true;
                   })
                   .map((i) => {
-                    const borderColor = !i.canEmit
+                    const borderColor = i.jaEmitida
+                      ? "border-blue-300 bg-blue-50/40"
+                      : !i.canEmit
                       ? "border-red-300 bg-red-50/50"
                       : i.hasWarnings
                       ? "border-amber-300 bg-amber-50/50"
                       : "border-emerald-300 bg-emerald-50/50";
-                    const statusIcon = !i.canEmit
+                    const statusIcon = i.jaEmitida
+                      ? <FileText className="h-4 w-4 text-blue-600" />
+                      : !i.canEmit
                       ? <XCircle className="h-4 w-4 text-red-600" />
                       : i.hasWarnings
                       ? <AlertTriangle className="h-4 w-4 text-amber-600" />
                       : <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
+                    const itemKey = `${i.contractId || "null"}-${(i.entryIds || []).join("_")}-${i.ano}-${i.mes}-${i.ownerId}`;
                     return (
-                      <div key={`${i.contractId}-${i.ano}-${i.mes}-${i.ownerId}`} className={`border rounded-md p-3 ${borderColor}`}>
+                      <div key={itemKey} className={`border rounded-md p-3 ${borderColor}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 text-sm font-medium">
